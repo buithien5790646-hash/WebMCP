@@ -148,13 +148,6 @@
   }
 
   function sendResponseToChat(requestId, outputContent) {
-    // 防止输出太长导致浏览器卡顿，限制一下长度 (可选)
-    const MAX_LENGTH = 10000;
-    if (outputContent.length > MAX_LENGTH) {
-      outputContent =
-        outputContent.substring(0, MAX_LENGTH) + "\n... (输出过长已截断)";
-    }
-
     const responseJson = {
       mcp_action: "result",
       request_id: requestId,
@@ -174,12 +167,7 @@
       return;
     }
 
-    // 模拟输入
-    if (currentPlatform === "gemini") {
-      inputEl.innerText = replyText;
-    } else {
-      inputEl.value = replyText;
-    }
+    inputEl.innerText = replyText;
     inputEl.dispatchEvent(new Event("input", { bubbles: true }));
 
     if (CONFIG.autoSend) {
