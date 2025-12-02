@@ -5,21 +5,32 @@
   let CONFIG = {
     pollInterval: 1000,
     autoSend: true,
+    autoPromptEnabled: true, // 新增
   };
 
   // 1. 初始化时读取配置
-  chrome.storage.sync.get(['autoSend'], (result) => {
+  chrome.storage.sync.get(["autoSend", "autoPromptEnabled"], (result) => {
     if (result.autoSend !== undefined) {
       CONFIG.autoSend = result.autoSend;
     }
-    console.log(`[MCP Bridge] 初始配置加载: AutoSend=${CONFIG.autoSend}`);
+    if (result.autoPromptEnabled !== undefined) {
+      CONFIG.autoPromptEnabled = result.autoPromptEnabled;
+    }
+    console.log(
+      `[MCP Bridge] 初始配置加载: AutoSend=${CONFIG.autoSend}, AutoPrompt=${CONFIG.autoPromptEnabled}`
+    );
   });
 
   // 2. 监听配置实时变化 (Popup 修改后立即生效)
   chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === 'sync' && changes.autoSend) {
+    if (namespace === "sync" && changes.autoSend) {
       CONFIG.autoSend = changes.autoSend.newValue;
       console.log(`[MCP Bridge] 配置更新: AutoSend -> ${CONFIG.autoSend}`);
+    } else if (namespace === "sync" && changes.autoPromptEnabled) {
+      CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;
+      console.log(
+        `[MCP Bridge] 配置更新: AutoPrompt -> ${CONFIG.autoPromptEnabled}`
+      );
     }
   });
 
@@ -36,11 +47,14 @@
       messageBlocks: ".markdown",
       codeBlocks: "pre code",
       inputArea: 'div[contenteditable="true"]',
-      sendButton: 'button[aria-label="发送"], button[aria-label="Send"], button[aria-label*="Send"]',
+      sendButton:
+        'button[aria-label="发送"], button[aria-label="Send"], button[aria-label*="Send"]',
     },
   };
 
-  const currentPlatform = location.host.includes("gemini") ? "gemini" : "chatgpt";
+  const currentPlatform = location.host.includes("gemini")
+    ? "gemini"
+    : "chatgpt";
   const DOM = SELECTORS[currentPlatform];
 
   console.log(`[MCP Extension] 🚀 v1.2 已启动! 平台: ${currentPlatform}`);
@@ -48,7 +62,23 @@
   // --- 主循环 ---
   setInterval(() => {
     const messages = document.querySelectorAll(DOM.messageBlocks);
-    if (messages.length === 0) return;
+    if (messages.length === 0) {
+      const inputEl = document.querySelector(DOM.inputArea);
+      if (
+        inputEl &&
+        CONFIG.autoPromptEnabled &&
+        inputEl.textContent.trim() === ""
+      ) {
+        chrome.storage.local.get(["initialPrompt"], (items) => {
+          if (items.initialPrompt) {
+            inputEl.innerText = items.initialPrompt;
+            inputEl.dispatchEvent(new Event("input", { bubbles: true })); // 触发输入事件，使聊天应用识别内容变化
+            console.log("[MCP Bridge] 自动填充初始提示词。");
+          }
+        });
+      }
+      return;
+    }
 
     const lastMessage = messages[messages.length - 1];
     const codeElements = lastMessage.querySelectorAll(DOM.codeBlocks);
@@ -79,13 +109,21 @@
               if (response && response.success) {
                 sendResponseToChat(payload.request_id, response.data);
               } else {
-                sendResponseToChat(payload.request_id, `❌ Error: ${response.error}`);
+                sendResponseToChat(
+                  payload.request_id,
+                  `❌ Error: ${response.error}`
+                );
               }
             }
           );
         }
       } catch (e) {
-        // ignore JSON parse error
+        console.error(`[MCP Bridge] JSON 解析失败:`, e);
+        const correctFormatHint = `❌ **格式错误警告 (Format Error)**\n\n你的模型响应内容不是一个有效的 JSON 代码块，或者格式不符合 MCP 协议要求。请确保你的回复严格遵循以下格式：\n\n\`\`\`json\n{\n  \"mcp_action\": \"call\", \n  \"name\": \"工具名称\", \n  \"arguments\": {\n    \"key\": \"value\"\n  },\n  \"request_id\": \"step_x\"\n}\n\`\`\`\n\n请根据上述正确格式重新生成指令。`;
+        sendResponseToChat(
+          "error_format_hint_" + Date.now(),
+          correctFormatHint
+        );
       }
     });
   }, CONFIG.pollInterval);
@@ -106,7 +144,11 @@
       output: outputContent,
     };
 
-    const replyText = `\`\`\`json\n${JSON.stringify(responseJson, null, 2)}\n\`\`\``;
+    const replyText = `\`\`\`json\n${JSON.stringify(
+      responseJson,
+      null,
+      2
+    )}\n\`\`\``;
 
     const inputEl = document.querySelector(DOM.inputArea);
     if (!inputEl) {
