@@ -37,6 +37,12 @@
   const processedRequests = new Set();
 
   const SELECTORS = {
+    deepseek: {
+      messageBlocks: ".ds-message",
+      codeBlocks: "pre",
+      inputArea: "textarea.ds-scroll-area",
+      sendButton: "button.send-button",
+    },
     chatgpt: {
       messageBlocks: 'div[data-message-author-role="assistant"]',
       codeBlocks: "pre code",
@@ -52,7 +58,9 @@
     },
   };
 
-  const currentPlatform = location.host.includes("gemini")
+  const currentPlatform = location.host.includes("deepseek")
+    ? "deepseek"
+    : location.host.includes("gemini")
     ? "gemini"
     : "chatgpt";
   const DOM = SELECTORS[currentPlatform];

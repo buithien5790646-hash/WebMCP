@@ -3,15 +3,12 @@
   "name": "MCP2API Bridge",
   "version": "1.2",
   "description": "Connect ChatGPT/Gemini to local MCP Gateway",
-  "permissions": [
-    "scripting", 
-    "activeTab",
-    "storage"
-  ],
+  "permissions": ["scripting", "activeTab", "storage"],
   "host_permissions": [
+    "http://localhost/*",
     "https://chatgpt.com/*",
     "https://gemini.google.com/*",
-    "http://localhost/*"
+    "https://chat.deepseek.com/*"
   ],
   "action": {
     "default_popup": "popup.html"
@@ -23,7 +20,8 @@
     {
       "matches": [
         "https://chatgpt.com/*",
-        "https://gemini.google.com/*"
+        "https://gemini.google.com/*",
+        "https://chat.deepseek.com/*"
       ],
       "js": ["content.js"]
     }
