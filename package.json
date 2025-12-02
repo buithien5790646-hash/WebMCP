@@ -2,9 +2,12 @@
   "name": "mcp2api",
   "version": "1.0.0",
   "description": "A bridge connecting Web-based AI (ChatGPT/Gemini) with Local Machine via MCP.",
-  "type": "module",
+  "bin": {
+    "mcp2api": "cli.js"
+  },
   "scripts": {
-    "start": "node server.js"
+    "start": "node cli.js",
+    "dev": "node server.js" 
   },
   "keywords": [
     "mcp",
