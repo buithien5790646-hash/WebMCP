@@ -124,15 +124,14 @@
               }
             }
           );
+        } else {
+          const correctFormatHint = `❌ **格式错误警告 (Format Error)**\n\n你的模型响应内容不符合要求。请确保你的回复严格遵循以下格式：\n\n\`\`\`json\n{\n  \"mcp_action\": \"call\", \n  \"name\": \"工具名称\", \n  \"arguments\": {\n    \"key\": \"value\"\n  },\n  \"request_id\": \"step_x\"\n}\n\`\`\`\n\n请根据上述正确格式重新生成指令。`;
+          sendResponseToChat(
+            "error_format_hint_" + Date.now(),
+            correctFormatHint
+          );
         }
-      } catch (e) {
-        console.error(`[MCP Bridge] JSON 解析失败:`, e);
-        const correctFormatHint = `❌ **格式错误警告 (Format Error)**\n\n你的模型响应内容不是一个有效的 JSON 代码块，或者格式不符合 MCP 协议要求。请确保你的回复严格遵循以下格式：\n\n\`\`\`json\n{\n  \"mcp_action\": \"call\", \n  \"name\": \"工具名称\", \n  \"arguments\": {\n    \"key\": \"value\"\n  },\n  \"request_id\": \"step_x\"\n}\n\`\`\`\n\n请根据上述正确格式重新生成指令。`;
-        sendResponseToChat(
-          "error_format_hint_" + Date.now(),
-          correctFormatHint
-        );
-      }
+      } catch (e) {}
     });
   }, CONFIG.pollInterval);
 
@@ -172,8 +171,10 @@
     if (CONFIG.autoSend) {
       setTimeout(() => {
         const btn = document.querySelector(DOM.sendButton);
-        if (btn) btn.click();
-      }, 800);
+        if (btn) {
+          btn.click();
+        }
+      }, 1000);
     }
   }
 })();
