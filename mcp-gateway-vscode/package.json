@@ -1,5 +1,6 @@
 {
   "name": "mcp-gateway-vscode",
+  "publisher": "mcp-user",
   "displayName": "MCP Gateway",
   "description": "Connect Web AI to Local VS Code via Model Context Protocol",
   "version": "0.0.1",
@@ -37,11 +38,16 @@
           "type": "object",
           "default": {
             "filesystem": {
-              "command": "node",
-              "args": [
-                "INTERNAL_FS_SERVER",
-                "."
-              ]
+              "command": "npx",
+              "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+            },
+            "git": {
+              "command": "python",
+              "args": ["-m", "mcp_server_git", "--repository", "."]
+            },
+            "fetch": {
+              "command": "python",
+              "args": ["-m", "mcp_server_fetch"]
             }
           },
           "description": "Configuration for MCP Servers. Use 'INTERNAL_FS_SERVER' as the first arg to use the built-in filesystem server."
@@ -61,25 +67,24 @@
     "test": "vscode-test"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
     "@modelcontextprotocol/sdk": "^1.0.1",
-    "@modelcontextprotocol/server-filesystem": "^0.6.1",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/vscode": "^1.106.1",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "@types/express": "^4.17.21",
-    "@types/cors": "^2.8.17",
-    "typescript-eslint": "^8.46.3",
-    "eslint": "^9.39.1",
-    "typescript": "^5.9.3",
-    "ts-loader": "^9.5.4",
-    "webpack": "^5.102.1",
-    "webpack-cli": "^6.0.1",
+    "@types/vscode": "^1.106.1",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.39.1",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.3",
+    "webpack": "^5.102.1",
+    "webpack-cli": "^6.0.1"
   }
 }

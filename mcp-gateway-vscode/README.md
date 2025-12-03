@@ -1,71 +1,29 @@
-# mcp-gateway-vscode README
+# MCP Gateway for VS Code
 
-This is the README for your extension "mcp-gateway-vscode". After writing up a brief description, we recommend including the following sections.
+This extension acts as a **Model Context Protocol (MCP) Gateway**, allowing web-based AI agents (via Chrome Extension) to securely interact with your local VS Code environment.
 
-## Features
+## ✨ Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- **Zero Config Start**: Comes with Filesystem, Git, and Fetch support out of the box.
+- **Smart Context**: Automatically resolves `.` to your active workspace root.
+- **Lightweight**: Uses your local `npx` and `python` to run servers, keeping the extension size minimal.
 
-For example if there is an image subfolder under your extension project workspace:
+## 🚀 Getting Started
 
-\!\[feature X\]\(images/feature-x.png\)
+1. **Install the Extension** (`.vsix`).
+2. **Set your Extension ID** in VS Code Settings:
+   - `mcpGateway.allowedExtensionId`: Your Chrome Extension ID.
+3. **Install Dependencies** (for Git/Fetch support):
+   ```bash
+   pip install mcp-server-git mcp-server-fetch
+   ```
+   *(Note: Node.js is required for the Filesystem server)*
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## ⚙️ Configuration (Optional)
 
-## Requirements
+The extension works by default with the following servers:
+- **Filesystem**: `npx -y @modelcontextprotocol/server-filesystem .`
+- **Git**: `python -m mcp_server_git --repository .`
+- **Fetch**: `python -m mcp_server_fetch`
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+You can customize these in `mcpGateway.servers` if needed.
