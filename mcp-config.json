@@ -2,34 +2,23 @@
   "mcpServers": {
     "memory": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-memory"
-      ]
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
     },
     "filesystem": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "./"
-      ]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "./"]
     },
     "fetch": {
       "command": "python",
-      "args": [
-        "-m",
-        "mcp_server_fetch"
-      ]
+      "args": ["-m", "mcp_server_fetch"]
     },
     "git": {
       "command": "python",
-      "args": [
-        "-m",
-        "mcp_server_git",
-        "--repository",
-        "path/to/git/repo"
-      ]
+      "args": ["-m", "mcp_server_git", "--repository", "."]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
     }
   }
 }

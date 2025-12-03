@@ -13,11 +13,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 2. 复制初始提示词 (New)
+  // 2. 复制初始提示词
   const copyPromptBtn = document.getElementById("copyPromptBtn");
   if (copyPromptBtn) {
     copyPromptBtn.addEventListener("click", () => {
-      // 从 storage 读取 prompt.md 的内容
       chrome.storage.local.get(["initialPrompt"], (items) => {
         if (items.initialPrompt) {
           navigator.clipboard.writeText(items.initialPrompt).then(() => {
@@ -44,18 +43,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const portInput = document.getElementById("port");
   const autoSendInput = document.getElementById("autoSend");
   const autoPromptInput = document.getElementById("autoPrompt");
+  const showFloatingLogInput = document.getElementById("showFloatingLog");
   const statusDiv = document.getElementById("status");
 
   // 加载配置
   chrome.storage.sync.get(
-    ["port", "autoSend", "autoPromptEnabled"],
+    ["port", "autoSend", "autoPromptEnabled", "showFloatingLog"],
     (items) => {
       portInput.value = items.port || 3000;
       autoSendInput.checked =
         items.autoSend !== undefined ? items.autoSend : true;
-      // [修改] 默认为 false
       autoPromptInput.checked =
         items.autoPromptEnabled !== undefined ? items.autoPromptEnabled : false;
+      showFloatingLogInput.checked =
+        items.showFloatingLog !== undefined ? items.showFloatingLog : false;
     }
   );
 
@@ -64,9 +65,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const port = portInput.value;
     const autoSend = autoSendInput.checked;
     const autoPromptEnabled = autoPromptInput.checked;
+    const showFloatingLog = showFloatingLogInput.checked;
 
     chrome.storage.sync.set(
-      { port: port, autoSend: autoSend, autoPromptEnabled: autoPromptEnabled },
+      { port, autoSend, autoPromptEnabled, showFloatingLog },
       () => {
         statusDiv.style.opacity = "1";
         setTimeout(() => {
@@ -79,4 +81,5 @@ document.addEventListener("DOMContentLoaded", () => {
   portInput.addEventListener("input", saveOptions);
   autoSendInput.addEventListener("change", saveOptions);
   autoPromptInput.addEventListener("change", saveOptions);
+  showFloatingLogInput.addEventListener("change", saveOptions);
 });

@@ -1,39 +1,179 @@
 (function () {
   "use strict";
 
-  // 默认配置
+  // === 配置管理 ===
   let CONFIG = {
     pollInterval: 1000,
     autoSend: true,
     autoPromptEnabled: false,
+    showFloatingLog: false,
   };
 
-  // 1. 初始化时读取配置
-  chrome.storage.sync.get(["autoSend", "autoPromptEnabled"], (result) => {
-    if (result.autoSend !== undefined) {
-      CONFIG.autoSend = result.autoSend;
-    }
-    if (result.autoPromptEnabled !== undefined) {
-      CONFIG.autoPromptEnabled = result.autoPromptEnabled;
-    }
-    console.log(
-      `[MCP Bridge] 初始配置加载: AutoSend=${CONFIG.autoSend}, AutoPrompt=${CONFIG.autoPromptEnabled}`
-    );
-  });
+  // === 悬浮日志系统 (Floating Logger) ===
+  const Logger = {
+    el: null,
+    contentEl: null,
 
-  // 2. 监听配置实时变化
+    init() {
+      if (this.el) return;
+
+      // 创建主容器
+      this.el = document.createElement("div");
+      Object.assign(this.el.style, {
+        position: "fixed",
+        top: "20px",
+        right: "20px",
+        width: "320px",
+        height: "200px",
+        backgroundColor: "rgba(0, 0, 0, 0.85)",
+        color: "#00ff00",
+        fontFamily: "Consolas, Monaco, monospace",
+        fontSize: "12px",
+        zIndex: "99999",
+        borderRadius: "8px",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+        display: "none",
+        flexDirection: "column",
+        overflow: "hidden",
+        border: "1px solid #333",
+        backdropFilter: "blur(4px)",
+      });
+
+      // 创建标题栏 (拖拽区域)
+      const header = document.createElement("div");
+      Object.assign(header.style, {
+        padding: "6px 10px",
+        backgroundColor: "#333",
+        color: "#fff",
+        cursor: "move",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        fontWeight: "bold",
+        userSelect: "none",
+      });
+      header.innerText = "MCP Process Log";
+
+      // 清空按钮
+      const clearBtn = document.createElement("span");
+      clearBtn.innerText = "🗑️";
+      clearBtn.style.cursor = "pointer";
+      clearBtn.onclick = () => (this.contentEl.innerHTML = "");
+      header.appendChild(clearBtn);
+
+      // 创建内容区域
+      this.contentEl = document.createElement("div");
+      Object.assign(this.contentEl.style, {
+        flex: "1",
+        overflowY: "auto",
+        padding: "8px",
+        wordBreak: "break-all",
+      });
+
+      this.el.appendChild(header);
+      this.el.appendChild(this.contentEl);
+      document.body.appendChild(this.el);
+
+      // 启用拖拽
+      this.makeDraggable(header);
+    },
+
+    // 拖拽逻辑
+    makeDraggable(headerEl) {
+      let isDragging = false;
+      let startX, startY, initialLeft, initialTop;
+
+      headerEl.addEventListener("mousedown", (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        const rect = this.el.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+      });
+
+      window.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        this.el.style.left = `${initialLeft + dx}px`;
+        this.el.style.top = `${initialTop + dy}px`;
+        this.el.style.right = "auto"; // 清除 right 属性以允许自由移动
+      });
+
+      window.addEventListener("mouseup", () => {
+        isDragging = false;
+      });
+    },
+
+    toggle(show) {
+      if (!this.el) this.init();
+      this.el.style.display = show ? "flex" : "none";
+    },
+
+    log(msg, type = "info") {
+      if (!this.el || this.el.style.display === "none") return;
+
+      const line = document.createElement("div");
+      const time = new Date().toLocaleTimeString("en-US", { hour12: false });
+      line.style.marginBottom = "4px";
+      line.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
+      line.style.paddingBottom = "2px";
+
+      let icon = "🔹";
+      let color = "#ddd";
+
+      if (type === "success") {
+        icon = "✅";
+        color = "#4caf50";
+      }
+      if (type === "error") {
+        icon = "❌";
+        color = "#f44336";
+      }
+      if (type === "warn") {
+        icon = "⚠️";
+        color = "#ff9800";
+      }
+      if (type === "action") {
+        icon = "⚡";
+        color = "#00bcd4";
+      }
+
+      line.innerHTML = `<span style="color:#888; font-size:10px">[${time}]</span> ${icon} <span style="color:${color}">${msg}</span>`;
+
+      this.contentEl.appendChild(line);
+      this.contentEl.scrollTop = this.contentEl.scrollHeight;
+    },
+  };
+
+  // === 初始化 & 配置加载 ===
+  chrome.storage.sync.get(
+    ["autoSend", "autoPromptEnabled", "showFloatingLog"],
+    (items) => {
+      CONFIG.autoSend = items.autoSend ?? true;
+      CONFIG.autoPromptEnabled = items.autoPromptEnabled ?? false;
+      CONFIG.showFloatingLog = items.showFloatingLog ?? false;
+
+      Logger.init();
+      Logger.toggle(CONFIG.showFloatingLog);
+      console.log("[MCP] Config Loaded:", CONFIG);
+    }
+  );
+
   chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === "sync" && changes.autoSend) {
-      CONFIG.autoSend = changes.autoSend.newValue;
-      console.log(`[MCP Bridge] 配置更新: AutoSend -> ${CONFIG.autoSend}`);
-    } else if (namespace === "sync" && changes.autoPromptEnabled) {
-      CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;
-      console.log(
-        `[MCP Bridge] 配置更新: AutoPrompt -> ${CONFIG.autoPromptEnabled}`
-      );
+    if (namespace === "sync") {
+      if (changes.autoSend) CONFIG.autoSend = changes.autoSend.newValue;
+      if (changes.autoPromptEnabled)
+        CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;
+      if (changes.showFloatingLog) {
+        CONFIG.showFloatingLog = changes.showFloatingLog.newValue;
+        Logger.toggle(CONFIG.showFloatingLog);
+      }
     }
   });
 
+  // === 主逻辑 ===
   const processedRequests = new Set();
 
   const SELECTORS = {
@@ -65,10 +205,11 @@
     : "chatgpt";
   const DOM = SELECTORS[currentPlatform];
 
-  console.log(`[MCP Extension] 🚀 v1.3 已启动! 平台: ${currentPlatform}`);
+  console.log(`[MCP Extension] Started on ${currentPlatform}`);
 
-  // --- 主循环 ---
+  // 轮询检测
   setInterval(() => {
+    // 1. 自动填充 Prompt 逻辑
     const messages = document.querySelectorAll(DOM.messageBlocks);
     if (messages.length === 0) {
       const inputEl = document.querySelector(DOM.inputArea);
@@ -77,19 +218,18 @@
         CONFIG.autoPromptEnabled &&
         inputEl.textContent.trim() === ""
       ) {
-        // [修改] 读取 initialPrompt
         chrome.storage.local.get(["initialPrompt"], (items) => {
           if (items.initialPrompt) {
-            // 简单赋值，不覆盖已有逻辑
             inputEl.innerText = items.initialPrompt;
             inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-            console.log("[MCP Bridge] 自动填充初始提示词。");
+            Logger.log("已自动填充初始 Prompt", "action");
           }
         });
       }
       return;
     }
 
+    // 2. 检测工具调用
     const lastMessage = messages[messages.length - 1];
     const codeElements = lastMessage.querySelectorAll(DOM.codeBlocks);
 
@@ -102,23 +242,29 @@
 
         if (payload.mcp_action === "call" && payload.request_id) {
           if (processedRequests.has(payload.request_id)) {
-            if (codeEl.dataset.mcpVisual !== "true") {
-              markVisualSuccess(codeEl);
-            }
+            if (codeEl.dataset.mcpVisual !== "true") markVisualSuccess(codeEl);
             return;
           }
 
-          console.log(`[MCP Bridge] ⚡ 捕获: ${payload.name}`);
+          // === 捕获新请求 ===
           processedRequests.add(payload.request_id);
           markVisualSuccess(codeEl);
 
-          // 发送消息给 background.js 处理网络请求
+          Logger.log(`捕获调用: ${payload.name}`, "info");
+          Logger.log(
+            `参数: ${JSON.stringify(payload.arguments).substring(0, 50)}...`,
+            "info"
+          );
+
+          // 发送给 Background
           chrome.runtime.sendMessage(
             { type: "EXECUTE_TOOL", payload: payload },
             (response) => {
               if (response && response.success) {
+                Logger.log(`执行成功: ${payload.name}`, "success");
                 sendResponseToChat(payload.request_id, response.data);
               } else {
+                Logger.log(`执行失败: ${response.error}`, "error");
                 sendResponseToChat(
                   payload.request_id,
                   `❌ Error: ${response.error}`
@@ -127,24 +273,22 @@
             }
           );
         } else {
-          // [修改] 动态读取错误提示词
+          // 错误格式提示
           chrome.storage.local.get(["errorHint"], (items) => {
             const hint =
-              items.errorHint ||
-              "❌ Error: Invalid MCP JSON format. Please check your output.";
+              items.errorHint || "❌ Error: Invalid MCP JSON format.";
             sendResponseToChat("error_format_hint_" + Date.now(), hint);
+            Logger.log("格式错误，已发送提示", "warn");
           });
         }
       } catch (e) {}
     });
   }, CONFIG.pollInterval);
 
-  // --- 辅助函数 ---
   function markVisualSuccess(element) {
     element.dataset.mcpVisual = "true";
     element.style.border = "2px solid #00E676";
     element.style.borderRadius = "4px";
-    element.style.boxShadow = "0 0 10px rgba(0, 230, 118, 0.3)";
   }
 
   function sendResponseToChat(requestId, outputContent) {
@@ -160,14 +304,14 @@
       null,
       2
     )}\n\`\`\``;
-
     const inputEl = document.querySelector(DOM.inputArea);
+
     if (!inputEl) {
-      console.warn("找不到输入框");
+      Logger.log("找不到输入框!", "error");
       return;
     }
 
-    // === 智能追加逻辑 (Smart Append) ===
+    // 智能追加逻辑
     const currentText = inputEl.innerText || inputEl.value || "";
     const separator = currentText.trim() ? "\n\n" : "";
 
@@ -177,12 +321,16 @@
       inputEl.innerText = currentText + separator + replyText;
     }
     inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+    Logger.log("结果已回填至输入框", "action");
 
     if (CONFIG.autoSend) {
       setTimeout(() => {
         const btn = document.querySelector(DOM.sendButton);
         if (btn) {
           btn.click();
+          Logger.log("已触发自动发送 🚀", "success");
+        } else {
+          Logger.log("找不到发送按钮", "warn");
         }
       }, 1000);
     }
