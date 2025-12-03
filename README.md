@@ -1,106 +1,54 @@
-# MCP2API Bridge
+# MCP Bridge
 
-**Connect Web-based AI (ChatGPT, Gemini, DeepSeek) to your Local Machine via the Model Context Protocol (MCP).**
+**让网页版 AI 真正连接你的本地代码库。**
 
-This project serves as a secure bridge, allowing advanced web LLMs to interact with your local files, databases, and tools through a local gateway and a browser extension.
+**MCP Bridge** 是一个全栈解决方案，通过 Model Context Protocol (MCP) 协议，让网页端的 AI（ChatGPT, Gemini, DeepSeek）能够安全地操作你本地 VS Code 中的文件、Git 和命令行工具。
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)
+## 🌟 项目架构
 
-## ✨ Key Features
+**MCP Bridge** 由两个核心组件构成：
 
-* **🔗 Seamless Bridge**: Connects cloud AI web interfaces directly to local MCP servers.
-* **🛡️ Enterprise-Grade Security**:
-    * **Origin Whitelisting**: Strictly restricts access to your specific Chrome Extension ID.
-    * **Local Binding**: Gateway listens only on `127.0.0.1` to prevent network exposure.
-* **👀 Observable Debugging**: Built-in **Floating Log Console** in the browser to monitor tool execution in real-time.
-* **🧩 Configuration as Code**: System prompts and error hints are decoupled into Markdown files (`prompt.md`, `error_hint.md`) for easy editing.
-* **🤖 Multi-Platform Support**: Works out-of-the-box with:
-    * ChatGPT
-    * Google Gemini
-    * DeepSeek Chat
-* **🧠 Smart Context**: Automatically appends tool results to the chat input without overwriting your existing draft.
+1.  **Gateway (VS Code 插件)**: 本地网关。作为服务端运行在 VS Code 中，管理本地工具权限。
+2.  **Client (浏览器插件)**: 客户端桥梁。拦截网页 AI 的请求并转发给本地网关。
 
-## 🚀 Getting Started
+---
 
-### Prerequisites
-* Node.js (v18+)
-* Google Chrome (or Chromium-based browser)
-* Python (optional, for certain MCP servers like Git)
+## 🚀 快速开始
 
-### 1. Installation
+### 第一步：安装 Gateway (VS Code)
 
-Clone the repository and install dependencies:
+1.  进入 `mcp-gateway-vscode/` 目录并打包：
+    ```bash
+    vsce package
+    ```
+2.  在 VS Code 中：**扩展** -> **...** -> **从 VSIX 安装** -> 选择生成的文件。
+3.  **安装即用**：插件会自动在端口 `34567` 启动服务。
 
-```bash
-git clone git@github.com:three-water666/MCP2API.git
-cd mcp2api
-npm install
-```
+### 第二步：安装 Client (浏览器)
 
-### 2. Configure MCP Servers
+1.  浏览器访问 `chrome://extensions` -> 开启 **开发者模式**。
+2.  点击 **加载已解压的扩展程序** -> 选择 `mcp-bridge-browser/` 目录。
+3.  默认已配置好连接本地 `34567` 端口。
 
-Edit `mcp-config.json` to define the tools you want to expose. By default, it includes filesystem and memory servers. Ensure paths are correct (e.g., set Git repository path to `.`):
+### 第三步：配对认证
 
-```json
-{
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "./"]
-    },
-    "git": {
-      "command": "python",
-      "args": ["-m", "mcp_server_git", "--repository", "."]
-    }
-  }
-}
-```
+1.  打开浏览器插件弹窗 -> 点击 **Copy** 复制 Extension ID。
+2.  打开 VS Code 设置 (`Ctrl+,`) -> 搜索 `mcp` -> 粘贴到 **Allowed Extension Id** 中。
 
-### 3. Start the Gateway
+---
 
-Run the local server. On the first run, it will ask for your **Extension ID** (see next step).
+## 💡 使用方法
 
-```bash
-npm run dev
-# or
-node server.js
-```
+1.  打开 **ChatGPT / Gemini / DeepSeek**。
+2.  点击 **MCP Bridge** 插件图标 -> **Copy System Prompt** (复制提示词)。
+3.  发送给 AI，激活它的“本地操作”能力。
+4.  **开始指令**：
+    * “帮我读取 `README.md` 并翻译成英文。”
+    * “检查 Git 状态并提交代码。”
 
-### 4. Install & Configure Extension
+---
 
-1.  Open Chrome and navigate to `chrome://extensions/`.
-2.  Enable **Developer mode** (top right).
-3.  Click **Load unpacked** and select the `Extension` folder from this project.
-4.  **Copy the Extension ID**:
-    * Click the extension icon in the browser toolbar.
-    * Click the "Copy" button next to the ID field.
-5.  **Whitelist the ID**:
-    * Paste this ID into your running terminal window (where `node server.js` is waiting).
-    * The server will now securely accept requests only from this extension.
+## 🛠️ 依赖说明
 
-## 📖 Usage Guide
-
-1.  **Activate the AI**: Open ChatGPT, Gemini, or DeepSeek.
-2.  **Inject System Prompt**: 
-    * Open the extension popup.
-    * Click **"Copy System Prompt"**.
-    * Paste it into the chat to teach the AI how to use your tools.
-3.  **Monitor Execution**:
-    * Toggle **"Show Floating Log"** in the extension popup.
-    * Watch real-time logs (tool calls, API responses) in the overlay window.
-
-## 🛠️ Customization
-
-* **System Prompt**: Edit `Extension/prompt.md` to change how the AI behaves.
-* **Error Messages**: Edit `Extension/error_hint.md` to customize failure responses.
-* **Note**: After editing these files, click the **Reload** button on the `chrome://extensions/` page to apply changes.
-
-## 🔒 Security Note
-
-This tool grants an AI model **read/write access** to your local files (depending on your `mcp-config.json`).
-* **Always** review the tool calls in the Floating Log.
-* **Never** expose the gateway port to the public internet.
-
-## 📄 License
-
-MIT License
+* **Node.js**: 必须安装 (用于支持文件系统操作)。
+* **Python**: 可选安装 (若需要 Git/Fetch 功能，请运行 `pip install mcp-server-git mcp-server-fetch`)。

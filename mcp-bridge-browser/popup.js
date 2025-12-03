@@ -50,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
   chrome.storage.sync.get(
     ["port", "autoSend", "autoPromptEnabled", "showFloatingLog"],
     (items) => {
-      portInput.value = items.port || 3000;
+      portInput.value = items.port || 34567;
       autoSendInput.checked =
         items.autoSend !== undefined ? items.autoSend : true;
       autoPromptInput.checked =

@@ -16,7 +16,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // 3. 启动服务的辅助函数
     const startService = async () => {
         const config = vscode.workspace.getConfiguration('mcpGateway');
-        const port = config.get<number>('port') || 3000;
+        const port = config.get<number>('port') || 34567;
         const allowedExtensionId = config.get<string>('allowedExtensionId') || '';
         const mcpServers = config.get<any>('servers') || {};
 

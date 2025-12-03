@@ -2,7 +2,7 @@
 chrome.runtime.onInstalled.addListener(async () => {
   const files = {
     initialPrompt: "prompt.md",
-    errorHint: "error_hint.md"
+    errorHint: "error_hint.md",
   };
 
   for (const [key, fileName] of Object.entries(files)) {
@@ -21,12 +21,11 @@ chrome.runtime.onInstalled.addListener(async () => {
 // === 2. 消息监听：处理工具执行请求 ===
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "EXECUTE_TOOL") {
-    
     // 动态获取端口配置
-    chrome.storage.sync.get(['port'], (items) => {
-      const port = items.port || 3000;
+    chrome.storage.sync.get(["port"], (items) => {
+      const port = items.port || 34567;
       const apiEndpoint = `http://localhost:${port}/v1/tools/call`;
-      
+
       const apiBody = {
         name: request.payload.name,
         arguments: request.payload.arguments || {},
@@ -49,15 +48,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 : JSON.stringify(resJson);
               sendResponse({ success: true, data: textContent });
             } catch (e) {
-               const text = await response.text();
-               sendResponse({ success: true, data: text });
+              const text = await response.text();
+              sendResponse({ success: true, data: text });
             }
           } else {
-            sendResponse({ success: false, error: `${response.status} - ${response.statusText}` });
+            sendResponse({
+              success: false,
+              error: `${response.status} - ${response.statusText}`,
+            });
           }
         })
         .catch((err) => {
-          sendResponse({ success: false, error: `Connection Failed to port ${port} (Is Gateway running?)` });
+          sendResponse({
+            success: false,
+            error: `Connection Failed to port ${port} (Is Gateway running?)`,
+          });
         });
     });
 
