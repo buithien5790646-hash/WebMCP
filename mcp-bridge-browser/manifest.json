@@ -3,6 +3,12 @@
   "name": "MCP Bridge",
   "version": "1.2",
   "description": "Connect ChatGPT/Gemini to local MCP Gateway",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": ["scripting", "activeTab", "storage"],
   "host_permissions": [
     "http://localhost/*",
@@ -11,7 +17,13 @@
     "https://chat.deepseek.com/*"
   ],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "background": {
     "service_worker": "background.js"

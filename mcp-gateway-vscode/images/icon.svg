@@ -1,0 +1,28 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradPurple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7c3aed;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f97316;stop-opacity:1" />
+    </linearGradient>
+    <filter id="softShadow">
+       <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  
+  
+  <path d="M60,20 L216,20 C244,20 256,42 256,70 L256,186 
+           C 256,214 244,236 216,236 L60,236 
+           L60,186 
+           C 60,154 62,176 78,176  
+           C 94,176 94,80 78,80  
+           C 62,80 60,102 60,102 
+           L60,70 L60,20 Z" 
+        fill="url(#gradPurple)" filter="url(#softShadow)"/>
+
+  
+  <g transform="translate(158, 128) scale(1.0)" stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M -30 -25 L -60 0 L -30 25" />
+    <path d="M 30 -25 L 60 0 L 30 25" />
+  </g>
+</svg>

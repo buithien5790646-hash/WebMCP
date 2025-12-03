@@ -3,6 +3,7 @@
   "publisher": "mcp-user",
   "displayName": "MCP Gateway",
   "description": "Connect Web AI to Local VS Code via Model Context Protocol",
+  "icon": "images/icon.png",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.106.1"
