@@ -1,11 +1,11 @@
 (function () {
   "use strict";
 
-  // 默认配置，稍后会从 Storage 覆盖
+  // 默认配置
   let CONFIG = {
     pollInterval: 1000,
     autoSend: true,
-    autoPromptEnabled: true, // 新增
+    autoPromptEnabled: false,
   };
 
   // 1. 初始化时读取配置
@@ -21,7 +21,7 @@
     );
   });
 
-  // 2. 监听配置实时变化 (Popup 修改后立即生效)
+  // 2. 监听配置实时变化
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === "sync" && changes.autoSend) {
       CONFIG.autoSend = changes.autoSend.newValue;
@@ -65,7 +65,7 @@
     : "chatgpt";
   const DOM = SELECTORS[currentPlatform];
 
-  console.log(`[MCP Extension] 🚀 v1.2 已启动! 平台: ${currentPlatform}`);
+  console.log(`[MCP Extension] 🚀 v1.3 已启动! 平台: ${currentPlatform}`);
 
   // --- 主循环 ---
   setInterval(() => {
@@ -77,10 +77,12 @@
         CONFIG.autoPromptEnabled &&
         inputEl.textContent.trim() === ""
       ) {
+        // [修改] 读取 initialPrompt
         chrome.storage.local.get(["initialPrompt"], (items) => {
           if (items.initialPrompt) {
+            // 简单赋值，不覆盖已有逻辑
             inputEl.innerText = items.initialPrompt;
-            inputEl.dispatchEvent(new Event("input", { bubbles: true })); // 触发输入事件，使聊天应用识别内容变化
+            inputEl.dispatchEvent(new Event("input", { bubbles: true }));
             console.log("[MCP Bridge] 自动填充初始提示词。");
           }
         });
@@ -125,11 +127,13 @@
             }
           );
         } else {
-          const correctFormatHint = `❌ **格式错误警告 (Format Error)**\n\n你的模型响应内容不符合要求。请确保你的回复严格遵循以下格式：\n\n\`\`\`json\n{\n  \"mcp_action\": \"call\", \n  \"name\": \"工具名称\", \n  \"arguments\": {\n    \"key\": \"value\"\n  },\n  \"request_id\": \"step_x\"\n}\n\`\`\`\n\n请根据上述正确格式重新生成指令。`;
-          sendResponseToChat(
-            "error_format_hint_" + Date.now(),
-            correctFormatHint
-          );
+          // [修改] 动态读取错误提示词
+          chrome.storage.local.get(["errorHint"], (items) => {
+            const hint =
+              items.errorHint ||
+              "❌ Error: Invalid MCP JSON format. Please check your output.";
+            sendResponseToChat("error_format_hint_" + Date.now(), hint);
+          });
         }
       } catch (e) {}
     });
@@ -163,11 +167,17 @@
       return;
     }
 
-    inputEl.innerHTML = "";
-    inputEl.innerText = replyText;
+    // === 智能追加逻辑 (Smart Append) ===
+    const currentText = inputEl.innerText || inputEl.value || "";
+    const separator = currentText.trim() ? "\n\n" : "";
+
+    if (inputEl.tagName === "TEXTAREA" || inputEl.tagName === "INPUT") {
+      inputEl.value = currentText + separator + replyText;
+    } else {
+      inputEl.innerText = currentText + separator + replyText;
+    }
     inputEl.dispatchEvent(new Event("input", { bubbles: true }));
 
-    // 检查最新的配置是否允许自动发送
     if (CONFIG.autoSend) {
       setTimeout(() => {
         const btn = document.querySelector(DOM.sendButton);

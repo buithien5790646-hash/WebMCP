@@ -1,8 +1,28 @@
-// 监听来自 content.js 的消息
+// === 1. 初始化逻辑：加载配置文件 ===
+chrome.runtime.onInstalled.addListener(async () => {
+  const files = {
+    initialPrompt: "prompt.md",
+    errorHint: "error_hint.md"
+  };
+
+  for (const [key, fileName] of Object.entries(files)) {
+    try {
+      const url = chrome.runtime.getURL(fileName);
+      const response = await fetch(url);
+      const text = await response.text();
+      await chrome.storage.local.set({ [key]: text });
+      console.log(`[Background] ✅ 已加载 ${fileName} -> ${key}`);
+    } catch (err) {
+      console.error(`[Background] ❌ 加载 ${fileName} 失败:`, err);
+    }
+  }
+});
+
+// === 2. 消息监听：处理工具执行请求 ===
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "EXECUTE_TOOL") {
     
-    // 1. 动态获取端口配置
+    // 动态获取端口配置
     chrome.storage.sync.get(['port'], (items) => {
       const port = items.port || 3000;
       const apiEndpoint = `http://localhost:${port}/v1/tools/call`;
