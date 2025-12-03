@@ -19,6 +19,8 @@
 
 1.  进入 `mcp-gateway-vscode/` 目录并打包：
     ```bash
+    cd mcp-gateway-vscode
+    npm install -g @vscode/vsce
     vsce package
     ```
 2.  在 VS Code 中：**扩展** -> **...** -> **从 VSIX 安装** -> 选择生成的文件。
@@ -33,7 +35,7 @@
 ### 第三步：配对认证
 
 1.  打开浏览器插件弹窗 -> 点击 **Copy** 复制 Extension ID。
-2.  打开 VS Code 设置 (`Ctrl+,`) -> 搜索 `mcp` -> 粘贴到 **Allowed Extension Id** 中。
+2.  打开 VS Code 设置 (`Ctrl+,`) -> 搜索 `mcp-gateway` -> 粘贴到 **Allowed Extension Id** 中。
 
 ---
 
