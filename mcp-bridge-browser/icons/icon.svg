@@ -1,27 +1,29 @@
 <svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="gradBlue" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
-    </linearGradient>
-    <filter id="softShadow">
-       <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.15"/>
-    </filter>
-  </defs>
-
-  
-  <path d="M50,20 L190,20 C217,20 216,42 216,70 L216,102 
-           C 226,102 228,80 242,80 
-           C 264,80 264,176 242,176 
-           C 228,176 226,154 216,154 L216,186 
-           C 216,214 217,236 190,236 L50,236 
-           C 22,236 20,214 20,186 L20,70 
-           C 20,42 22,20 50,20 Z" 
-        fill="url(#gradBlue)" filter="url(#softShadow)"/>
-  
-  
-  <g transform="translate(118, 128) scale(1.4)" stroke="white" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <line x1="-20" y1="20" x2="20" y2="-20" />
-    <polyline points="-10 -20 20 -20 20 10" />
+  <g transform="translate(-10,0)">
+    <defs>
+      <linearGradient id="gradBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
+        <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+      </linearGradient>
+      <filter id="softShadow">
+         <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.15"/>
+      </filter>
+    </defs>
+    
+    
+    <path d="M50,20 L190,20 C217,20 216,42 216,70 L216,102 
+             C 226,102 228,80 242,80 
+             C 264,80 264,176 242,176 
+             C 228,176 226,154 216,154 L216,186 
+             C 216,214 217,236 190,236 L50,236 
+             C 22,236 20,214 20,186 L20,70 
+             C 20,42 22,20 50,20 Z" 
+          fill="url(#gradBlue)" filter="url(#softShadow)"/>
+    
+    
+    <g transform="translate(118, 128) scale(1.4)" stroke="white" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <line x1="-20" y1="20" x2="20" y2="-20" />
+      <polyline points="-10 -20 20 -20 20 10" />
+    </g>
   </g>
 </svg>
