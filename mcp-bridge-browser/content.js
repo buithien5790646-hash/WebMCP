@@ -323,16 +323,40 @@
     inputEl.dispatchEvent(new Event("input", { bubbles: true }));
     Logger.log("结果已回填至输入框", "action");
 
+    // 智能发送重试逻辑
     if (CONFIG.autoSend) {
-      setTimeout(() => {
+      let retryCount = 0;
+      const maxRetries = 5;
+
+      const trySend = () => {
         const btn = document.querySelector(DOM.sendButton);
-        if (btn) {
-          btn.click();
-          Logger.log("已触发自动发送 🚀", "success");
-        } else {
-          Logger.log("找不到发送按钮", "warn");
+        
+        // 检查输入框内容（是否已清空）
+        const currentVal = inputEl.value || inputEl.innerText || "";
+        // 注意：某些平台清空后可能保留 \n 或 placeholder，长度判断宽松一点
+        if (currentVal.trim().length === 0) {
+             Logger.log("发送成功 (输入框已清空)", "success");
+             return; // 成功退出
         }
-      }, 1000);
+
+        if (!btn || btn.disabled) {
+           // 按钮不可用，等待下一轮
+           Logger.log("发送按钮不可用/未找到，等待...", "warn");
+        } else {
+           btn.click();
+           Logger.log(`尝试自动发送 (${retryCount + 1}/${maxRetries})`, "action");
+        }
+
+        retryCount++;
+        if (retryCount < maxRetries) {
+           setTimeout(trySend, 1500); // 间隔 1.5秒重试
+        } else {
+           Logger.log("自动发送失败，请手动点击发送", "error");
+        }
+      };
+
+      // 首次延迟触发，给 UI 更新一点时间
+      setTimeout(trySend, 1000);
     }
   }
 })();
