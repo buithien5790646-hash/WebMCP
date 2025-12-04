@@ -17,20 +17,32 @@ export async function activate(context: vscode.ExtensionContext) {
     const startService = async () => {
         const config = vscode.workspace.getConfiguration('mcpGateway');
         const port = config.get<number>('port') || 34567;
-        // 更新：读取数组配置
         const allowedExtensionIds = config.get<string[]>('allowedExtensionIds') || [];
         const mcpServers = config.get<any>('servers') || {};
+
+        // === 核心修改：读取历史端口 ===
+        const lastUsedPort = context.workspaceState.get<number>('mcp.lastPort');
 
         if (allowedExtensionIds.length === 0) {
             vscode.window.showWarningMessage("MCP Gateway: No Extension IDs configured. Only localhost connections will be allowed.");
         }
 
         try {
-            await manager.start({
+            // === 核心修改：传入首选端口并获取实际端口 ===
+            const actualPort = await manager.start({
                 port,
-                allowedExtensionIds, // 传递数组
+                preferredPort: lastUsedPort,
+                allowedExtensionIds,
                 mcpServers
             });
+
+            // === 核心修改：保存成功使用的端口 ===
+            if (actualPort !== lastUsedPort) {
+                await context.workspaceState.update('mcp.lastPort', actualPort);
+                // 如果端口变了（比如第一次从默认切到动态，或者动态切动态），提示一下
+                // outputChannel.appendLine(`💾 Port preference updated: ${actualPort}`);
+            }
+
         } catch (e: any) {
             vscode.window.showErrorMessage(`Failed to start MCP Gateway: ${e.message}`);
         }

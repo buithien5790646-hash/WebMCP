@@ -14,7 +14,8 @@ interface ServerConfig {
 
 interface Config {
     port: number;
-    allowedExtensionIds: string[]; // 改为数组
+    preferredPort?: number; // 新增：首选端口（历史端口）
+    allowedExtensionIds: string[];
     mcpServers: Record<string, ServerConfig>;
 }
 
@@ -107,7 +108,8 @@ export class GatewayManager {
         }
     }
 
-    async start(config: Config) {
+    // 修改：返回 Promise<number> 表示最终使用的端口
+    async start(config: Config): Promise<number> {
         if (this.server) {
             await this.stop();
         }
@@ -116,20 +118,14 @@ export class GatewayManager {
         this.app = express();
         this.app.use(express.json());
 
-        // === Helper: Parse Allowed IDs ===
-        // 直接使用数组，不再分割字符串
         const allowedIds = config.allowedExtensionIds || [];
-        
-        // 鉴权函数 (已修复 ESLint curly 规则)
         const isOriginAllowed = (origin: string | undefined): boolean => {
             if (!origin) {
-                return true; 
+                return true;
             }
             if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
                 return true;
             }
-            
-            // Check against allowed Extension IDs
             return allowedIds.some(id => origin === `chrome-extension://${id}`);
         };
 
@@ -139,15 +135,12 @@ export class GatewayManager {
              this.log(`⚠️ No Extension IDs whitelisted. Only localhost allowed.`);
         }
 
-        // === 1. Middleware: Logging ===
         this.app.use((req, res, next) => {
             const start = Date.now();
             const origin = req.get('origin') || 'Unknown';
-
             if (req.method !== 'OPTIONS') {
                 this.log(`🔔 [${req.method}] ${req.url} <== ${origin}`);
             }
-
             res.on('finish', () => {
                 const duration = Date.now() - start;
                 const status = res.statusCode;
@@ -159,7 +152,6 @@ export class GatewayManager {
             next();
         });
 
-        // === 2. Security Middleware ===
         this.app.use((req, res, next) => {
             const origin = req.get('origin');
             if (!isOriginAllowed(origin)) {
@@ -169,7 +161,6 @@ export class GatewayManager {
             next();
         });
 
-        // === 3. CORS ===
         this.app.use(cors({
             origin: (origin, callback) => {
                 if (isOriginAllowed(origin)) {
@@ -180,7 +171,6 @@ export class GatewayManager {
             }
         }));
 
-        // === 4. Routes ===
         this.app.get('/v1/tools', (req, res) => {
             const tools = Array.from(this.toolRouter.values()).map(t => t.definition);
             this.log(`   🚀 Executing: GET /v1/tools (Discovery)`);
@@ -192,7 +182,6 @@ export class GatewayManager {
             let { name, arguments: args } = req.body;
             const toolStart = Date.now();
 
-            // === Logic: Smart Path Rewriting ===
             if (args && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                 const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
                 const fixPath = (p: string) => {
@@ -219,10 +208,8 @@ export class GatewayManager {
             if (name === 'list_tools') {
                 const tools = Array.from(this.toolRouter.values()).map(t => t.definition);
                 const uniqueTools = [...new Map(tools.map(item => [item.name, item])).values()];
-
                 this.log(`   🚀 Executing: list_tools (Internal)`);
                 this.log(`   ✅ Finished: list_tools (0ms)`);
-
                 return res.json({
                     content: [{ type: 'text', text: JSON.stringify(uniqueTools, null, 2) }],
                     isError: false
@@ -241,12 +228,9 @@ export class GatewayManager {
             try {
                 const argsPreview = JSON.stringify(args || {}).slice(0, 100) + (JSON.stringify(args || {}).length > 100 ? '...' : '');
                 this.log(`   🚀 Executing: ${name} ${argsPreview}`);
-
                 const result = await route.client.callTool({ name, arguments: args || {} });
-
                 const toolDuration = Date.now() - toolStart;
                 this.log(`   ✅ Finished: ${name} (${toolDuration}ms)`);
-
                 res.json(result);
             } catch (error: any) {
                 this.error(`Tool execution failed: ${name}`, error);
@@ -257,12 +241,12 @@ export class GatewayManager {
             }
         });
 
-        // === 5. Dynamic Port Allocation ===
-        return new Promise<void>((resolve, reject) => {
+        // === 5. Dynamic Port Allocation with Stickiness ===
+        return new Promise<number>((resolve, reject) => {
             const tryListen = (currentPort: number, attempt: number) => {
                 const maxRetries = 20;
                 if (attempt > maxRetries) {
-                    const msg = `Could not find an open port after ${maxRetries} attempts (starting from ${config.port})`;
+                    const msg = `Could not find an open port after ${maxRetries} attempts.`;
                     this.error(msg);
                     vscode.window.showErrorMessage(msg);
                     reject(new Error(msg));
@@ -271,15 +255,21 @@ export class GatewayManager {
 
                 this.server = this.app!.listen(currentPort, '127.0.0.1', () => {
                     this.log(`🌐 Gateway running on http://127.0.0.1:${currentPort}`);
-                    // Update Status Bar with the ACTUAL port
                     vscode.window.setStatusBarMessage(`MCP Gateway: On (${currentPort})`, 5000);
-                    resolve();
+                    resolve(currentPort); // 返回成功绑定的端口
                 });
 
                 this.server.on('error', (e: any) => {
                     if (e.code === 'EADDRINUSE') {
-                        this.log(`⚠️ Port ${currentPort} is busy, trying ${currentPort + 1}...`);
-                        tryListen(currentPort + 1, attempt + 1);
+                        // 如果是首选端口失败，打个日志，然后从默认端口开始尝试
+                        if (currentPort === config.preferredPort) {
+                             this.log(`⚠️ Preferred port ${currentPort} is busy. Falling back to default range.`);
+                             // 递归调用：尝试 default port，重置 attempt
+                             tryListen(config.port, 0);
+                        } else {
+                             this.log(`⚠️ Port ${currentPort} is busy, trying ${currentPort + 1}...`);
+                             tryListen(currentPort + 1, attempt + 1);
+                        }
                     } else {
                         this.error('Server error:', e);
                         reject(e);
@@ -287,7 +277,14 @@ export class GatewayManager {
                 });
             };
 
-            tryListen(config.port, 0);
+            // 优先尝试 Preferred Port (如果存在且不等于 default port)
+            // 如果 preferred == default，直接进入主逻辑，不用特殊处理
+            if (config.preferredPort && config.preferredPort !== config.port) {
+                 this.log(`🔄 Trying sticky port from last session: ${config.preferredPort}`);
+                 tryListen(config.preferredPort, 0);
+            } else {
+                 tryListen(config.port, 0);
+            }
         });
     }
 
