@@ -40,15 +40,11 @@
           "default": {
             "filesystem": {
               "command": "npx",
-              "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
-            },
-            "git": {
-              "command": "python",
-              "args": ["-m", "mcp_server_git", "--repository", "."]
-            },
-            "fetch": {
-              "command": "python",
-              "args": ["-m", "mcp_server_fetch"]
+              "args": [
+                "-y",
+                "@modelcontextprotocol/server-filesystem",
+                "."
+              ]
             }
           },
           "description": "Configuration for MCP Servers. Use 'INTERNAL_FS_SERVER' as the first arg to use the built-in filesystem server."

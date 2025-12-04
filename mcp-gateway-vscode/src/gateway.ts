@@ -27,7 +27,6 @@ export class GatewayManager {
 
     constructor(outputChannel: vscode.OutputChannel, extensionPath: string) {
         this.outputChannel = outputChannel;
-        // extensionPath 不再需要用于查找内部文件，但保留接口兼容性
     }
 
     private log(message: string) {
@@ -67,7 +66,6 @@ export class GatewayManager {
                 }
 
                 // === Logic: Dynamic Workspace Path Resolution ===
-                // 核心逻辑：无论是什么命令，只要参数里有 . 或 ${workspaceFolder}，都替换为绝对路径
                 if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                     const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
                     args = args.map(arg => {
@@ -245,22 +243,37 @@ export class GatewayManager {
             }
         });
 
+        // === 5. Dynamic Port Allocation ===
         return new Promise<void>((resolve, reject) => {
-            this.server = this.app!.listen(config.port, '127.0.0.1', () => {
-                this.log(`🌐 Gateway running on http://127.0.0.1:${config.port}`);
-                vscode.window.setStatusBarMessage(`MCP Gateway: On (${config.port})`, 5000);
-                resolve();
-            });
-
-            this.server.on('error', (e: any) => {
-                if (e.code === 'EADDRINUSE') {
-                    this.error(`Port ${config.port} is already in use!`);
-                    vscode.window.showErrorMessage(`Port ${config.port} is taken. Please stop other MCP servers.`);
-                } else {
-                    this.error('Server error:', e);
+            const tryListen = (currentPort: number, attempt: number) => {
+                const maxRetries = 20;
+                if (attempt > maxRetries) {
+                    const msg = `Could not find an open port after ${maxRetries} attempts (starting from ${config.port})`;
+                    this.error(msg);
+                    vscode.window.showErrorMessage(msg);
+                    reject(new Error(msg));
+                    return;
                 }
-                reject(e);
-            });
+
+                this.server = this.app!.listen(currentPort, '127.0.0.1', () => {
+                    this.log(`🌐 Gateway running on http://127.0.0.1:${currentPort}`);
+                    // Update Status Bar with the ACTUAL port
+                    vscode.window.setStatusBarMessage(`MCP Gateway: On (${currentPort})`, 5000);
+                    resolve();
+                });
+
+                this.server.on('error', (e: any) => {
+                    if (e.code === 'EADDRINUSE') {
+                        this.log(`⚠️ Port ${currentPort} is busy, trying ${currentPort + 1}...`);
+                        tryListen(currentPort + 1, attempt + 1);
+                    } else {
+                        this.error('Server error:', e);
+                        reject(e);
+                    }
+                });
+            };
+
+            tryListen(config.port, 0);
         });
     }
 
