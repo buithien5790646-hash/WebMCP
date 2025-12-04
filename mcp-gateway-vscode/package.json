@@ -30,10 +30,13 @@
           "default": 34567,
           "description": "The port the local gateway server will listen on."
         },
-        "mcpGateway.allowedExtensionId": {
-          "type": "string",
-          "default": "",
-          "description": "The Chrome Extension ID allowed to connect to this gateway."
+        "mcpGateway.allowedExtensionIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "List of Chrome Extension IDs allowed to connect to this gateway."
         },
         "mcpGateway.servers": {
           "type": "object",

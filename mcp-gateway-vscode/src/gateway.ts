@@ -14,7 +14,7 @@ interface ServerConfig {
 
 interface Config {
     port: number;
-    allowedExtensionId: string;
+    allowedExtensionIds: string[]; // 改为数组
     mcpServers: Record<string, ServerConfig>;
 }
 
@@ -116,6 +116,29 @@ export class GatewayManager {
         this.app = express();
         this.app.use(express.json());
 
+        // === Helper: Parse Allowed IDs ===
+        // 直接使用数组，不再分割字符串
+        const allowedIds = config.allowedExtensionIds || [];
+        
+        // 鉴权函数 (已修复 ESLint curly 规则)
+        const isOriginAllowed = (origin: string | undefined): boolean => {
+            if (!origin) {
+                return true; 
+            }
+            if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+                return true;
+            }
+            
+            // Check against allowed Extension IDs
+            return allowedIds.some(id => origin === `chrome-extension://${id}`);
+        };
+
+        if (allowedIds.length > 0) {
+             this.log(`🛡️ Whitelisted Extension IDs: ${allowedIds.join(', ')}`);
+        } else {
+             this.log(`⚠️ No Extension IDs whitelisted. Only localhost allowed.`);
+        }
+
         // === 1. Middleware: Logging ===
         this.app.use((req, res, next) => {
             const start = Date.now();
@@ -139,13 +162,7 @@ export class GatewayManager {
         // === 2. Security Middleware ===
         this.app.use((req, res, next) => {
             const origin = req.get('origin');
-            const isAllowed =
-                !origin ||
-                origin === `chrome-extension://${config.allowedExtensionId}` ||
-                origin.startsWith('http://localhost') ||
-                origin.startsWith('http://127.0.0.1');
-
-            if (!isAllowed) {
+            if (!isOriginAllowed(origin)) {
                 this.log(`⛔ Blocked request from unauthorized origin: ${origin}`);
                 return res.status(403).json({ error: "Forbidden" });
             }
@@ -155,10 +172,7 @@ export class GatewayManager {
         // === 3. CORS ===
         this.app.use(cors({
             origin: (origin, callback) => {
-                if (!origin ||
-                    origin === `chrome-extension://${config.allowedExtensionId}` ||
-                    origin.startsWith('http://localhost') ||
-                    origin.startsWith('http://127.0.0.1')) {
+                if (isOriginAllowed(origin)) {
                     callback(null, true);
                 } else {
                     callback(new Error("Not allowed by CORS"));

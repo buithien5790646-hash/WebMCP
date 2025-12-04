@@ -10,24 +10,25 @@ export async function activate(context: vscode.ExtensionContext) {
     outputChannel.show(true);
     outputChannel.appendLine("🚀 MCP Gateway Extension Activating...");
 
-    // 2. 初始化管理器 (关键修改：传入 context.extensionPath)
+    // 2. 初始化管理器
     manager = new GatewayManager(outputChannel, context.extensionPath);
 
     // 3. 启动服务的辅助函数
     const startService = async () => {
         const config = vscode.workspace.getConfiguration('mcpGateway');
         const port = config.get<number>('port') || 34567;
-        const allowedExtensionId = config.get<string>('allowedExtensionId') || '';
+        // 更新：读取数组配置
+        const allowedExtensionIds = config.get<string[]>('allowedExtensionIds') || [];
         const mcpServers = config.get<any>('servers') || {};
 
-        if (!allowedExtensionId) {
-            vscode.window.showWarningMessage("MCP Gateway: No Extension ID configured. Please set 'mcpGateway.allowedExtensionId' in settings.");
+        if (allowedExtensionIds.length === 0) {
+            vscode.window.showWarningMessage("MCP Gateway: No Extension IDs configured. Only localhost connections will be allowed.");
         }
 
         try {
             await manager.start({
                 port,
-                allowedExtensionId,
+                allowedExtensionIds, // 传递数组
                 mcpServers
             });
         } catch (e: any) {
