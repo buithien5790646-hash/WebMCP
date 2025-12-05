@@ -1,93 +1,81 @@
 # WebMCP 🌉
 
-**连接网页版 AI 与本地开发环境的通用桥梁。**
+**连接网页版 AI 与本地开发环境的通用桥梁 (Zero-Config)。**
 
 > 🛑 **告别 Copy-Paste**：不再需要在 Gemini/ChatGPT/DeepSeek 和 VS Code 之间手动复制粘贴代码。
-> 🚀 **拥抱 MCP 生态**：利用 Model Context Protocol (MCP) 协议，让网页 AI 直接调用本地工具（文件系统、Git、数据库等）。
+> 🚀 **零配置体验**：无需手动填写端口，无需配置白名单，点击即用。
+> 🔐 **安全无忧**：采用动态 Token 认证机制，确保只有您的 VS Code 能连接浏览器。
 
 ---
 
-## 🌟 核心痛点与解决方案
+## 🌟 核心特性
 
-网页版 AI 它们被困在浏览器里，无法触碰你的本地代码。**WebMCP** 打通了这“最后的一公里”：
-
-1.  **协议标准化**：通过预设的 System Prompt，让网页 AI 学会生成标准的 JSON 指令。
-2.  **浏览器拦截**：浏览器插件捕获这些指令，转发给本地。
-3.  **本地执行 (VS Code)**：VS Code 插件作为网关，将指令分发给标准 **MCP Servers** 或内置工具。
-4.  **闭环反馈**：执行结果自动回填到网页输入框，AI 根据结果继续思考或修正。
-
-## ✨ 核心特性
-
+- **⚡️ Zero-Config (零配置)**：VS Code 自动管理端口和认证 Token，一键握手。
 - **🌍 全平台支持**：完美适配 **Gemini**、**ChatGPT**、**DeepSeek** 等主流网页版 AI。
-- **🔌 MCP 协议原生支持**：不只是读写文件！你可以挂载任何标准的 MCP Server（如 Git, Postgres, Fetch 等），能力无限扩展。
-- **🛡️ 安全可控**：支持 Extension ID 白名单机制，确保只有你自己的浏览器插件能连接。
-- **🧠 智能连接管理 (New!)**：
-  - **浏览器端**：支持多标签页隔离 (Tab Isolation)，每个对话窗口可配置不同端口，互不干扰。
-  - **VS Code 端**：支持多实例运行，端口自动递增，且具有**端口粘性 (Stickiness)**——重启后自动记忆上次使用的端口，无需重复配置。
-- **⚡ 极速交互**：优化的前端重试机制，确保在网络波动或 UI 延迟时也能稳定回填消息。
+- **🔌 协议标准化**：基于 Model Context Protocol (MCP)，支持挂载本地文件系统、Git、数据库等任意工具。
+- **🛡️ 动态安全**：
+  - 每次启动生成随机 **Token**，彻底告别繁琐的 Extension ID 白名单。
+  - 支持 **Origin 隔离**，防止恶意网页访问本地网关。
+- **🧠 智能多开**：
+  - 支持同时打开多个 VS Code 窗口，每个窗口拥有独立端口和 Token。
+  - 浏览器插件智能识别端口冲突，防止连接错乱。
 
 ---
 
 ## 🚀 快速开始
 
-### 1. 安装 VS Code 网关 (Server)
+### 1. 安装本地网关 (VS Code)
 
-这是本地服务端，负责接收请求并调度工具。
+1. 下载/调试 `mcp-gateway-vscode` 插件。
+2. 启动后，状态栏会显示 `WebMCP: <Port>` (如 `34567`)。
 
-1.  下载或编译 `mcp-gateway-vscode` 插件。
-2.  安装到 VS Code。
-3.  插件启动后，状态栏会显示当前监听端口 (默认为 `34567`)。
+### 2. 安装浏览器插件 (Chrome/Edge)
 
-### 2. 安装浏览器插件 (Client)
+1. 加载 `mcp-bridge-browser` (开发者模式加载已解压的扩展)。
+2. **无需任何配置**，保持启用即可。
 
-这是客户端，负责“监听” AI 的指令。
+### 3. 开始使用 (Magic happens here!)
 
-1.  加载 `mcp-bridge-browser` (开发者模式加载已解压的扩展)。
-2.  打开任意支持的 AI 网页 (如 Gemini)。
-
-### 3. 配置白名单 ：
-
-1. 点击浏览器栏 `mcp-bridge-browser` 插件，复制 `Extension ID`
-2. 在 VS Code 设置中搜索 `mcpGateway`，在 `Allowed Extension Ids` 中添加浏览器插件的 ID。
-
-### 4. 开始使用
-
-1.  点击插件图标，点击 **"Copy System Prompt"** 复制系统提示词，将复制的 Prompt 发送给 AI。
-2.  AI 会回复：“已准备就绪，请先执行 list_tools...”。
-3.  **尽情对话**：
-    - “帮我读取 `src/index.js` 并优化代码。”
-    - “检查当前 Git 状态。”
-    - “在 `dist` 目录下创建一个新文件。”
+1. 点击 VS Code 状态栏的 **WebMCP** 图标（或使用命令 `WebMCP: Connect AI`）。
+2. 选择您想使用的 AI 平台（如 `Open DeepSeek`）。
+3. 浏览器会自动打开一个中转页，完成 **自动握手** 后跳转到 AI 页面。
+4. **尽情对话**：
+   - “读取 `src/utils.ts` 帮我写个单元测试。”
+   - “检查当前 Git 改动。”
+   - “在 `docs` 目录下生成项目文档。”
 
 ---
 
 ## ⚙️ 高级配置
 
-### VS Code 设置
+大多数情况下您**不需要**配置任何东西。但如果您有特殊需求：
 
-- `mcpGateway.port`: 初始默认端口 (默认 34567)。
-- `mcpGateway.allowedExtensionIds`: (数组) 允许连接的浏览器插件 ID 列表。
-- `mcpGateway.servers`: 配置要加载的 MCP 服务器。
-  - 默认已内置 `filesystem` 服务器。
-  - 你可以添加更多，例如 `git`:
-    ```json
-    "git": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-git", "."]
-    }
-    ```
+### VS Code 设置 (`settings.json`)
 
-### 浏览器插件设置
+- `mcpGateway.port`: 起始端口 (默认 `34567`)。如果被占用，会自动递增。
+- `mcpGateway.browser`: 指定打开的浏览器 (Chrome/Edge/Default)。
+- `mcpGateway.servers`: 配置额外的 MCP 服务器 (默认已包含 `filesystem`)。
 
-- **Port**: 当前标签页连接的本地端口 (支持多标签页不同配置)。
-- **Auto Send**: 结果回填后是否自动点击发送 (推荐开启)。
-- **Floating Log**: 开启悬浮日志窗口，实时查看通信状态。
+### 浏览器插件
+
+- 点击插件图标，您可以：
+  - 查看当前连接状态。
+  - 开启/关闭 **Auto Send** (结果回填后自动发送)。
 
 ---
 
-## 🤝 贡献
+## 🛠️ 故障排查
 
-欢迎提交 Issue 或 PR！
+**Q: 点击跳转后卡在中转页 (Connecting...)？**
+- 检查浏览器插件是否已安装并启用。
+- 尝试在扩展管理页 **重载 (Reload)** 插件。
+- 确保端口在 `34567` - `34576` 范围内 (这是 Chrome 安全策略限制的端口范围)。
+
+**Q: 提示 "Forbidden: Invalid Security Token"？**
+- 您可能直接在浏览器输入了地址，或者 Token 已过期。
+- 请务必从 **VS Code 状态栏** 启动连接。
+
+---
 
 ## 📄 License
 

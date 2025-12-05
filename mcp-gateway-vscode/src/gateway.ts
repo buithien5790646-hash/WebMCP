@@ -4,6 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 // 定义服务器配置接口
 interface ServerConfig {
@@ -14,9 +15,13 @@ interface ServerConfig {
 
 interface Config {
     port: number;
-    preferredPort?: number; // 新增：首选端口（历史端口）
-    allowedExtensionIds: string[];
+    preferredPort?: number;
     mcpServers: Record<string, ServerConfig>;
+}
+
+interface StartResult {
+    port: number;
+    token: string;
 }
 
 export class GatewayManager {
@@ -25,6 +30,7 @@ export class GatewayManager {
     private toolRouter = new Map<string, { client: Client; definition: any }>();
     private connectedClients: { id: string; client: Client }[] = [];
     private outputChannel: vscode.OutputChannel;
+    private authToken: string = '';
 
     constructor(outputChannel: vscode.OutputChannel, extensionPath: string) {
         this.outputChannel = outputChannel;
@@ -59,19 +65,16 @@ export class GatewayManager {
                 let args = [...config.args];
                 const env = { ...process.env, ...config.env } as Record<string, string>;
 
-                // === FIX: Windows Compatibility ===
                 if (process.platform === 'win32') {
                     if (command === 'npx' || command === 'npm') {
                         command = `${command}.cmd`;
                     }
                 }
 
-                // === Logic: Dynamic Workspace Path Resolution ===
                 if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                     const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
                     args = args.map(arg => {
                         if (arg === '.' || arg === '${workspaceFolder}') {
-                            this.log(`   ✨ [${serverId}] Resolved "${arg}" -> Workspace Root`);
                             return root;
                         }
                         return arg;
@@ -108,91 +111,91 @@ export class GatewayManager {
         }
     }
 
-    // 修改：返回 Promise<number> 表示最终使用的端口
-    async start(config: Config): Promise<number> {
+    // 修改：返回 {port, token}
+    async start(config: Config): Promise<StartResult> {
         if (this.server) {
             await this.stop();
         }
         await this.connectToServers(config.mcpServers);
 
+        // 1. 生成一次性 Token
+        this.authToken = crypto.randomUUID();
+        this.log(`🔐 Security Token Generated: ${this.authToken}`);
+
         this.app = express();
         this.app.use(express.json());
+        
+        // 2. 允许所有 CORS (依赖 Token 鉴权)
+        this.app.use(cors({ origin: '*' }));
 
-        const allowedIds = config.allowedExtensionIds || [];
-        const isOriginAllowed = (origin: string | undefined): boolean => {
-            if (!origin) {
-                return true;
-            }
-            if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
-                return true;
-            }
-            return allowedIds.some(id => origin === `chrome-extension://${id}`);
-        };
-
-        if (allowedIds.length > 0) {
-             this.log(`🛡️ Whitelisted Extension IDs: ${allowedIds.join(', ')}`);
-        } else {
-             this.log(`⚠️ No Extension IDs whitelisted. Only localhost allowed.`);
-        }
-
+        // 3. 日志中间件
         this.app.use((req, res, next) => {
             const start = Date.now();
-            const origin = req.get('origin') || 'Unknown';
             if (req.method !== 'OPTIONS') {
-                this.log(`🔔 [${req.method}] ${req.url} <== ${origin}`);
+                this.log(`🔔 [${req.method}] ${req.url}`);
             }
             res.on('finish', () => {
                 const duration = Date.now() - start;
-                const status = res.statusCode;
                 if (req.method !== 'OPTIONS') {
-                    const icon = status >= 400 ? '❌' : '   🏁';
-                    this.log(`${icon} Status: ${status} (${duration}ms)`);
+                    const icon = res.statusCode >= 400 ? '❌' : '   🏁';
+                    this.log(`${icon} Status: ${res.statusCode} (${duration}ms)`);
                 }
             });
             next();
         });
 
+        // 4. Token 校验中间件 (排除 /bridge 和 OPTIONS)
         this.app.use((req, res, next) => {
-            const origin = req.get('origin');
-            if (!isOriginAllowed(origin)) {
-                this.log(`⛔ Blocked request from unauthorized origin: ${origin}`);
-                return res.status(403).json({ error: "Forbidden" });
+            if (req.path === '/bridge' || req.path === '/favicon.ico' || req.method === 'OPTIONS') {
+                return next();
+            }
+
+            const clientToken = req.headers['x-webmcp-token'];
+            if (!clientToken || clientToken !== this.authToken) {
+                this.log(`⛔ Unauthorized access attempt. Token: ${clientToken}`);
+                return res.status(403).json({ 
+                    isError: true, 
+                    content: [{ type: 'text', text: "⛔ Forbidden: Invalid Security Token. Please launch from VS Code." }]
+                });
             }
             next();
         });
 
-        this.app.use(cors({
-            origin: (origin, callback) => {
-                if (isOriginAllowed(origin)) {
-                    callback(null, true);
-                } else {
-                    callback(new Error("Not allowed by CORS"));
-                }
-            }
-        }));
-
+        // 5. 桥接页面 (Bridge Page)
         this.app.get('/bridge', (req, res) => {
             const target = req.query.target as string || 'https://chatgpt.com';
+            const token = req.query.token as string;
             const port = this.server.address().port;
-            this.log(`🌉 Bridge handshake requested. Target: ${target}`);
             
-            // 返回一个简单的页面，浏览器插件会自动拦截这个页面
+            this.log(`🌉 Bridge handshake requested.`);
+            
+            // 返回中转页，包含必要的元数据
             res.send(`
                 <!DOCTYPE html>
                 <html>
                 <head>
                     <title>WebMCP Bridge</title>
                     <style>
-                        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #1e1e1e; color: #fff; }
-                        .loader { border: 4px solid #333; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+                        body { font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #1e1e1e; color: #fff; text-align: center; }
+                        .loader { border: 3px solid #333; border-top: 3px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+                        .card { background: #252526; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); max-width: 400px; }
+                        h2 { margin-top: 0; color: #3498db; }
+                        p { color: #cccccc; }
+                        .warn { color: #e67e22; font-size: 0.9em; margin-top: 10px; }
+                        button { background: #3498db; border: none; padding: 10px 20px; color: white; border-radius: 4px; cursor: pointer; margin-top: 15px; }
+                        button:hover { background: #2980b9; }
                         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
                     </style>
                 </head>
                 <body>
-                    <div class="loader"></div>
-                    <h2>Connecting to WebMCP...</h2>
-                    <p>Port: ${port}</p>
-                    <p>Target: ${target}</p>
+                    <div class="card" id="main-card">
+                        <div class="loader" id="loader"></div>
+                        <h2>Connecting to WebMCP...</h2>
+                        <p>Synchronizing with VS Code...</p>
+                    </div>
+
+                    
+                    <div id="mcp-data" data-port="${port}" data-token="${token}" data-target="${target}" style="display:none;"></div>
                 </body>
                 </html>
             `);
@@ -201,7 +204,6 @@ export class GatewayManager {
         this.app.get('/v1/tools', (req, res) => {
             const tools = Array.from(this.toolRouter.values()).map(t => t.definition);
             this.log(`   🚀 Executing: GET /v1/tools (Discovery)`);
-            this.log(`   ✅ Returned ${tools.length} tools`);
             res.json({ tools });
         });
 
@@ -218,18 +220,10 @@ export class GatewayManager {
                     return p;
                 };
 
-                if (args.path) {
-                    args.path = fixPath(args.path);
-                }
-                if (args.source) {
-                    args.source = fixPath(args.source);
-                }
-                if (args.destination) {
-                    args.destination = fixPath(args.destination);
-                }
-                if (Array.isArray(args.paths)) {
-                    args.paths = args.paths.map((p: any) => fixPath(p));
-                }
+                if (args.path) args.path = fixPath(args.path);
+                if (args.source) args.source = fixPath(args.source);
+                if (args.destination) args.destination = fixPath(args.destination);
+                if (Array.isArray(args.paths)) args.paths = args.paths.map((p: any) => fixPath(p));
             }
 
             if (name === 'list_tools') {
@@ -245,7 +239,6 @@ export class GatewayManager {
 
             const route = this.toolRouter.get(name);
             if (!route) {
-                this.error(`Tool not found: ${name}`);
                 return res.status(404).json({
                     isError: true,
                     content: [{ type: 'text', text: `Tool '${name}' not found.` }]
@@ -253,7 +246,7 @@ export class GatewayManager {
             }
 
             try {
-                const argsPreview = JSON.stringify(args || {}).slice(0, 100) + (JSON.stringify(args || {}).length > 100 ? '...' : '');
+                const argsPreview = JSON.stringify(args || {}).slice(0, 50) + '...';
                 this.log(`   🚀 Executing: ${name} ${argsPreview}`);
                 const result = await route.client.callTool({ name, arguments: args || {} });
                 const toolDuration = Date.now() - toolStart;
@@ -268,46 +261,36 @@ export class GatewayManager {
             }
         });
 
-        // === 5. Dynamic Port Allocation with Stickiness ===
-        return new Promise<number>((resolve, reject) => {
+        // Dynamic Port Allocation
+        return new Promise<StartResult>((resolve, reject) => {
             const tryListen = (currentPort: number, attempt: number) => {
                 const maxRetries = 20;
                 if (attempt > maxRetries) {
-                    const msg = `Could not find an open port after ${maxRetries} attempts.`;
-                    this.error(msg);
-                    vscode.window.showErrorMessage(msg);
-                    reject(new Error(msg));
+                    reject(new Error("No ports available"));
                     return;
                 }
 
                 this.server = this.app!.listen(currentPort, '127.0.0.1', () => {
-                    this.log(`🌐 Gateway running on http://127.0.0.1:${currentPort}`);
+                    this.log(`🌐 Gateway running on http://127.0.0.1:${currentPort} (Token: ${this.authToken.slice(0, 8)}...)`);
                     vscode.window.setStatusBarMessage(`MCP Gateway: On (${currentPort})`, 5000);
-                    resolve(currentPort); // 返回成功绑定的端口
+                    resolve({ port: currentPort, token: this.authToken });
                 });
 
                 this.server.on('error', (e: any) => {
                     if (e.code === 'EADDRINUSE') {
-                        // 如果是首选端口失败，打个日志，然后从默认端口开始尝试
                         if (currentPort === config.preferredPort) {
-                             this.log(`⚠️ Preferred port ${currentPort} is busy. Falling back to default range.`);
-                             // 递归调用：尝试 default port，重置 attempt
+                             this.log(`⚠️ Preferred port ${currentPort} busy. Falling back.`);
                              tryListen(config.port, 0);
                         } else {
-                             this.log(`⚠️ Port ${currentPort} is busy, trying ${currentPort + 1}...`);
                              tryListen(currentPort + 1, attempt + 1);
                         }
                     } else {
-                        this.error('Server error:', e);
                         reject(e);
                     }
                 });
             };
 
-            // 优先尝试 Preferred Port (如果存在且不等于 default port)
-            // 如果 preferred == default，直接进入主逻辑，不用特殊处理
             if (config.preferredPort && config.preferredPort !== config.port) {
-                 this.log(`🔄 Trying sticky port from last session: ${config.preferredPort}`);
                  tryListen(config.preferredPort, 0);
             } else {
                  tryListen(config.port, 0);
@@ -319,6 +302,7 @@ export class GatewayManager {
         if (this.server) {
             this.server.close();
             this.server = null;
+            this.authToken = '';
             this.log('🛑 Gateway server stopped.');
         }
         this.connectedClients.forEach(c => {

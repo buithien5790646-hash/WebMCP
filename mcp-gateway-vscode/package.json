@@ -1,10 +1,15 @@
 {
   "name": "mcp-gateway-vscode",
-  "publisher": "mcp-user",
+  "publisher": "three-water666",
   "displayName": "WebMCP Gateway",
-  "description": "Connect Web AI to Local VS Code via Model Context Protocol",
+  "description": "Connect Web AI to Local VS Code via Model Context Protocol (Zero-Config)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/three-water666/WebMCP.git"
+  },
+  "license": "MIT",
   "icon": "images/icon.png",
-  "version": "0.0.1",
+  "version": "0.1.1",
   "engines": {
     "vscode": "^1.106.1"
   },
@@ -30,19 +35,20 @@
           "default": 34567,
           "description": "The port the local gateway server will listen on."
         },
-        "mcpGateway.allowedExtensionIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "description": "List of Chrome Extension IDs allowed to connect to this gateway."
-        },
         "mcpGateway.browser": {
           "type": "string",
           "default": "default",
-          "enum": ["default", "chrome", "edge"],
-          "description": "Select the browser to launch when connecting to AI. 'default' uses system default."
+          "enum": [
+            "default",
+            "chrome",
+            "edge"
+          ],
+          "description": "Global default browser. Used if no rule matches."
+        },
+        "mcpGateway.browserRules": {
+          "type": "object",
+          "default": {},
+          "description": "Map specific keywords to browsers. Example: { \"deepseek\": \"edge\", \"google\": \"chrome\" }"
         },
         "mcpGateway.servers": {
           "type": "object",
@@ -56,7 +62,7 @@
               ]
             }
           },
-          "description": "Configuration for MCP Servers. Use 'INTERNAL_FS_SERVER' as the first arg to use the built-in filesystem server."
+          "description": "Configuration for MCP Servers."
         }
       }
     }

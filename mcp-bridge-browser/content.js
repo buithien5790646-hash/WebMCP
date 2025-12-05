@@ -1,12 +1,11 @@
 (function () {
   "use strict";
 
-  // === 配置管理 ===
   let CONFIG = {
     pollInterval: 1000,
     autoSend: true,
     autoPromptEnabled: false,
-    showFloatingLog: false,
+    // showFloatingLog: false, // 移除：由消息动态控制
   };
 
   // === 悬浮日志系统 (Floating Logger) ===
@@ -16,8 +15,6 @@
 
     init() {
       if (this.el) return;
-
-      // 创建主容器
       this.el = document.createElement("div");
       Object.assign(this.el.style, {
         position: "fixed",
@@ -39,7 +36,6 @@
         backdropFilter: "blur(4px)",
       });
 
-      // 创建标题栏 (拖拽区域)
       const header = document.createElement("div");
       Object.assign(header.style, {
         padding: "6px 10px",
@@ -54,14 +50,12 @@
       });
       header.innerText = "MCP Process Log";
 
-      // 清空按钮
       const clearBtn = document.createElement("span");
       clearBtn.innerText = "🗑️";
       clearBtn.style.cursor = "pointer";
       clearBtn.onclick = () => (this.contentEl.innerHTML = "");
       header.appendChild(clearBtn);
 
-      // 创建内容区域
       this.contentEl = document.createElement("div");
       Object.assign(this.contentEl.style, {
         flex: "1",
@@ -74,15 +68,12 @@
       this.el.appendChild(this.contentEl);
       document.body.appendChild(this.el);
 
-      // 启用拖拽
       this.makeDraggable(header);
     },
 
-    // 拖拽逻辑
     makeDraggable(headerEl) {
       let isDragging = false;
       let startX, startY, initialLeft, initialTop;
-
       headerEl.addEventListener("mousedown", (e) => {
         isDragging = true;
         startX = e.clientX;
@@ -91,24 +82,22 @@
         initialLeft = rect.left;
         initialTop = rect.top;
       });
-
       window.addEventListener("mousemove", (e) => {
         if (!isDragging) return;
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
         this.el.style.left = `${initialLeft + dx}px`;
         this.el.style.top = `${initialTop + dy}px`;
-        this.el.style.right = "auto"; // 清除 right 属性以允许自由移动
+        this.el.style.right = "auto";
       });
-
-      window.addEventListener("mouseup", () => {
-        isDragging = false;
-      });
+      window.addEventListener("mouseup", () => { isDragging = false; });
     },
 
     toggle(show) {
-      if (!this.el) this.init();
-      this.el.style.display = show ? "flex" : "none";
+      if (!this.el && show) this.init();
+      if (this.el) {
+          this.el.style.display = show ? "flex" : "none";
+      }
     },
 
     log(msg, type = "info") {
@@ -122,41 +111,31 @@
 
       let icon = "🔹";
       let color = "#ddd";
-
-      if (type === "success") {
-        icon = "✅";
-        color = "#4caf50";
-      }
-      if (type === "error") {
-        icon = "❌";
-        color = "#f44336";
-      }
-      if (type === "warn") {
-        icon = "⚠️";
-        color = "#ff9800";
-      }
-      if (type === "action") {
-        icon = "⚡";
-        color = "#00bcd4";
-      }
+      if (type === "success") { icon = "✅"; color = "#4caf50"; }
+      if (type === "error") { icon = "❌"; color = "#f44336"; }
+      if (type === "warn") { icon = "⚠️"; color = "#ff9800"; }
+      if (type === "action") { icon = "⚡"; color = "#00bcd4"; }
 
       line.innerHTML = `<span style="color:#888; font-size:10px">[${time}]</span> ${icon} <span style="color:${color}">${msg}</span>`;
-
       this.contentEl.appendChild(line);
       this.contentEl.scrollTop = this.contentEl.scrollHeight;
     },
   };
 
-  // === 初始化 & 配置加载 ===
+  // === 监听 Background 发来的日志开关指令 ===
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.type === 'TOGGLE_LOG') {
+          Logger.toggle(request.show);
+          Logger.log("Logger Visible: " + request.show, "info");
+      }
+  });
+
+  // === 初始化配置 ===
   chrome.storage.sync.get(
-    ["autoSend", "autoPromptEnabled", "showFloatingLog"],
+    ["autoSend", "autoPromptEnabled"],
     (items) => {
       CONFIG.autoSend = items.autoSend ?? true;
       CONFIG.autoPromptEnabled = items.autoPromptEnabled ?? false;
-      CONFIG.showFloatingLog = items.showFloatingLog ?? false;
-
-      Logger.init();
-      Logger.toggle(CONFIG.showFloatingLog);
       console.log("[MCP] Config Loaded:", CONFIG);
     }
   );
@@ -164,12 +143,7 @@
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === "sync") {
       if (changes.autoSend) CONFIG.autoSend = changes.autoSend.newValue;
-      if (changes.autoPromptEnabled)
-        CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;
-      if (changes.showFloatingLog) {
-        CONFIG.showFloatingLog = changes.showFloatingLog.newValue;
-        Logger.toggle(CONFIG.showFloatingLog);
-      }
+      if (changes.autoPromptEnabled) CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;
     }
   });
 
@@ -193,31 +167,19 @@
       messageBlocks: ".markdown",
       codeBlocks: "pre code",
       inputArea: 'div[contenteditable="true"]',
-      sendButton:
-        'button[aria-label="发送"], button[aria-label="Send"], button[aria-label*="Send"]',
+      sendButton: 'button[aria-label="发送"], button[aria-label="Send"], button[aria-label*="Send"]',
     },
   };
 
-  const currentPlatform = location.host.includes("deepseek")
-    ? "deepseek"
-    : location.host.includes("gemini")
-    ? "gemini"
-    : "chatgpt";
+  const currentPlatform = location.host.includes("deepseek") ? "deepseek" : location.host.includes("gemini") ? "gemini" : "chatgpt";
   const DOM = SELECTORS[currentPlatform];
-
   console.log(`[MCP Extension] Started on ${currentPlatform}`);
 
-  // 轮询检测
   setInterval(() => {
-    // 1. 自动填充 Prompt 逻辑
     const messages = document.querySelectorAll(DOM.messageBlocks);
     if (messages.length === 0) {
       const inputEl = document.querySelector(DOM.inputArea);
-      if (
-        inputEl &&
-        CONFIG.autoPromptEnabled &&
-        inputEl.textContent.trim() === ""
-      ) {
+      if (inputEl && CONFIG.autoPromptEnabled && inputEl.textContent.trim() === "") {
         chrome.storage.local.get(["initialPrompt"], (items) => {
           if (items.initialPrompt) {
             inputEl.innerText = items.initialPrompt;
@@ -229,7 +191,6 @@
       return;
     }
 
-    // 2. 检测工具调用
     const lastMessage = messages[messages.length - 1];
     const codeElements = lastMessage.querySelectorAll(DOM.codeBlocks);
 
@@ -239,46 +200,26 @@
 
       try {
         const payload = JSON.parse(textContent);
-
         if (payload.mcp_action === "call" && payload.request_id) {
           if (processedRequests.has(payload.request_id)) {
             if (codeEl.dataset.mcpVisual !== "true") markVisualSuccess(codeEl);
             return;
           }
 
-          // === 捕获新请求 ===
           processedRequests.add(payload.request_id);
           markVisualSuccess(codeEl);
 
           Logger.log(`捕获调用: ${payload.name}`, "info");
-          Logger.log(
-            `参数: ${JSON.stringify(payload.arguments).substring(0, 50)}...`,
-            "info"
-          );
+          Logger.log(`参数: ${JSON.stringify(payload.arguments).substring(0, 50)}...`, "info");
 
-          // 发送给 Background
-          chrome.runtime.sendMessage(
-            { type: "EXECUTE_TOOL", payload: payload },
-            (response) => {
-              if (response && response.success) {
-                Logger.log(`执行成功: ${payload.name}`, "success");
-                sendResponseToChat(payload.request_id, response.data);
-              } else {
-                Logger.log(`执行失败: ${response.error}`, "error");
-                sendResponseToChat(
-                  payload.request_id,
-                  `❌ Error: ${response.error}`
-                );
-              }
+          chrome.runtime.sendMessage({ type: "EXECUTE_TOOL", payload: payload }, (response) => {
+            if (response && response.success) {
+              Logger.log(`执行成功: ${payload.name}`, "success");
+              sendResponseToChat(payload.request_id, response.data);
+            } else {
+              Logger.log(`执行失败: ${response.error}`, "error");
+              sendResponseToChat(payload.request_id, `❌ Error: ${response.error}`);
             }
-          );
-        } else {
-          // 错误格式提示
-          chrome.storage.local.get(["errorHint"], (items) => {
-            const hint =
-              items.errorHint || "❌ Error: Invalid MCP JSON format.";
-            sendResponseToChat("error_format_hint_" + Date.now(), hint);
-            Logger.log("格式错误，已发送提示", "warn");
           });
         }
       } catch (e) {}
@@ -298,23 +239,12 @@
       status: "success",
       output: outputContent,
     };
-
-    const replyText = `\`\`\`json\n${JSON.stringify(
-      responseJson,
-      null,
-      2
-    )}\n\`\`\``;
+    const replyText = `\`\`\`json\n${JSON.stringify(responseJson, null, 2)}\n\`\`\``;
     const inputEl = document.querySelector(DOM.inputArea);
+    if (!inputEl) { Logger.log("找不到输入框!", "error"); return; }
 
-    if (!inputEl) {
-      Logger.log("找不到输入框!", "error");
-      return;
-    }
-
-    // 智能追加逻辑
     const currentText = inputEl.innerText || inputEl.value || "";
     const separator = currentText.trim() ? "\n\n" : "";
-
     if (inputEl.tagName === "TEXTAREA" || inputEl.tagName === "INPUT") {
       inputEl.value = currentText + separator + replyText;
     } else {
@@ -323,39 +253,49 @@
     inputEl.dispatchEvent(new Event("input", { bubbles: true }));
     Logger.log("结果已回填至输入框", "action");
 
-    // 智能发送重试逻辑
+    // === 智能发送重试逻辑 (后台增强版) ===
     if (CONFIG.autoSend) {
       let retryCount = 0;
-      const maxRetries = 5;
+      const maxRetries = 10; // 增加重试次数
 
       const trySend = () => {
         const btn = document.querySelector(DOM.sendButton);
         
-        // 检查输入框内容（是否已清空）
+        // 1. 检查输入框内容
         const currentVal = inputEl.value || inputEl.innerText || "";
-        // 注意：某些平台清空后可能保留 \n 或 placeholder，长度判断宽松一点
         if (currentVal.trim().length === 0) {
              Logger.log("发送成功 (输入框已清空)", "success");
-             return; // 成功退出
+             return;
         }
 
-        if (!btn || btn.disabled) {
-           // 按钮不可用，等待下一轮
-           Logger.log("发送按钮不可用/未找到，等待...", "warn");
+        // 2. 唤醒机制 (针对后台 Tab)
+        if (inputEl) {
+            inputEl.focus();
+            inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+            inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+
+        // 3. 检查按钮状态
+        if (!btn) {
+           Logger.log("未找到发送按钮...", "warn");
+        } else if (btn.disabled) {
+           Logger.log("发送按钮仍被禁用 (UI未更新)...", "warn");
         } else {
+           // 4. 暴力点击
+           btn.focus();
            btn.click();
            Logger.log(`尝试自动发送 (${retryCount + 1}/${maxRetries})`, "action");
         }
 
         retryCount++;
         if (retryCount < maxRetries) {
-           setTimeout(trySend, 1500); // 间隔 1.5秒重试
+           // 后台 Tab 的 setTimeout 可能会被降频，所以增加间隔
+           setTimeout(trySend, 2000);
         } else {
-           Logger.log("自动发送失败，请手动点击发送", "error");
+           Logger.log("自动发送超时，请手动点击发送", "error");
         }
       };
 
-      // 首次延迟触发，给 UI 更新一点时间
       setTimeout(trySend, 1000);
     }
   }
