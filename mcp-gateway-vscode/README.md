@@ -1,29 +1,31 @@
-# MCP Gateway for VS Code
+# WebMCP Gateway (VS Code 插件)
 
-This extension acts as a **Model Context Protocol (MCP) Gateway**, allowing web-based AI agents (via Chrome Extension) to securely interact with your local VS Code environment.
+> ⚠️ **重要提示**
+> 本插件必须配合浏览器插件 **WebMCP Bridge** 使用才能生效。
+> 请确保您已在 Chrome 或 Edge 浏览器中安装了对应的扩展。
 
-## ✨ Features
+## 🚀 简介
+**WebMCP Gateway** 将您的 VS Code 转变为一个本地 MCP (Model Context Protocol) 服务器。这使得基于 Web 的 AI 模型（如 ChatGPT, Gemini, DeepSeek 等）能够安全地访问您的本地文件、执行终端命令，并协助您编写代码。
 
-- **Zero Config Start**: Comes with Filesystem, Git, and Fetch support out of the box.
-- **Smart Context**: Automatically resolves `.` to your active workspace root.
-- **Lightweight**: Uses your local `npx` and `python` to run servers, keeping the extension size minimal.
+## ✨ 核心功能
+* **零配置连接**: 自动寻找可用端口，无需繁琐设置。
+* **安全桥接**: 使用一次性 Token 机制，确保浏览器与编辑器之间的通信安全。
+* **工具暴露**: 将本地文件系统操作、终端命令等能力标准化为 MCP 工具提供给 AI。
 
-## 🚀 Getting Started
+## ⚙️ 安装与使用
 
-1. **Install the Extension** (`.vsix`).
-2. **Set your Extension ID** in VS Code Settings:
-   - `mcpGateway.allowedExtensionId`: Your Chrome Extension ID.
-3. **Install Dependencies** (for Git/Fetch support):
-   ```bash
-   pip install mcp-server-git mcp-server-fetch
-   ```
-   *(Note: Node.js is required for the Filesystem server)*
+1. **安装插件**: 在 VS Code 扩展市场搜索并安装 `WebMCP Gateway`。
+2. **启动服务**: 安装完成后，点击 VS Code 底部状态栏右侧的 `MCP Gateway: Off` 按钮。当状态变为 `On` 时，服务即已启动。
+3. **浏览器配套**: 确保您的浏览器已安装 **WebMCP Bridge** 插件。
 
-## ⚙️ Configuration (Optional)
+## ❓ 常见问题
 
-The extension works by default with the following servers:
-- **Filesystem**: `npx -y @modelcontextprotocol/server-filesystem .`
-- **Git**: `python -m mcp_server_git --repository .`
-- **Fetch**: `python -m mcp_server_fetch`
+**Q: 点击状态栏没反应？**
+A: 请检查是否有其他程序占用了 30000-40000 范围内的端口，或者尝试重启 VS Code。
 
-You can customize these in `mcpGateway.servers` if needed.
+**Q: 浏览器插件显示未连接？**
+A: 请确保 VS Code 正在运行且状态栏显示为 `On`。如果是首次连接，请在 AI 网页中刷新页面。
+
+---
+## 📄 许可证
+MIT License

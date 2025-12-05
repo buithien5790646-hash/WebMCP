@@ -51,11 +51,25 @@
 
   
   <div id="disconnectedView">
-    <div class="card" style="text-align:center; padding: 20px 10px;">
-      <p>🔌 Disconnected</p>
-      <p style="font-size:11px; margin-top:8px; color:#888">
-        Please launch WebMCP from VS Code status bar.
-      </p>
+    <div class="card" style="padding: 15px 10px; border: 1px solid #555;">
+      <h3 style="color:#e74c3c; margin:0 0 10px 0; font-size:14px; text-align:center">🔴 未连接 (Disconnected)</h3>
+      
+      
+      <div style="margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px">
+        <p style="font-size:12px; color:#fff; font-weight:bold; margin-bottom:5px">👉 如果已安装 VS Code 插件：</p>
+        <p style="font-size:11px; color:#ccc; line-height:1.4">
+           请回到 VS Code，点击底部状态栏的 <span style="color:#3498db">MCP Gateway: Off</span> 按钮以启动服务。
+        </p>
+      </div>
+
+      
+      <div>
+        <p style="font-size:12px; color:#fff; font-weight:bold; margin-bottom:5px">👉 如果还未安装：</p>
+        <div style="background:#333; padding:8px; border-radius:4px; margin:5px 0;">
+          <p style="font-size:10px; color:#888; margin-bottom:2px">请在 VS Code 插件市场搜索：</p>
+          <p style="font-weight:bold; color:#4CAF50; font-size:12px">WebMCP Gateway</p>
+        </div>
+      </div>
     </div>
   </div>
 

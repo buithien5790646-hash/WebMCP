@@ -1,5 +1,8 @@
 (function() {
     // === 核心修复：等待 DOM 加载完成 ===
+    // 标记插件已安装，供页面检测
+    document.documentElement.setAttribute('data-extension-installed', 'true');
+
     window.addEventListener('DOMContentLoaded', () => {
         console.log("[WebMCP] Bridge DOM Loaded, starting handshake...");
 

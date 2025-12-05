@@ -196,6 +196,37 @@ export class GatewayManager {
 
                     
                     <div id="mcp-data" data-port="${port}" data-token="${token}" data-target="${target}" style="display:none;"></div>
+                    
+                    
+                    <div class="card" id="install-guide" style="display:none; border: 1px solid #e74c3c; box-shadow: 0 4px 15px rgba(231, 76, 60, 0.2);">
+                        <h2 style="color:#e74c3c; margin-bottom:10px">⚠️ Extension Required</h2>
+                        <p style="margin-bottom:20px">To enable auto-connection, you need the companion browser extension:</p>
+                        <div style="background:#333; padding:10px; border-radius:6px; margin-bottom:20px; font-weight:bold; color:#fff">
+                            🧩 WebMCP Bridge
+                        </div>
+                        <a href="#" onclick="alert('Please search for [WebMCP Bridge] in your browser store.'); return false;" style="display:inline-block; background:#e74c3c; color:white; padding:10px 20px; text-decoration:none; border-radius:4px; font-weight:bold;">
+                            Get Browser Extension
+                        </a>
+                        <p class="warn" style="margin-top:15px; font-size:12px">Already installed? Try reloading this page.</p>
+                    </div>
+
+                    <script>
+                        // 检测逻辑：等待 1.5 秒
+                        setTimeout(() => {
+                            // 1. 检查插件是否打上了标记
+                            const isInstalled = document.documentElement.getAttribute('data-extension-installed') === 'true';
+                            
+                            // 2. 双重保险：检查页面内容是否已经被插件修改（例如出现了冲突提示）
+                            const bodyText = document.body.innerText;
+                            const isBusyOrConflict = bodyText.includes('Conflict') || bodyText.includes('Switching') || bodyText.includes('Connected');
+
+                            // 只有在既没安装，也没发生冲突的情况下，才显示安装引导
+                            if (!isInstalled && !isBusyOrConflict) {
+                                document.getElementById('main-card').style.display = 'none';
+                                document.getElementById('install-guide').style.display = 'block';
+                            }
+                        }, 1500);
+                    </script>
                 </body>
                 </html>
             `);
