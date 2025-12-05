@@ -149,6 +149,7 @@
 
   // === 主逻辑 ===
   const processedRequests = new Set();
+  let toolCallCount = 0; // 工具调用计数器
 
   const SELECTORS = {
     deepseek: {
@@ -233,12 +234,20 @@
   }
 
   function sendResponseToChat(requestId, outputContent) {
+    toolCallCount++;
     const responseJson = {
       mcp_action: "result",
       request_id: requestId,
       status: "success",
       output: outputContent,
     };
+
+    // === 定期复训机制 (每5次调用提醒一次) ===
+    if (toolCallCount > 0 && toolCallCount % 5 === 0) {
+        // 附带最小协议格式，防止 AI 遗忘字段结构
+        responseJson.system_note = `[System] Reminder: Tool calls MUST use this JSON format: {"mcp_action":"call", "name": "tool_name", "arguments": {...}}. If unsure, call "list_tools" to refresh capabilities.`;
+        Logger.log("已附加定期复训提示", "info");
+    }
     const replyText = `\`\`\`json\n${JSON.stringify(responseJson, null, 2)}\n\`\`\``;
     const inputEl = document.querySelector(DOM.inputArea);
     if (!inputEl) { Logger.log("找不到输入框!", "error"); return; }
