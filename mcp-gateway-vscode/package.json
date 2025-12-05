@@ -38,6 +38,12 @@
           "default": [],
           "description": "List of Chrome Extension IDs allowed to connect to this gateway."
         },
+        "mcpGateway.browser": {
+          "type": "string",
+          "default": "default",
+          "enum": ["default", "chrome", "edge"],
+          "description": "Select the browser to launch when connecting to AI. 'default' uses system default."
+        },
         "mcpGateway.servers": {
           "type": "object",
           "default": {

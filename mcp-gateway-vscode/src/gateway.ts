@@ -171,6 +171,33 @@ export class GatewayManager {
             }
         }));
 
+        this.app.get('/bridge', (req, res) => {
+            const target = req.query.target as string || 'https://chatgpt.com';
+            const port = this.server.address().port;
+            this.log(`🌉 Bridge handshake requested. Target: ${target}`);
+            
+            // 返回一个简单的页面，浏览器插件会自动拦截这个页面
+            res.send(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>WebMCP Bridge</title>
+                    <style>
+                        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #1e1e1e; color: #fff; }
+                        .loader { border: 4px solid #333; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+                        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                    </style>
+                </head>
+                <body>
+                    <div class="loader"></div>
+                    <h2>Connecting to WebMCP...</h2>
+                    <p>Port: ${port}</p>
+                    <p>Target: ${target}</p>
+                </body>
+                </html>
+            `);
+        });
+
         this.app.get('/v1/tools', (req, res) => {
             const tools = Array.from(this.toolRouter.values()).map(t => t.definition);
             this.log(`   🚀 Executing: GET /v1/tools (Discovery)`);
