@@ -1,31 +1,33 @@
-# WebMCP Gateway (VS Code 插件)
+# WebMCP Gateway (VS Code Extension)
 
-> ⚠️ **重要提示**
-> 本插件必须配合浏览器插件 **WebMCP Bridge** 使用才能生效。
-> 请确保您已在 Chrome 或 Edge 浏览器中安装了对应的扩展。
+[中文文档](README_zh.md)
 
-## 🚀 简介
-**WebMCP Gateway** 将您的 VS Code 转变为一个本地 MCP (Model Context Protocol) 服务器。这使得基于 Web 的 AI 模型（如 ChatGPT, Gemini, DeepSeek 等）能够安全地访问您的本地文件、执行终端命令，并协助您编写代码。
+> ⚠️ **IMPORTANT**
+> This extension requires the companion browser extension **WebMCP Bridge** to function.
+> Please ensure you have installed the corresponding extension in Chrome or Edge.
 
-## ✨ 核心功能
-* **零配置连接**: 自动寻找可用端口，无需繁琐设置。
-* **安全桥接**: 使用一次性 Token 机制，确保浏览器与编辑器之间的通信安全。
-* **工具暴露**: 将本地文件系统操作、终端命令等能力标准化为 MCP 工具提供给 AI。
+## 🚀 Introduction
+**WebMCP Gateway** turns your VS Code into a local MCP (Model Context Protocol) server. This allows Web-based AI models (like ChatGPT, Gemini, DeepSeek) to securely access your local files, execute terminal commands, and assist you in writing code.
 
-## ⚙️ 安装与使用
+## ✨ Core Features
+* **Zero-Config Connection**: Automatically finds available ports, no manual setup required.
+* **Secure Bridging**: Uses a one-time Token mechanism to ensure secure communication between the browser and the editor.
+* **Tool Exposure**: Standardizes local filesystem operations and terminal commands as MCP tools for the AI.
 
-1. **安装插件**: 在 VS Code 扩展市场搜索并安装 `WebMCP Gateway`。
-2. **启动服务**: 安装完成后，点击 VS Code 底部状态栏右侧的 `MCP Gateway: Off` 按钮。当状态变为 `On` 时，服务即已启动。
-3. **浏览器配套**: 确保您的浏览器已安装 **WebMCP Bridge** 插件。
+## ⚙️ Installation & Usage
 
-## ❓ 常见问题
+1. **Install**: Search for `WebMCP Gateway` in the VS Code Marketplace and install it.
+2. **Start Service**: After installation, click the `MCP Gateway: Off` button in the status bar (bottom right). When it changes to `On`, the service is running.
+3. **Browser Companion**: Ensure you have the **WebMCP Bridge** extension installed in your browser.
 
-**Q: 点击状态栏没反应？**
-A: 请检查是否有其他程序占用了 30000-40000 范围内的端口，或者尝试重启 VS Code。
+## ❓ FAQ
 
-**Q: 浏览器插件显示未连接？**
-A: 请确保 VS Code 正在运行且状态栏显示为 `On`。如果是首次连接，请在 AI 网页中刷新页面。
+**Q: Clicking the status bar does nothing?**
+A: Check if any other program is using ports in the 30000-40000 range, or try restarting VS Code.
+
+**Q: Browser extension shows "Disconnected"?**
+A: Ensure VS Code is running and the status bar shows `On`. If it's the first time connecting, try refreshing the AI page.
 
 ---
-## 📄 许可证
+## 📄 License
 MIT License

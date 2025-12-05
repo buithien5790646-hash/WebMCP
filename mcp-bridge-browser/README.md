@@ -1,27 +1,29 @@
-# WebMCP Bridge (浏览器插件)
+# WebMCP Bridge (Browser Extension)
 
-> ⚠️ **重要提示**
-> 本扩展是 **WebMCP Gateway** 的配套组件。
-> 使用前，请务必在 VS Code 中安装并启动 `WebMCP Gateway` 插件。
+[中文文档](README_zh.md)
 
-## 🚀 简介
-**WebMCP Bridge** 是连接 Web AI（如 ChatGPT, Claude, Gemini）与本地 VS Code 环境的桥梁。它负责拦截特定的 AI 工具调用请求，并将其安全地转发给本地的 VS Code 服务器，从而让云端 AI 能够“看见”并“操作”您的本地项目。
+> ⚠️ **IMPORTANT**
+> This extension is a companion for **WebMCP Gateway**.
+> You must install and start the `WebMCP Gateway` extension in VS Code before using this.
 
-## 🔧 使用方法
+## 🚀 Introduction
+**WebMCP Bridge** is the connector that links Web AI Chatbots (ChatGPT, Claude, Gemini, etc.) to your local VS Code environment. It intercepts specific AI tool calls and securely forwards them to your local VS Code server, allowing the cloud AI to "see" and "operate" on your local projects.
 
-1. **准备工作**: 打开 VS Code，确保安装了 **WebMCP Gateway** 插件，并点击状态栏启动服务。
-2. **自动连接**: 打开 ChatGPT 或其他支持的 AI 网页。插件会自动检测并连接到本地服务（图标变绿）。
-3. **发送提示词 (关键步骤)**:
-    * 点击浏览器右上角的插件图标。
-    * 点击 **Copy System Prompt** 按钮。
-    * 将复制的内容粘贴给 AI 并发送。
-    * *这一步是为了告诉 AI 有哪些工具可用以及如何调用它们。*
-4. **开始对话**: AI 确认后，您就可以让它读取文件或执行命令了。
-5. **排查故障**: 如果图标显示红色或灰色，请点击插件图标查看详细的故障排查指引。
+## 🔧 Usage
 
-## 📥 获取 VS Code 插件
-请在 VS Code 扩展商店中搜索：`WebMCP Gateway`
+1. **Preparation**: Open VS Code, ensure **WebMCP Gateway** is installed, and click the status bar to start the service.
+2. **Auto Connect**: Open ChatGPT or other supported AI pages. The extension will automatically detect and connect to the local service (the icon will turn green).
+3. **Send Prompt (Critical Step)**:
+    * Click the extension icon in the browser toolbar.
+    * Click the **Copy System Prompt** button.
+    * **Paste** the content to the AI and send it.
+    * *This step tells the AI which tools are available and how to call them.*
+4. **Start Chatting**: Once the AI confirms, you can ask it to read files or execute commands.
+5. **Troubleshooting**: If the icon is red or gray, click the icon to view detailed troubleshooting steps.
+
+## 📥 Get VS Code Extension
+Search in VS Code Marketplace: `WebMCP Gateway`
 
 ---
-## 📄 许可证
+## 📄 License
 MIT License
