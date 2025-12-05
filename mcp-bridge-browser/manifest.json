@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "MCP Bridge",
+  "name": "WebMCP Bridge",
   "version": "0.0.2",
   "description": "Connect Web AI to local MCP Gateway",
   "icons": {

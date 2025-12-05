@@ -1,7 +1,7 @@
 {
   "name": "mcp-gateway-vscode",
   "publisher": "mcp-user",
-  "displayName": "MCP Gateway",
+  "displayName": "WebMCP Gateway",
   "description": "Connect Web AI to Local VS Code via Model Context Protocol",
   "icon": "images/icon.png",
   "version": "0.0.1",
