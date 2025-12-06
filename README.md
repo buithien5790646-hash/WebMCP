@@ -1,11 +1,11 @@
 # WebMCP 🌉
 
-**Universal Bridge connecting Web AI to Local Development Environments (Zero-Config).**
+**Universal Bridge connecting Web AI to Local Development Environments.**
 
 [中文文档](README_zh.md)
 
 > 🛑 **No More Copy-Paste**: Stop manually copying code between DeepSeek/ChatGPT/Gemini and VS Code.
-> 🚀 **Zero-Config**: No manual port entry, no whitelist configuration, just click and use.
+> 🚀 **Zero-Config**: No complex configuration required, just click and use.
 > 🔐 **Secure**: Uses dynamic Token authentication to ensure only your VS Code can connect.
 
 ---
