@@ -1,18 +1,15 @@
 document.addEventListener("DOMContentLoaded", async () => {
-  const connectedView = document.getElementById('connectedView');
-  const disconnectedView = document.getElementById('disconnectedView');
-  const statusDot = document.getElementById('statusDot');
-  const portDisplay = document.getElementById('portDisplay');
-  const copyPromptBtn = document.getElementById('copyPromptBtn');
-  const autoSendInput = document.getElementById('autoSend');
-  const showLogInput = document.getElementById('showLog');
+  const connectedView = document.getElementById("connectedView");
+  const disconnectedView = document.getElementById("disconnectedView");
+  const statusDot = document.getElementById("statusDot");
+  const portDisplay = document.getElementById("portDisplay");
+  const copyPromptBtn = document.getElementById("copyPromptBtn");
+  const autoSendInput = document.getElementById("autoSend");
+  const showLogInput = document.getElementById("showLog");
 
   // 1. 语言检测与资源加载
-  const isZh = navigator.language.startsWith('zh');
-  const promptKey = isZh ? 'prompt_zh' : 'prompt_en';
-  
-  // 更新按钮文本 (可选优化)
-  if (isZh) copyPromptBtn.innerText = "复制系统提示词";
+  const isZh = navigator.language.startsWith("zh");
+  const promptKey = isZh ? "prompt_zh" : "prompt_en";
 
   // 获取当前 Tab ID
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -21,21 +18,24 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (!currentTabId) return;
 
   // 向 Background 查询状态
-  chrome.runtime.sendMessage({ type: 'GET_STATUS', tabId: currentTabId }, (response) => {
-    if (response && response.connected) {
-      connectedView.classList.remove('hidden');
-      disconnectedView.classList.add('hidden');
-      statusDot.classList.add('online');
-      portDisplay.innerText = response.port;
+  chrome.runtime.sendMessage(
+    { type: "GET_STATUS", tabId: currentTabId },
+    (response) => {
+      if (response && response.connected) {
+        connectedView.classList.remove("hidden");
+        disconnectedView.classList.add("hidden");
+        statusDot.classList.add("online");
+        portDisplay.innerText = response.port;
 
-      // 回填 Log 开关状态
-      showLogInput.checked = response.showLog;
-    } else {
-      connectedView.classList.add('hidden');
-      disconnectedView.classList.remove('hidden');
-      statusDot.classList.remove('online');
+        // 回填 Log 开关状态
+        showLogInput.checked = response.showLog;
+      } else {
+        connectedView.classList.add("hidden");
+        disconnectedView.classList.remove("hidden");
+        statusDot.classList.remove("online");
+      }
     }
-  });
+  );
 
   // 2. 复制逻辑：动态读取对应语言的 Prompt
   copyPromptBtn.addEventListener("click", () => {
@@ -44,7 +44,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (promptContent) {
         navigator.clipboard.writeText(promptContent).then(() => {
           const originalText = copyPromptBtn.innerText;
-          copyPromptBtn.innerText = isZh ? "已复制!" : "Copied!";
+          copyPromptBtn.innerText = "Copied!";
           copyPromptBtn.style.backgroundColor = "#0d8a6a";
           setTimeout(() => {
             copyPromptBtn.innerText = originalText;
@@ -58,19 +58,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // Auto Send (Global Config)
-  chrome.storage.sync.get(['autoSend'], (items) => {
-      autoSendInput.checked = items.autoSend !== undefined ? items.autoSend : true;
+  chrome.storage.sync.get(["autoSend"], (items) => {
+    autoSendInput.checked =
+      items.autoSend !== undefined ? items.autoSend : true;
   });
-  autoSendInput.addEventListener('change', () => {
-      chrome.storage.sync.set({ autoSend: autoSendInput.checked });
+  autoSendInput.addEventListener("change", () => {
+    chrome.storage.sync.set({ autoSend: autoSendInput.checked });
   });
 
   // Log Toggle (Tab Session)
-  showLogInput.addEventListener('change', () => {
-      chrome.runtime.sendMessage({
-          type: 'SET_LOG_VISIBLE',
-          tabId: currentTabId,
-          show: showLogInput.checked
-      });
+  showLogInput.addEventListener("change", () => {
+    chrome.runtime.sendMessage({
+      type: "SET_LOG_VISIBLE",
+      tabId: currentTabId,
+      show: showLogInput.checked,
+    });
   });
 });
