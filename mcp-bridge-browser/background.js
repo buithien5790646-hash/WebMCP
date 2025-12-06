@@ -1,13 +1,39 @@
 // === WebMCP Background Service (MV3 Persistent Edition) ===
 
-// 初始化：加载 Prompt 文件
+// 初始化：加载多语言资源文件
 chrome.runtime.onInstalled.addListener(async () => {
-  try {
-    const url = chrome.runtime.getURL("prompt.md");
-    const response = await fetch(url);
-    const text = await response.text();
-    await chrome.storage.local.set({ initialPrompt: text });
-  } catch (err) { console.error("Error loading prompt", err); }
+  const files = {
+    prompt_en: "prompt.md",
+    prompt_zh: "prompt_zh.md",
+    error_hint_en: "error_hint.md",
+    error_hint_zh: "error_hint_zh.md",
+    train_en: "train.md",
+    train_zh: "train_zh.md"
+  };
+
+  const storageData = {};
+
+  for (const [key, file] of Object.entries(files)) {
+    try {
+      const url = chrome.runtime.getURL(file);
+      const response = await fetch(url);
+      if (response.ok) {
+        storageData[key] = await response.text();
+      } else {
+        console.error(`Failed to load ${file}`);
+      }
+    } catch (err) {
+      console.error(`Error loading ${file}`, err);
+    }
+  }
+
+  // 存入 Storage (保留 initialPrompt 以兼容旧逻辑，默认为英文)
+  if (storageData.prompt_en) {
+    storageData.initialPrompt = storageData.prompt_en;
+  }
+  
+  await chrome.storage.local.set(storageData);
+  console.log("[WebMCP] i18n resources loaded:", Object.keys(storageData));
 });
 
 // === 核心修复：监听 Tab 更新，确保持久显示 "ON" ===
@@ -96,18 +122,7 @@ async function removeSession(tabId) {
 
 async function handleHandshake(request, tabId) {
   const { port, token, force } = request;
-
-  // 检查冲突 (需要遍历 storage，性能稍低但安全)
-  // 为了简化，这里我们只检查当前 Tab 是否已有不同 Session，
-  // 或者如果需要严格检查端口占用，需要获取所有 keys。
-  // 鉴于 MV3 storage 遍历成本，我们这里优化为：直接覆盖或由用户自行判断。
-  // 如果一定要检查端口冲突，可以使用 session_port_INDEX 索引，但这里简化处理。
   
-  // 之前的内存版可以轻松遍历，Storage 版遍历比较麻烦。
-  // 考虑到用户体验，如果用户在同一个 Tab 重新握手，直接覆盖。
-  // 如果是不同 Tab 抢占端口... 暂时信任用户操作。
-  
-  // 如果需要严格的“端口已被其他 Tab 占用”检测：
   if (!force) {
       const all = await chrome.storage.local.get(null);
       let conflictTabId = null;
@@ -119,14 +134,12 @@ async function handleHandshake(request, tabId) {
       }
 
       if (conflictTabId) {
-          // 检查该 Tab 是否还活着
           try {
               const tab = await chrome.tabs.get(parseInt(conflictTabId));
               if (tab) {
                   return { success: false, error: 'BUSY', conflictTabId };
               }
           } catch (e) {
-              // Tab 不存在了，清理旧数据
               await removeSession(conflictTabId);
           }
       }

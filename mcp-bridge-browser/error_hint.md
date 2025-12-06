@@ -1,11 +1,11 @@
-❌ **格式错误警告 (Format Error)**
+❌ **Format Error Warning**
 
-你的模型响应内容不符合要求。请确保你的回复严格遵循以下格式：
+Your model response content does not meet the requirements. Please ensure your reply strictly follows the format below:
 
 ```json
 {
   "mcp_action": "call", 
-  "name": "工具名称", 
+  "name": "tool_name", 
   "arguments": {
     "key": "value"
   },
@@ -13,4 +13,4 @@
 }
 ```
 
-请根据上述正确格式重新生成指令。
+Please regenerate the instruction according to the correct format above.

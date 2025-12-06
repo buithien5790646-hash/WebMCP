@@ -5,8 +5,88 @@
     pollInterval: 1000,
     autoSend: true,
     autoPromptEnabled: false,
-    // showFloatingLog: false, // 移除：由消息动态控制
   };
+  
+  // === 国际化资源缓存 ===
+  const i18n = {
+    lang: navigator.language.startsWith('zh') ? 'zh' : 'en',
+    prompt: null,
+    train: null
+  };
+
+  // === 日志国际化字典 (Log i18n Dictionary) ===
+  // 策略：英文环境纯英文，中文环境保留中文描述
+  const LOG_MSGS = {
+    auto_filled: {
+      en: "Auto-filled initial Prompt",
+      zh: "已自动填充初始 Prompt"
+    },
+    captured: {
+      en: "Captured Call",
+      zh: "捕获调用"
+    },
+    args: {
+      en: "Args",
+      zh: "参数"
+    },
+    exec_success: {
+      en: "Execution Success",
+      zh: "执行成功"
+    },
+    exec_fail: {
+      en: "Execution Failed",
+      zh: "执行失败"
+    },
+    training_hint: {
+      en: "Added periodic training note",
+      zh: "已附加定期复训提示"
+    },
+    input_not_found: {
+      en: "Input box not found!",
+      zh: "找不到输入框!"
+    },
+    result_written: {
+      en: "Result written back to input",
+      zh: "结果已回填至输入框"
+    },
+    send_success_cleared: {
+      en: "Send success (Input cleared)",
+      zh: "发送成功 (输入框已清空)"
+    },
+    send_btn_missing: {
+      en: "Send button not found...",
+      zh: "未找到发送按钮..."
+    },
+    send_btn_disabled: {
+      en: "Send button disabled (UI not updated)...",
+      zh: "发送按钮仍被禁用 (UI未更新)..."
+    },
+    auto_send_attempt: {
+      en: "Attempting auto-send",
+      zh: "尝试自动发送"
+    },
+    auto_send_timeout: {
+      en: "Auto-send timed out, please click manually",
+      zh: "自动发送超时，请手动点击发送"
+    }
+  };
+
+  // 简单的翻译辅助函数
+  function t(key) {
+    const entry = LOG_MSGS[key];
+    if (!entry) return key;
+    return entry[i18n.lang] || entry.en;
+  }
+
+  // 初始化时预加载资源
+  const promptKey = i18n.lang === 'zh' ? 'prompt_zh' : 'prompt_en';
+  const trainKey = i18n.lang === 'zh' ? 'train_zh' : 'train_en';
+  
+  chrome.storage.local.get([promptKey, trainKey], (items) => {
+      i18n.prompt = items[promptKey];
+      i18n.train = items[trainKey];
+      console.log(`[MCP] Loaded i18n resources (${i18n.lang})`);
+  });
 
   // === 悬浮日志系统 (Floating Logger) ===
   const Logger = {
@@ -48,7 +128,7 @@
         fontWeight: "bold",
         userSelect: "none",
       });
-      header.innerText = "MCP Process Log";
+      header.innerText = "WebMCP Bridge Process Log";
 
       const clearBtn = document.createElement("span");
       clearBtn.innerText = "🗑️";
@@ -180,14 +260,13 @@
     const messages = document.querySelectorAll(DOM.messageBlocks);
     if (messages.length === 0) {
       const inputEl = document.querySelector(DOM.inputArea);
+      // 自动填充 Prompt (支持国际化)
       if (inputEl && CONFIG.autoPromptEnabled && inputEl.textContent.trim() === "") {
-        chrome.storage.local.get(["initialPrompt"], (items) => {
-          if (items.initialPrompt) {
-            inputEl.innerText = items.initialPrompt;
+          if (i18n.prompt) {
+            inputEl.innerText = i18n.prompt;
             inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-            Logger.log("已自动填充初始 Prompt", "action");
+            Logger.log(t("auto_filled"), "action");
           }
-        });
       }
       return;
     }
@@ -210,15 +289,16 @@
           processedRequests.add(payload.request_id);
           markVisualSuccess(codeEl);
 
-          Logger.log(`捕获调用: ${payload.name}`, "info");
-          Logger.log(`参数: ${JSON.stringify(payload.arguments).substring(0, 50)}...`, "info");
+          Logger.log(`${t("captured")}: ${payload.name}`, "info");
+          // 简略显示参数
+          Logger.log(`${t("args")}: ${JSON.stringify(payload.arguments).substring(0, 50)}...`, "info");
 
           chrome.runtime.sendMessage({ type: "EXECUTE_TOOL", payload: payload }, (response) => {
             if (response && response.success) {
-              Logger.log(`执行成功: ${payload.name}`, "success");
+              Logger.log(`${t("exec_success")}: ${payload.name}`, "success");
               sendResponseToChat(payload.request_id, response.data);
             } else {
-              Logger.log(`执行失败: ${response.error}`, "error");
+              Logger.log(`${t("exec_fail")}: ${response.error}`, "error");
               sendResponseToChat(payload.request_id, `❌ Error: ${response.error}`);
             }
           });
@@ -244,13 +324,16 @@
 
     // === 定期复训机制 (每5次调用提醒一次) ===
     if (toolCallCount > 0 && toolCallCount % 5 === 0) {
-        // 附带最小协议格式，防止 AI 遗忘字段结构
-        responseJson.system_note = `[System] Reminder: Tool calls MUST use this JSON format: {"mcp_action":"call", "name": "tool_name", "arguments": {...}}. If unsure, call "list_tools" to refresh capabilities.`;
-        Logger.log("已附加定期复训提示", "info");
+        if (i18n.train) {
+             responseJson.system_note = i18n.train;
+             Logger.log(t("training_hint") + " (Train/i18n)", "info");
+        } else {
+             responseJson.system_note = `[System] Reminder: Tool calls MUST use this JSON format: {"mcp_action":"call", "name": "tool_name", "arguments": {...}}.`;
+        }
     }
     const replyText = `\`\`\`json\n${JSON.stringify(responseJson, null, 2)}\n\`\`\``;
     const inputEl = document.querySelector(DOM.inputArea);
-    if (!inputEl) { Logger.log("找不到输入框!", "error"); return; }
+    if (!inputEl) { Logger.log(t("input_not_found"), "error"); return; }
 
     const currentText = inputEl.innerText || inputEl.value || "";
     const separator = currentText.trim() ? "\n\n" : "";
@@ -260,51 +343,37 @@
       inputEl.innerText = currentText + separator + replyText;
     }
     inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-    Logger.log("结果已回填至输入框", "action");
+    Logger.log(t("result_written"), "action");
 
-    // === 智能发送重试逻辑 (后台增强版) ===
+    // === 智能发送重试逻辑 ===
     if (CONFIG.autoSend) {
       let retryCount = 0;
-      const maxRetries = 10; // 增加重试次数
-
+      const maxRetries = 10;
       const trySend = () => {
         const btn = document.querySelector(DOM.sendButton);
-        
-        // 1. 检查输入框内容
         const currentVal = inputEl.value || inputEl.innerText || "";
-        if (currentVal.trim().length === 0) {
-             Logger.log("发送成功 (输入框已清空)", "success");
-             return;
-        }
+        if (currentVal.trim().length === 0) { Logger.log(t("send_success_cleared"), "success"); return; }
 
-        // 2. 唤醒机制 (针对后台 Tab)
         if (inputEl) {
             inputEl.focus();
             inputEl.dispatchEvent(new Event("input", { bubbles: true }));
             inputEl.dispatchEvent(new Event("change", { bubbles: true }));
         }
 
-        // 3. 检查按钮状态
-        if (!btn) {
-           Logger.log("未找到发送按钮...", "warn");
-        } else if (btn.disabled) {
-           Logger.log("发送按钮仍被禁用 (UI未更新)...", "warn");
-        } else {
-           // 4. 暴力点击
+        if (btn && !btn.disabled) {
            btn.focus();
            btn.click();
-           Logger.log(`尝试自动发送 (${retryCount + 1}/${maxRetries})`, "action");
+           Logger.log(`${t("auto_send_attempt")} (${retryCount + 1})`, "action");
+        } else if (!btn) {
+           Logger.log(t("send_btn_missing"), "warn");
+        } else {
+           Logger.log(t("send_btn_disabled"), "warn");
         }
 
         retryCount++;
-        if (retryCount < maxRetries) {
-           // 后台 Tab 的 setTimeout 可能会被降频，所以增加间隔
-           setTimeout(trySend, 2000);
-        } else {
-           Logger.log("自动发送超时，请手动点击发送", "error");
-        }
+        if (retryCount < maxRetries) setTimeout(trySend, 2000);
+        else Logger.log(t("auto_send_timeout"), "error");
       };
-
       setTimeout(trySend, 1000);
     }
   }

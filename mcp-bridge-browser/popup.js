@@ -7,6 +7,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   const autoSendInput = document.getElementById('autoSend');
   const showLogInput = document.getElementById('showLog');
 
+  // 1. 语言检测与资源加载
+  const isZh = navigator.language.startsWith('zh');
+  const promptKey = isZh ? 'prompt_zh' : 'prompt_en';
+  
+  // 更新按钮文本 (可选优化)
+  if (isZh) copyPromptBtn.innerText = "复制系统提示词";
+
   // 获取当前 Tab ID
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const currentTabId = tabs[0] ? tabs[0].id : null;
@@ -21,7 +28,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       statusDot.classList.add('online');
       portDisplay.innerText = response.port;
 
-      // 回填 Log 开关状态 (从 Background Session 获取)
+      // 回填 Log 开关状态
       showLogInput.checked = response.showLog;
     } else {
       connectedView.classList.add('hidden');
@@ -30,12 +37,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  // 2. 复制逻辑：动态读取对应语言的 Prompt
   copyPromptBtn.addEventListener("click", () => {
-    chrome.storage.local.get(["initialPrompt"], (items) => {
-      if (items.initialPrompt) {
-        navigator.clipboard.writeText(items.initialPrompt).then(() => {
+    chrome.storage.local.get([promptKey], (items) => {
+      const promptContent = items[promptKey];
+      if (promptContent) {
+        navigator.clipboard.writeText(promptContent).then(() => {
           const originalText = copyPromptBtn.innerText;
-          copyPromptBtn.innerText = "Copied!";
+          copyPromptBtn.innerText = isZh ? "已复制!" : "Copied!";
           copyPromptBtn.style.backgroundColor = "#0d8a6a";
           setTimeout(() => {
             copyPromptBtn.innerText = originalText;
@@ -43,7 +52,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           }, 1500);
         });
       } else {
-        copyPromptBtn.innerText = "Prompt Not Loaded";
+        copyPromptBtn.innerText = "Prompt Not Found";
       }
     });
   });

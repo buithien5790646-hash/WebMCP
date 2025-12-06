@@ -1,53 +1,53 @@
 #!/bin/bash
 
-# 设置颜色
+# Set colors
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}🚀 开始构建 WebMCP Release...${NC}"
+echo -e "${GREEN}🚀 Starting WebMCP Release Build...${NC}"
 
-# 1. 创建输出目录
+# 1. Create output directory
 mkdir -p release
 rm -rf release/*
 
 # ==========================================
-# 2. 打包 VS Code 插件 (Server)
+# 2. Package VS Code Extension (Server)
 # ==========================================
-echo -e "${GREEN}📦 正在构建 VS Code 插件...${NC}"
+echo -e "${GREEN}📦 Building VS Code Extension...${NC}"
 cd mcp-gateway-vscode
 
-# 获取版本号
+# Get version
 VS_VERSION=$(node -p "require('./package.json').version")
 VS_NAME="WebMCP-Gateway-VSCode-${VS_VERSION}.vsix"
 
-# 安装依赖并打包
+# Install dependencies and package
 npm install
-# 确保安装 vsce: npm install -g @vscode/vsce 或者使用 npx
+# Ensure vsce is installed
 npx vsce package --out "../release/${VS_NAME}"
 
 if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ VS Code 插件打包成功: release/${VS_NAME}${NC}"
+    echo -e "${GREEN}✅ VS Code Extension built successfully: release/${VS_NAME}${NC}"
 else
-    echo "❌ VS Code 插件打包失败"
+    echo "❌ VS Code Extension build failed"
     exit 1
 fi
 
-# 返回根目录
+# Return to root
 cd ..
 
 # ==========================================
-# 3. 打包浏览器插件 (Client)
+# 3. Package Browser Extension (Client)
 # ==========================================
-echo -e "${GREEN}📦 正在构建浏览器插件...${NC}"
+echo -e "${GREEN}📦 Building Browser Extension...${NC}"
 cd mcp-bridge-browser
 
-# 获取版本号 (从 manifest.json 读取)
+# Get version
 BROWSER_VERSION=$(node -p "require('./manifest.json').version")
 BROWSER_NAME="WebMCP-Bridge-Browser-${BROWSER_VERSION}.zip"
 
-# 打包 zip
-# -r: 递归
-# -x: 排除文件 (排除 git, DS_Store, map文件, 原始素材等)
+# Zip files
+# -r: recursive
+# -x: exclude files
 zip -r "../release/${BROWSER_NAME}" . \
     -x "*.git*" \
     -x "*.DS_Store" \
@@ -57,13 +57,13 @@ zip -r "../release/${BROWSER_NAME}" . \
     -x "node_modules/*"
 
 if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ 浏览器插件打包成功: release/${BROWSER_NAME}${NC}"
+    echo -e "${GREEN}✅ Browser Extension built successfully: release/${BROWSER_NAME}${NC}"
 else
-    echo "❌ 浏览器插件打包失败"
+    echo "❌ Browser Extension build failed"
     exit 1
 fi
 
-# 返回根目录
+# Return to root
 cd ..
 
-echo -e "${GREEN}🎉 所有构建完成！请查看 release 文件夹。${NC}"
+echo -e "${GREEN}🎉 All builds completed! Please check the 'release' folder.${NC}"

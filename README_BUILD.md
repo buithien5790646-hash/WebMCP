@@ -1,10 +1,10 @@
-# 🏗️ 构建指南
+# 🏗️ Build Guide
 
-您可以使用项目内置的脚本一键打包 VS Code 插件 (`.vsix`) 和浏览器插件 (`.zip`)。
+You can use the built-in scripts to package the VS Code extension (`.vsix`) and the browser extension (`.zip`) with one click.
 
 ## 🍎 macOS / 🐧 Linux
 
-在项目根目录下运行 Bash 脚本：
+Run the Bash script in the project root directory:
 
 ```bash
 chmod +x build_release.sh
@@ -13,34 +13,34 @@ chmod +x build_release.sh
 
 ## 🪟 Windows
 
-可以使用 PowerShell 脚本进行原生打包（无需安装 Bash 或 WSL）：
+You can use the PowerShell script for native packaging (no Bash or WSL required):
 
-### 方法 A：右键运行（最简单）
-1. 在文件夹中找到 `build_release.ps1`。
-2. **右键点击** 该文件。
-3. 选择 **"使用 PowerShell 运行" (Run with PowerShell)**。
+### Method A: Right-click Run (Easiest)
+1. Locate `build_release.ps1` in the folder.
+2. **Right-click** on the file.
+3. Select **"Run with PowerShell"**.
 
-### 方法 B：命令行运行
-在 PowerShell 终端中执行：
+### Method B: Command Line
+Execute in a PowerShell terminal:
 ```powershell
 .\build_release.ps1
 ```
 
-> **⚠️ 常见问题**：如果运行报错提示“在此系统上禁止运行脚本”，请以管理员身份打开 PowerShell 并执行以下命令开启权限，然后重试：
+> **⚠️ Common Issue**: If you see an error saying "running scripts is disabled on this system", open PowerShell as Administrator, run the following command to enable permissions, and try again:
 > ```powershell
 > Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
 > ```
 
 ---
 
-## 📦 产物说明
+## 📦 Artifacts
 
-打包成功后，根目录下会自动生成 `release/` 文件夹，包含：
+After a successful build, a `release/` folder will be generated in the root directory containing:
 
 - **WebMCP-Gateway-VSCode-x.x.x.vsix**
-  - VS Code 插件安装包。
-  - 安装方法：VS Code 扩展侧边栏 -> 点击右上角 `...` -> **Install from VSIX...**
+  - VS Code extension installer.
+  - Installation: VS Code Extensions sidebar -> Click `...` at top right -> **Install from VSIX...**
 
 - **WebMCP-Bridge-Browser-x.x.x.zip**
-  - 浏览器插件压缩包。
-  - 安装方法：解压后 -> Chrome/Edge 扩展管理页 -> 打开“开发者模式” -> **加载已解压的扩展程序**。
+  - Browser extension archive.
+  - Installation: Unzip -> Chrome/Edge Extensions page -> Enable "Developer mode" -> **Load unpacked**.

@@ -1,60 +1,60 @@
 $ErrorActionPreference = "Stop"
 
-Write-Host "🚀 开始构建 WebMCP Release (Windows)..." -ForegroundColor Green
+Write-Host "🚀 Starting WebMCP Release Build (Windows)..." -ForegroundColor Green
 
-# 1. 创建/清理 release 目录
+# 1. Create/Clean release directory
 if (Test-Path "release") {
     Remove-Item "release" -Recurse -Force
 }
 New-Item -ItemType Directory -Force -Path "release" | Out-Null
 
 # ==========================================
-# 2. 打包 VS Code 插件 (Server)
+# 2. Package VS Code Extension (Server)
 # ==========================================
-Write-Host "📦 正在构建 VS Code 插件..." -ForegroundColor Cyan
+Write-Host "📦 Building VS Code Extension..." -ForegroundColor Cyan
 Set-Location "mcp-gateway-vscode"
 
-# 获取版本号
+# Get version
 $json = Get-Content "package.json" -Raw | ConvertFrom-Json
 $vsVersion = $json.version
 $vsName = "WebMCP-Gateway-VSCode-$vsVersion.vsix"
 
-# 安装依赖
+# Install dependencies
 cmd /c "npm install"
 
-# 打包 (使用 npx 调用 vsce，兼容 Windows)
+# Package (use npx to call vsce, compatible with Windows)
 cmd /c "npx vsce package --out ../release/$vsName"
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "✅ VS Code 插件打包成功: release\$vsName" -ForegroundColor Green
+    Write-Host "✅ VS Code Extension built successfully: release\$vsName" -ForegroundColor Green
 } else {
-    Write-Host "❌ VS Code 插件打包失败" -ForegroundColor Red
+    Write-Host "❌ VS Code Extension build failed" -ForegroundColor Red
     exit 1
 }
 
 Set-Location ".."
 
 # ==========================================
-# 3. 打包浏览器插件 (Client)
+# 3. Package Browser Extension (Client)
 # ==========================================
-Write-Host "📦 正在构建浏览器插件..." -ForegroundColor Cyan
+Write-Host "📦 Building Browser Extension..." -ForegroundColor Cyan
 
-# 获取版本号
+# Get version
 $manifest = Get-Content "mcp-bridge-browser\manifest.json" -Raw | ConvertFrom-Json
 $browserVersion = $manifest.version
 $browserName = "WebMCP-Bridge-Browser-$browserVersion.zip"
 
-# Windows PowerShell 的 Compress-Archive 不支持复杂的排除规则
-# 所以我们先复制到一个临时文件夹，删除不需要的文件，再压缩
+# Windows PowerShell's Compress-Archive doesn't support complex exclusion rules
+# So we copy to a temp folder, remove unwanted files, then compress
 
 $tempDir = "temp_build_browser"
 if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
-# 复制文件
+# Copy files
 Copy-Item -Path "mcp-bridge-browser\*" -Destination $tempDir -Recurse
 
-# 删除不需要的文件 (排除列表)
+# Remove unwanted files (exclusion list)
 $exclude = @(".git", ".DS_Store", "*.map", "node_modules", "src", "test")
 foreach ($item in $exclude) {
     if (Test-Path "$tempDir\$item") {
@@ -62,12 +62,12 @@ foreach ($item in $exclude) {
     }
 }
 
-# 压缩
+# Compress
 Compress-Archive -Path "$tempDir\*" -DestinationPath "release\$browserName" -Force
 
-# 清理临时目录
+# Clean up temp directory
 Remove-Item $tempDir -Recurse -Force
 
-Write-Host "✅ 浏览器插件打包成功: release\$browserName" -ForegroundColor Green
+Write-Host "✅ Browser Extension built successfully: release\$browserName" -ForegroundColor Green
 
-Write-Host "🎉 所有构建完成！请查看 release 文件夹。" -ForegroundColor Green
+Write-Host "🎉 All builds completed! Please check the 'release' folder." -ForegroundColor Green
