@@ -73,6 +73,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const items: ActionItem[] = [
             ...aiOptions,
             { label: '$(run) Custom Launch...', description: 'Select AI and Browser manually', action: 'custom' },
+            { label: '$(output) View Logs', description: 'Show MCP Gateway output panel', action: 'showLogs' },
             { label: '$(settings-gear) Configure Gateway', description: 'Quick access to MCP Gateway settings', action: 'settings' },
             { label: '$(refresh) Restart Server', description: 'Restart local gateway', action: 'restart' }
         ];
@@ -83,6 +84,12 @@ export async function activate(context: vscode.ExtensionContext) {
         });
 
         if (!selection) { return; }
+
+        // 0. 查看日志
+        if (selection.action === 'showLogs') {
+            outputChannel.show();
+            return;
+        }
 
         // 1. 设置
         if (selection.action === 'settings') {

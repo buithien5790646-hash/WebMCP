@@ -331,18 +331,40 @@
              responseJson.system_note = `[System] Reminder: Tool calls MUST use this JSON format: {"mcp_action":"call", "name": "tool_name", "arguments": {...}}.`;
         }
     }
+    // 恢复 JSON 格式化 (null, 2)
     const replyText = `\`\`\`json\n${JSON.stringify(responseJson, null, 2)}\n\`\`\``;
     const inputEl = document.querySelector(DOM.inputArea);
     if (!inputEl) { Logger.log(t("input_not_found"), "error"); return; }
 
-    const currentText = inputEl.innerText || inputEl.value || "";
-    const separator = currentText.trim() ? "\n\n" : "";
-    if (inputEl.tagName === "TEXTAREA" || inputEl.tagName === "INPUT") {
-      inputEl.value = currentText + separator + replyText;
-    } else {
-      inputEl.innerText = currentText + separator + replyText;
+    let currentText = inputEl.innerText || inputEl.value || "";
+    
+    // 1. 标准化换行符 (\r\n -> \n)
+    // 2. 压缩由浏览器渲染产生的“伪空行”：将连续的换行符替换为单个换行符
+    //    这就解决了 "每一行中间被增加空行" 的问题
+    currentText = currentText.replace(/\r\n/g, "\n").replace(/\n+/g, "\n").trim();
+
+    // 3. 重新定义分隔符：新旧内容之间保留 2 个换行，保证视觉分隔
+    const separator = currentText ? "\n\n" : "";
+    const finalText = currentText + separator + replyText;
+
+    inputEl.focus();
+    // 尝试使用 execCommand 模拟真实输入 (能解决 contenteditable 的空行膨胀问题)
+    let success = false;
+    try {
+        // 全选 -> 替换 (保留撤销历史，且格式更兼容)
+        document.execCommand('selectAll', false, null);
+        success = document.execCommand('insertText', false, finalText);
+    } catch (e) {}
+
+    // 降级方案：如果模拟输入失败，使用暴力赋值
+    if (!success) {
+        if (inputEl.tagName === "TEXTAREA" || inputEl.tagName === "INPUT") {
+            inputEl.value = finalText;
+        } else {
+            inputEl.innerText = finalText;
+        }
+        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
     }
-    inputEl.dispatchEvent(new Event("input", { bubbles: true }));
     Logger.log(t("result_written"), "action");
 
     // === 智能发送重试逻辑 ===
