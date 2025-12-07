@@ -1,6 +1,7 @@
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "Stop"
 
-Write-Host "🚀 Starting WebMCP Release Build (Windows)..." -ForegroundColor Green
+Write-Host "[START] Starting WebMCP Release Build (Windows)..." -ForegroundColor Green
 
 # 1. Create/Clean release directory
 if (Test-Path "release") {
@@ -11,7 +12,7 @@ New-Item -ItemType Directory -Force -Path "release" | Out-Null
 # ==========================================
 # 2. Package VS Code Extension (Server)
 # ==========================================
-Write-Host "📦 Building VS Code Extension..." -ForegroundColor Cyan
+Write-Host "[*] Building VS Code Extension..." -ForegroundColor Cyan
 Set-Location "mcp-gateway-vscode"
 
 # Get version
@@ -26,9 +27,9 @@ cmd /c "npm install"
 cmd /c "npx vsce package --out ../release/$vsName"
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "✅ VS Code Extension built successfully: release\$vsName" -ForegroundColor Green
+    Write-Host "[OK] VS Code Extension built successfully: release\$vsName" -ForegroundColor Green
 } else {
-    Write-Host "❌ VS Code Extension build failed" -ForegroundColor Red
+    Write-Host "[ERROR] VS Code Extension build failed" -ForegroundColor Red
     exit 1
 }
 
@@ -37,7 +38,7 @@ Set-Location ".."
 # ==========================================
 # 3. Package Browser Extension (Client)
 # ==========================================
-Write-Host "📦 Building Browser Extension..." -ForegroundColor Cyan
+Write-Host "[*] Building Browser Extension..." -ForegroundColor Cyan
 
 # Get version
 $manifest = Get-Content "mcp-bridge-browser\manifest.json" -Raw | ConvertFrom-Json
@@ -68,6 +69,6 @@ Compress-Archive -Path "$tempDir\*" -DestinationPath "release\$browserName" -For
 # Clean up temp directory
 Remove-Item $tempDir -Recurse -Force
 
-Write-Host "✅ Browser Extension built successfully: release\$browserName" -ForegroundColor Green
+Write-Host "[OK] Browser Extension built successfully: release\$browserName" -ForegroundColor Green
 
-Write-Host "🎉 All builds completed! Please check the 'release' folder." -ForegroundColor Green
+Write-Host "[DONE] All builds completed! Please check the 'release' folder." -ForegroundColor Green
