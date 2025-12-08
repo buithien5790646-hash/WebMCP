@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  // 注意：DEFAULT_SELECTORS 现已由 config.js 提供，在此作用域中可以直接访问
+
   let CONFIG = {
     pollInterval: 1000,
     autoSend: true,
@@ -11,11 +13,11 @@
   const i18n = {
     lang: navigator.language.startsWith('zh') ? 'zh' : 'en',
     prompt: null,
-    train: null
+    train: null,
+    error: null // New: Error Hint
   };
 
-  // === 日志国际化字典 (Log i18n Dictionary) ===
-  // 策略：英文环境纯英文，中文环境保留中文描述
+  // === 日志国际化字典 ===
   const LOG_MSGS = {
     auto_filled: {
       en: "Auto-filled initial Prompt",
@@ -68,27 +70,31 @@
     auto_send_timeout: {
       en: "Auto-send timed out, please click manually",
       zh: "自动发送超时，请手动点击发送"
+    },
+    config_updated: {
+      en: "Selectors config updated",
+      zh: "选择器配置已更新"
     }
   };
 
-  // 简单的翻译辅助函数
   function t(key) {
     const entry = LOG_MSGS[key];
     if (!entry) return key;
     return entry[i18n.lang] || entry.en;
   }
 
-  // 初始化时预加载资源
   const promptKey = i18n.lang === 'zh' ? 'prompt_zh' : 'prompt_en';
   const trainKey = i18n.lang === 'zh' ? 'train_zh' : 'train_en';
+  const errorKey = i18n.lang === 'zh' ? 'error_zh' : 'error_en';
   
-  chrome.storage.local.get([promptKey, trainKey], (items) => {
+  chrome.storage.local.get([promptKey, trainKey, errorKey], (items) => {
       i18n.prompt = items[promptKey];
       i18n.train = items[trainKey];
+      i18n.error = items[errorKey];
       console.log(`[MCP] Loaded i18n resources (${i18n.lang})`);
   });
 
-  // === 悬浮日志系统 (Floating Logger) ===
+  // === 悬浮日志系统 (省略, 未变) ===
   const Logger = {
     el: null,
     contentEl: null,
@@ -202,7 +208,6 @@
     },
   };
 
-  // === 监听 Background 发来的日志开关指令 ===
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.type === 'TOGGLE_LOG') {
           Logger.toggle(request.show);
@@ -210,12 +215,29 @@
       }
   });
 
+  // === 选择器管理 ===
+  let activeSelectors = DEFAULT_SELECTORS; // 使用全局变量
+  let DOM = null;
+  const currentPlatform = location.host.includes("deepseek") ? "deepseek" : location.host.includes("gemini") ? "gemini" : "chatgpt";
+  console.log(`[MCP Extension] Started on ${currentPlatform}`);
+
+  function updateDOMConfig() {
+      if (activeSelectors && activeSelectors[currentPlatform]) {
+          DOM = activeSelectors[currentPlatform];
+          console.log(`[MCP] DOM Selectors updated for ${currentPlatform}`);
+      }
+  }
+
   // === 初始化配置 ===
   chrome.storage.sync.get(
-    ["autoSend", "autoPromptEnabled"],
+    ["autoSend", "autoPromptEnabled", "customSelectors"],
     (items) => {
       CONFIG.autoSend = items.autoSend ?? true;
       CONFIG.autoPromptEnabled = items.autoPromptEnabled ?? false;
+      if (items.customSelectors) {
+          activeSelectors = items.customSelectors;
+      }
+      updateDOMConfig();
       console.log("[MCP] Config Loaded:", CONFIG);
     }
   );
@@ -224,43 +246,24 @@
     if (namespace === "sync") {
       if (changes.autoSend) CONFIG.autoSend = changes.autoSend.newValue;
       if (changes.autoPromptEnabled) CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;
+      if (changes.customSelectors) {
+          activeSelectors = changes.customSelectors.newValue;
+          updateDOMConfig();
+          Logger.log(t("config_updated"), "action");
+      }
     }
   });
 
   // === 主逻辑 ===
   const processedRequests = new Set();
-  let toolCallCount = 0; // 工具调用计数器
-
-  const SELECTORS = {
-    deepseek: {
-      messageBlocks: ".ds-message",
-      codeBlocks: "pre",
-      inputArea: "textarea.ds-scroll-area",
-      sendButton: "button.send-button",
-    },
-    chatgpt: {
-      messageBlocks: 'div[data-message-author-role="assistant"]',
-      codeBlocks: "pre code",
-      inputArea: "#prompt-textarea",
-      sendButton: 'button[data-testid="send-button"]',
-    },
-    gemini: {
-      messageBlocks: ".markdown",
-      codeBlocks: "pre code",
-      inputArea: 'div[contenteditable="true"]',
-      sendButton: 'button[aria-label="发送"], button[aria-label="Send"], button[aria-label*="Send"]',
-    },
-  };
-
-  const currentPlatform = location.host.includes("deepseek") ? "deepseek" : location.host.includes("gemini") ? "gemini" : "chatgpt";
-  const DOM = SELECTORS[currentPlatform];
-  console.log(`[MCP Extension] Started on ${currentPlatform}`);
+  let toolCallCount = 0;
 
   setInterval(() => {
+    if (!DOM) return;
+
     const messages = document.querySelectorAll(DOM.messageBlocks);
     if (messages.length === 0) {
       const inputEl = document.querySelector(DOM.inputArea);
-      // 自动填充 Prompt (支持国际化)
       if (inputEl && CONFIG.autoPromptEnabled && inputEl.textContent.trim() === "") {
           if (i18n.prompt) {
             inputEl.innerText = i18n.prompt;
@@ -290,7 +293,6 @@
           markVisualSuccess(codeEl);
 
           Logger.log(`${t("captured")}: ${payload.name}`, "info");
-          // 简略显示参数
           Logger.log(`${t("args")}: ${JSON.stringify(payload.arguments).substring(0, 50)}...`, "info");
 
           chrome.runtime.sendMessage({ type: "EXECUTE_TOOL", payload: payload }, (response) => {
@@ -322,7 +324,6 @@
       output: outputContent,
     };
 
-    // === 定期复训机制 (每5次调用提醒一次) ===
     if (toolCallCount > 0 && toolCallCount % 5 === 0) {
         if (i18n.train) {
              responseJson.system_note = i18n.train;
@@ -331,32 +332,23 @@
              responseJson.system_note = `[System] Reminder: Tool calls MUST use this JSON format: {"mcp_action":"call", "name": "tool_name", "arguments": {...}}.`;
         }
     }
-    // 恢复 JSON 格式化 (null, 2)
+
     const replyText = `\`\`\`json\n${JSON.stringify(responseJson, null, 2)}\n\`\`\``;
     const inputEl = document.querySelector(DOM.inputArea);
     if (!inputEl) { Logger.log(t("input_not_found"), "error"); return; }
 
     let currentText = inputEl.innerText || inputEl.value || "";
-    
-    // 1. 标准化换行符 (\r\n -> \n)
-    // 2. 压缩由浏览器渲染产生的“伪空行”：将连续的换行符替换为单个换行符
-    //    这就解决了 "每一行中间被增加空行" 的问题
     currentText = currentText.replace(/\r\n/g, "\n").replace(/\n+/g, "\n").trim();
-
-    // 3. 重新定义分隔符：新旧内容之间保留 2 个换行，保证视觉分隔
     const separator = currentText ? "\n\n" : "";
     const finalText = currentText + separator + replyText;
 
     inputEl.focus();
-    // 尝试使用 execCommand 模拟真实输入 (能解决 contenteditable 的空行膨胀问题)
     let success = false;
     try {
-        // 全选 -> 替换 (保留撤销历史，且格式更兼容)
         document.execCommand('selectAll', false, null);
         success = document.execCommand('insertText', false, finalText);
     } catch (e) {}
 
-    // 降级方案：如果模拟输入失败，使用暴力赋值
     if (!success) {
         if (inputEl.tagName === "TEXTAREA" || inputEl.tagName === "INPUT") {
             inputEl.value = finalText;
@@ -367,7 +359,6 @@
     }
     Logger.log(t("result_written"), "action");
 
-    // === 智能发送重试逻辑 ===
     if (CONFIG.autoSend) {
       let retryCount = 0;
       const maxRetries = 10;

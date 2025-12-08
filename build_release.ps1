@@ -78,7 +78,8 @@ $absDestPath = Join-Path (Convert-Path "release") $browserName
 # Ensure destination doesn't exist (CreateFromDirectory will fail otherwise)
 if (Test-Path $absDestPath) { Remove-Item $absDestPath -Force }
 
-# Load .NET Assembly
+# Load .NET Assembly (Updated: Load both Compression assemblies)
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 # Manually create ZIP to force forward slashes (Chrome requires '/' but Windows uses '\')
