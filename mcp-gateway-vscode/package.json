@@ -9,7 +9,7 @@
   },
   "license": "MIT",
   "icon": "images/icon.png",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "engines": {
     "vscode": "^1.106.1"
   },
@@ -30,6 +30,55 @@
     "configuration": {
       "title": "MCP Gateway",
       "properties": {
+        "mcpGateway.aiSites": {
+          "type": "array",
+          "default": [
+            {
+              "name": "ChatGPT",
+              "address": "https://chatgpt.com",
+              "showQuickLaunch": true
+            },
+            {
+              "name": "Gemini",
+              "address": "https://gemini.google.com",
+              "showQuickLaunch": true
+            },
+            {
+              "name": "DeepSeek",
+              "address": "https://chat.deepseek.com",
+              "showQuickLaunch": true
+            }
+          ],
+          "description": "User-defined list of AI platforms.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Display name"
+              },
+              "address": {
+                "type": "string",
+                "description": "URL of the AI service"
+              },
+              "showQuickLaunch": {
+                "type": "boolean",
+                "default": true,
+                "description": "Show in the main quick pick menu"
+              },
+              "browser": {
+                "type": "string",
+                "enum": [
+                  "default",
+                  "chrome",
+                  "edge"
+                ],
+                "default": "default",
+                "description": "Specific browser for this site (overrides global setting)"
+              }
+            }
+          }
+        },
         "mcpGateway.port": {
           "type": "number",
           "default": 34567,
@@ -43,12 +92,7 @@
             "chrome",
             "edge"
           ],
-          "description": "Global default browser. Used if no rule matches."
-        },
-        "mcpGateway.browserRules": {
-          "type": "object",
-          "default": {},
-          "description": "Map specific keywords to browsers. Example: { \"deepseek\": \"edge\", \"google\": \"chrome\" }"
+          "description": "Global default browser. Used if no site-specific browser is configured."
         },
         "mcpGateway.servers": {
           "type": "object",

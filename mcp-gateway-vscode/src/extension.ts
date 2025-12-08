@@ -3,11 +3,20 @@ import { GatewayManager } from './gateway';
 import { exec } from 'child_process';
 import * as os from 'os';
 
+// 定义配置文件的 AI 站点结构
+interface AISiteConfig {
+    name: string;
+    address: string;
+    showQuickLaunch?: boolean; // 可选，默认为 true
+    browser?: string; // 新增：站点专属浏览器配置 (default, chrome, edge)
+}
+
 // 定义统一的 QuickPickItem 接口，解决类型推断报错
-interface ActionItem extends vscode.QuickPickItem {
-    target?: string;
-    action?: string;
-    value?: string;
+// target 用于快速启动，action 用于特殊操作 (showLogs, settings, custom)
+interface CustomActionItem extends vscode.QuickPickItem {
+    target?: string; // 目标 URL
+    action?: string; // 特殊动作
+    value?: string; // 用于浏览器选择
 }
 
 let manager: GatewayManager;
@@ -63,22 +72,29 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        // 使用明确的类型 ActionItem
-        const aiOptions: ActionItem[] = [
-            { label: '$(globe) Open ChatGPT', description: 'chatgpt.com', target: 'https://chatgpt.com' },
-            { label: '$(globe) Open Gemini', description: 'gemini.google.com', target: 'https://gemini.google.com' },
-            { label: '$(globe) Open DeepSeek', description: 'chat.deepseek.com', target: 'https://chat.deepseek.com' },
-        ];
+        // 1. 从配置中读取 AI 站点列表
+        const config = vscode.workspace.getConfiguration('mcpGateway');
+        const aiSites = config.get<AISiteConfig[]>('aiSites') || [];
 
-        const items: ActionItem[] = [
-            ...aiOptions,
+        // 2. 动态生成快速启动项 (仅显示 showQuickLaunch 为 true 的项)
+        const quickLaunchItems: CustomActionItem[] = aiSites
+            .filter(site => site.showQuickLaunch !== false) // 默认或 showQuickLaunch=true 的显示
+            .map(site => ({
+                label: `$(globe) Open ${site.name}`,
+                description: site.address.replace(/^https?:\/\//, ''),
+                target: site.address,
+            }));
+        
+        // 3. 准备完整的 QuickPick 列表
+        const items: CustomActionItem[] = [
+            ...quickLaunchItems,
             { label: '$(run) Custom Launch...', description: 'Select AI and Browser manually', action: 'custom' },
             { label: '$(output) View Logs', description: 'Show MCP Gateway output panel', action: 'showLogs' },
             { label: '$(settings-gear) Configure Gateway', description: 'Quick access to MCP Gateway settings', action: 'settings' },
             { label: '$(refresh) Restart Server', description: 'Restart local gateway', action: 'restart' }
         ];
 
-        const selection = await vscode.window.showQuickPick<ActionItem>(items, {
+        const selection = await vscode.window.showQuickPick<CustomActionItem>(items, {
             placeHolder: 'Select AI Platform or Action',
             title: `WebMCP (Port: ${currentPort})`
         });
@@ -108,21 +124,26 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 3. 自定义启动
         if (selection.action === 'custom') {
-            const aiSelection = await vscode.window.showQuickPick<ActionItem>(aiOptions, {
+            // Custom Launch 现在使用所有配置的 AI 站点，无论 showQuickLaunch 是否为 true
+            const aiOptionsForCustomLaunch: CustomActionItem[] = aiSites.map(site => ({
+                label: `$(globe) ${site.name}`,
+                description: site.address,
+                target: site.address,
+            }));
+
+            const aiSelection = await vscode.window.showQuickPick<CustomActionItem>(aiOptionsForCustomLaunch, {
                 placeHolder: 'Step 1: Select AI Platform'
             });
-            // 修复 ESLint: 必须加花括号
             if (!aiSelection) { return; }
 
-            const browserOptions: ActionItem[] = [
+            const browserOptions: CustomActionItem[] = [
                 { label: '$(browser) Google Chrome', value: 'chrome' },
                 { label: '$(browser) Microsoft Edge', value: 'edge' },
                 { label: '$(terminal) System Default', value: 'default' }
             ];
-            const browserSelection = await vscode.window.showQuickPick<ActionItem>(browserOptions, {
+            const browserSelection = await vscode.window.showQuickPick<CustomActionItem>(browserOptions, {
                 placeHolder: `Step 2: Open ${aiSelection.label.replace('$(globe) ', '')} in...`
             });
-            // 修复 ESLint: 必须加花括号
             if (!browserSelection) { return; }
 
             launchBridge(aiSelection.target!, browserSelection.value!);
@@ -147,17 +168,21 @@ function launchBridge(targetUrl: string, browserMode: string) {
     const bridgeUrl = `http://127.0.0.1:${currentPort}/bridge?token=${currentToken}&target=${encodeURIComponent(targetUrl)}`;
     
     const config = vscode.workspace.getConfiguration('mcpGateway');
-    let finalBrowser = config.get<string>('browser') || 'default';
+    let finalBrowser = 'default';
 
     if (browserMode === 'auto') {
-        const rules = config.get<Record<string, string>>('browserRules') || {};
-        for (const [key, browser] of Object.entries(rules)) {
-            if (targetUrl.includes(key)) {
-                finalBrowser = browser;
-                break;
-            }
+        // 新逻辑：优先检查 aiSites 中是否有配置 browser
+        const aiSites = config.get<AISiteConfig[]>('aiSites') || [];
+        const matchedSite = aiSites.find(site => site.address === targetUrl);
+        
+        if (matchedSite && matchedSite.browser && matchedSite.browser !== 'default') {
+            finalBrowser = matchedSite.browser;
+        } else {
+            // 如果没有特定配置，使用全局默认设置
+            finalBrowser = config.get<string>('browser') || 'default';
         }
     } else {
+        // 手动指定模式（Custom Launch）
         finalBrowser = browserMode;
     }
 
