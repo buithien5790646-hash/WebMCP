@@ -78,13 +78,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 2. 动态生成快速启动项 (仅显示 showQuickLaunch 为 true 的项)
         const quickLaunchItems: CustomActionItem[] = aiSites
-            .filter(site => site.showQuickLaunch !== false) // 默认或 showQuickLaunch=true 的显示
+            .filter(site => site.showQuickLaunch === true)
             .map(site => ({
                 label: `$(globe) Open ${site.name}`,
                 description: site.address.replace(/^https?:\/\//, ''),
                 target: site.address,
             }));
-        
+
         // 3. 准备完整的 QuickPick 列表
         const items: CustomActionItem[] = [
             ...quickLaunchItems,
@@ -166,7 +166,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 function launchBridge(targetUrl: string, browserMode: string) {
     const bridgeUrl = `http://127.0.0.1:${currentPort}/bridge?token=${currentToken}&target=${encodeURIComponent(targetUrl)}`;
-    
+
     const config = vscode.workspace.getConfiguration('mcpGateway');
     let finalBrowser = 'default';
 
@@ -174,7 +174,7 @@ function launchBridge(targetUrl: string, browserMode: string) {
         // 新逻辑：优先检查 aiSites 中是否有配置 browser
         const aiSites = config.get<AISiteConfig[]>('aiSites') || [];
         const matchedSite = aiSites.find(site => site.address === targetUrl);
-        
+
         if (matchedSite && matchedSite.browser && matchedSite.browser !== 'default') {
             finalBrowser = matchedSite.browser;
         } else {
