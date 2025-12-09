@@ -82,8 +82,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     };
 
-    await startService();
-
+    // Fix: Register command BEFORE starting service to handle clicks during startup
     context.subscriptions.push(vscode.commands.registerCommand('mcp-gateway.connect', async () => {
         // If starting, just show logs
         if (isStarting) {
@@ -186,6 +185,9 @@ export async function activate(context: vscode.ExtensionContext) {
             await startService();
         }
     }));
+
+    // Start service after command is registered
+    await startService();
 }
 
 function launchBridge(targetUrl: string, browserMode: string) {
