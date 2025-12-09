@@ -257,6 +257,7 @@
   // === 主逻辑 ===
   const processedRequests = new Set();
   let toolCallCount = 0;
+  let autoSendTimer = null;
 
   setInterval(() => {
     if (!DOM) return;
@@ -360,8 +361,14 @@
     Logger.log(t("result_written"), "action");
 
     if (CONFIG.autoSend) {
+      // Debounce: Clear previous pending retry
+      if (autoSendTimer) {
+          clearTimeout(autoSendTimer);
+          autoSendTimer = null;
+      }
+
       let retryCount = 0;
-      const maxRetries = 10;
+      const maxRetries = 5;
       const trySend = () => {
         const btn = document.querySelector(DOM.sendButton);
         const currentVal = inputEl.value || inputEl.innerText || "";
@@ -384,10 +391,14 @@
         }
 
         retryCount++;
-        if (retryCount < maxRetries) setTimeout(trySend, 2000);
-        else Logger.log(t("auto_send_timeout"), "error");
+        if (retryCount < maxRetries) {
+            autoSendTimer = setTimeout(trySend, 2000);
+        } else {
+            Logger.log(t("auto_send_timeout"), "error");
+            chrome.runtime.sendMessage({ type: "SEND_FAILED" });
+        }
       };
-      setTimeout(trySend, 1000);
+      autoSendTimer = setTimeout(trySend, 1000);
     }
   }
 })();

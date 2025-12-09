@@ -24,6 +24,7 @@ let outputChannel: vscode.OutputChannel;
 let statusBarItem: vscode.StatusBarItem;
 let currentPort: number | null = null;
 let currentToken: string | null = null;
+let isStarting = false;
 
 export async function activate(context: vscode.ExtensionContext) {
     outputChannel = vscode.window.createOutputChannel("MCP Gateway");
@@ -37,6 +38,10 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(statusBarItem);
 
     const startService = async () => {
+        // Set Loading State
+        isStarting = true;
+        updateStatusBar(true, undefined, true);
+
         const config = vscode.workspace.getConfiguration('mcpGateway');
         const portConfig = config.get<number>('port') || 34567;
         const mcpServers = config.get<any>('servers') || {};
@@ -67,10 +72,12 @@ export async function activate(context: vscode.ExtensionContext) {
                 await context.workspaceState.update('mcp.lastPort', currentPort);
             }
 
+            isStarting = false;
             updateStatusBar(true, currentPort);
 
         } catch (e: any) {
             vscode.window.showErrorMessage(`Failed to start MCP Gateway: ${e.message}`);
+            isStarting = false;
             updateStatusBar(false);
         }
     };
@@ -78,6 +85,12 @@ export async function activate(context: vscode.ExtensionContext) {
     await startService();
 
     context.subscriptions.push(vscode.commands.registerCommand('mcp-gateway.connect', async () => {
+        // If starting, just show logs
+        if (isStarting) {
+            outputChannel.show();
+            return;
+        }
+
         if (!currentPort || !currentToken) {
             vscode.window.showErrorMessage("MCP Gateway is not running.");
             return;
@@ -200,8 +213,12 @@ function launchBridge(targetUrl: string, browserMode: string) {
     openBrowser(bridgeUrl, finalBrowser);
 }
 
-function updateStatusBar(online: boolean, port?: number) {
-    if (online && port) {
+function updateStatusBar(online: boolean, port?: number, isLoading: boolean = false) {
+    if (isLoading) {
+        statusBarItem.text = `$(sync~spin) WebMCP: Starting...`;
+        statusBarItem.tooltip = "Gateway is initializing...";
+        statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+    } else if (online && port) {
         statusBarItem.text = `$(rocket) WebMCP: ${port}`;
         statusBarItem.tooltip = "Click to connect AI";
         statusBarItem.backgroundColor = undefined;
