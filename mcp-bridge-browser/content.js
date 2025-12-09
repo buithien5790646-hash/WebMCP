@@ -296,10 +296,46 @@
           Logger.log(`${t("captured")}: ${payload.name}`, "info");
           Logger.log(`${t("args")}: ${JSON.stringify(payload.arguments).substring(0, 50)}...`, "info");
 
+          // [New] Virtual Tool: Task Completion Notification
+          if (payload.name === "task_completion_notification") {
+             const msg = payload.arguments?.message || "Task Completed";
+             Logger.log(`🔔 Notification: ${msg}`, "action");
+             chrome.runtime.sendMessage({ type: "SHOW_NOTIFICATION", title: "WebMCP Task Finished", message: msg });
+             // Return success but SKIP auto-send so user can review
+             sendResponseToChat(payload.request_id, "Notification sent to user. Waiting for further instructions.", true);
+             return;
+          }
+
           chrome.runtime.sendMessage({ type: "EXECUTE_TOOL", payload: payload }, (response) => {
             if (response && response.success) {
               Logger.log(`${t("exec_success")}: ${payload.name}`, "success");
-              sendResponseToChat(payload.request_id, response.data);
+              
+              // [New] Inject Virtual Tool into list_tools response
+              let finalData = response.data;
+              if (payload.name === "list_tools") {
+                  try {
+                      const tools = JSON.parse(finalData);
+                      tools.push({
+                          name: "task_completion_notification",
+                          description: "Notify the user that a long-running task or a series of complex operations is complete. Use this when you need the user's attention to review your work or provide new instructions. Calling this will trigger a system notification on the user's device.",
+                          inputSchema: {
+                              type: "object",
+                              properties: {
+                                  message: {
+                                      type: "string",
+                                      description: "Short summary of what was completed (e.g. 'Analysis of 50 files finished')."
+                                  }
+                              },
+                              required: ["message"]
+                          }
+                      });
+                      finalData = JSON.stringify(tools, null, 2);
+                  } catch (e) {
+                      console.error("Failed to inject virtual tool", e);
+                  }
+              }
+
+              sendResponseToChat(payload.request_id, finalData);
             } else {
               Logger.log(`${t("exec_fail")}: ${response.error}`, "error");
               sendResponseToChat(payload.request_id, `❌ Error: ${response.error}`);
@@ -316,7 +352,7 @@
     element.style.borderRadius = "4px";
   }
 
-  function sendResponseToChat(requestId, outputContent) {
+  function sendResponseToChat(requestId, outputContent, skipAutoSend = false) {
     toolCallCount++;
     const responseJson = {
       mcp_action: "result",
@@ -360,7 +396,7 @@
     }
     Logger.log(t("result_written"), "action");
 
-    if (CONFIG.autoSend) {
+    if (CONFIG.autoSend && !skipAutoSend) {
       // Debounce: Clear previous pending retry
       if (autoSendTimer) {
           clearTimeout(autoSendTimer);

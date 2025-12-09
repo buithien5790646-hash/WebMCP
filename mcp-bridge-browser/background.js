@@ -141,6 +141,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
       return true;
   }
+  if (request.type === 'SHOW_NOTIFICATION') {
+      chrome.notifications.create({
+          type: 'basic',
+          iconUrl: 'icons/icon128.png',
+          title: request.title || 'WebMCP Notification',
+          message: request.message || 'Task Completed',
+          priority: 2
+      });
+      return true;
+  }
   if (request.type === 'CONNECT_EXISTING') {
       // 优先使用请求中显式传递的 tabId (来自 Popup)，否则回退到 sender (来自 ContentScript)
       const targetTabId = request.tabId || currentTabId;
