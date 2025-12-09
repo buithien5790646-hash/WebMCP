@@ -274,6 +274,7 @@ export class GatewayManager {
                 };
 
                 if (args.path) args.path = fixPath(args.path);
+                if (args.repo_path) args.repo_path = fixPath(args.repo_path); // Fix: Support relative path for Git tools
                 if (args.source) args.source = fixPath(args.source);
                 if (args.destination) args.destination = fixPath(args.destination);
                 if (Array.isArray(args.paths)) args.paths = args.paths.map((p: any) => fixPath(p));

@@ -256,6 +256,8 @@
 
   // === 主逻辑 ===
   const processedRequests = new Set();
+  const blockStates = new WeakMap(); // 用于追踪代码块变化的 WeakMap
+  const STABILIZATION_TIMEOUT = 3000; // 3秒无变化且解析失败，则报错
   let toolCallCount = 0;
   let autoSendTimer = null;
 
@@ -284,6 +286,10 @@
 
       try {
         const payload = JSON.parse(textContent);
+        // 解析成功，清除该块的错误状态记录（如果有）
+        if (blockStates.has(codeEl)) blockStates.delete(codeEl);
+        if (codeEl.style.borderColor === "rgb(244, 67, 54)") codeEl.style.border = "none"; // 清除红色边框
+
         if (payload.mcp_action === "call" && payload.request_id) {
           if (processedRequests.has(payload.request_id)) {
             if (codeEl.dataset.mcpVisual !== "true") markVisualSuccess(codeEl);
@@ -301,8 +307,7 @@
              const msg = payload.arguments?.message || "Task Completed";
              Logger.log(`🔔 Notification: ${msg}`, "action");
              chrome.runtime.sendMessage({ type: "SHOW_NOTIFICATION", title: "WebMCP Task Finished", message: msg });
-             // Return success but SKIP auto-send so user can review
-             sendResponseToChat(payload.request_id, "Notification sent to user. Waiting for further instructions.", true);
+             // 直接返回，不回填输入框
              return;
           }
 
@@ -342,7 +347,32 @@
             }
           });
         }
-      } catch (e) {}
+      } catch (e) {
+        // === 智能防抖错误检测 ===
+        const now = Date.now();
+        let state = blockStates.get(codeEl);
+
+        if (!state || state.text !== textContent) {
+            // 内容发生了变化（正在生成中），或者第一次遇到此块
+            // 更新状态，重置计时器，并移除可能的错误样式（因为可能正在修正）
+            blockStates.set(codeEl, { text: textContent, time: now, errorNotified: false });
+            if (codeEl.style.borderColor === "rgb(244, 67, 54)") {
+                codeEl.style.border = "none";
+            }
+        } else {
+            // 内容没有变化（可能卡住了或生成完毕）
+            if (now - state.time > STABILIZATION_TIMEOUT && !state.errorNotified) {
+                // 超过 N 秒没变，且依然解析失败 -> 确认为错误
+                Logger.log("JSON Parse Error (Stable): " + e.message, "error");
+                codeEl.style.border = "2px solid #F44336"; // Red Border
+                chrome.runtime.sendMessage({ type: "SHOW_NOTIFICATION", title: "WebMCP Error", message: "Invalid JSON format (Stuck)." });
+                
+                // 标记已通知，避免重复弹窗
+                state.errorNotified = true;
+                blockStates.set(codeEl, state);
+            }
+        }
+      }
     });
   }, CONFIG.pollInterval);
 
@@ -352,7 +382,7 @@
     element.style.borderRadius = "4px";
   }
 
-  function sendResponseToChat(requestId, outputContent, skipAutoSend = false) {
+  function sendResponseToChat(requestId, outputContent) {
     toolCallCount++;
     const responseJson = {
       mcp_action: "result",
@@ -396,7 +426,7 @@
     }
     Logger.log(t("result_written"), "action");
 
-    if (CONFIG.autoSend && !skipAutoSend) {
+    if (CONFIG.autoSend) {
       // Debounce: Clear previous pending retry
       if (autoSendTimer) {
           clearTimeout(autoSendTimer);
@@ -431,7 +461,7 @@
             autoSendTimer = setTimeout(trySend, 2000);
         } else {
             Logger.log(t("auto_send_timeout"), "error");
-            chrome.runtime.sendMessage({ type: "SEND_FAILED" });
+            chrome.runtime.sendMessage({ type: "SHOW_NOTIFICATION", title: "Auto-Send Failed", message: "Could not click send button." });
         }
       };
       autoSendTimer = setTimeout(trySend, 1000);

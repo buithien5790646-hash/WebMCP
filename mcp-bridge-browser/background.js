@@ -131,16 +131,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     executeTool(request, currentTabId).then(sendResponse);
     return true;
   }
-  if (request.type === 'SEND_FAILED') {
-      chrome.notifications.create({
-          type: 'basic',
-          iconUrl: 'icons/icon128.png',
-          title: 'WebMCP: Auto-Send Failed',
-          message: 'Could not click send button. Please check the chat tab.',
-          priority: 2
-      });
-      return true;
-  }
+
   if (request.type === 'SHOW_NOTIFICATION') {
       chrome.notifications.create({
           type: 'basic',
