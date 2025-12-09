@@ -42,11 +42,22 @@ export async function activate(context: vscode.ExtensionContext) {
         const mcpServers = config.get<any>('servers') || {};
         const lastUsedPort = context.workspaceState.get<number>('mcp.lastPort');
 
+        // [Security] Extract Allowed Origins from AI Sites config
+        const aiSites = config.get<AISiteConfig[]>('aiSites') || [];
+        const allowedOrigins = aiSites.map(site => {
+            try {
+                return new URL(site.address).origin;
+            } catch (e) {
+                return '';
+            }
+        }).filter(origin => origin !== '');
+
         try {
             const result = await manager.start({
                 port: portConfig,
                 preferredPort: lastUsedPort,
-                mcpServers
+                mcpServers,
+                allowedOrigins
             });
 
             currentPort = result.port;

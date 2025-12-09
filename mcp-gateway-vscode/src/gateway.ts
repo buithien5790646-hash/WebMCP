@@ -17,6 +17,7 @@ interface Config {
     port: number;
     preferredPort?: number;
     mcpServers: Record<string, ServerConfig>;
+    allowedOrigins: string[]; // [Security] Whitelist for CORS
 }
 
 interface StartResult {
@@ -124,9 +125,30 @@ export class GatewayManager {
 
         this.app = express();
         this.app.use(express.json());
-        
-        // 2. 允许所有 CORS (依赖 Token 鉴权)
-        this.app.use(cors({ origin: '*' }));
+
+        // 2. 安全 CORS 配置 (Origin Whitelisting)
+        this.app.use(cors({
+            origin: (origin, callback) => {
+                // 允许无 Origin 的请求 (如浏览器直接访问 /bridge，或非浏览器工具)
+                if (!origin) return callback(null, true);
+
+                // [Fix] 允许浏览器扩展自身访问 (Origin: chrome-extension://[ID])          
+                if (origin.startsWith('chrome-extension://')) return callback(null, true);
+
+                // 检查是否在白名单中
+                if (config.allowedOrigins.includes(origin)) {
+                    return callback(null, true);
+                }
+
+                // 允许 localhost (开发调试用)
+                if (origin.startsWith('http://127.0.0.1') || origin.startsWith('http://localhost')) {
+                    return callback(null, true);
+                }
+
+                this.log(`⛔ Blocked CORS request from: ${origin}`);
+                callback(new Error('Not allowed by CORS'));
+            }
+        }));
 
         // 3. 日志中间件
         this.app.use((req, res, next) => {
@@ -153,8 +175,8 @@ export class GatewayManager {
             const clientToken = req.headers['x-webmcp-token'];
             if (!clientToken || clientToken !== this.authToken) {
                 this.log(`⛔ Unauthorized access attempt. Token: ${clientToken}`);
-                return res.status(403).json({ 
-                    isError: true, 
+                return res.status(403).json({
+                    isError: true,
                     content: [{ type: 'text', text: "⛔ Forbidden: Invalid Security Token. Please launch from VS Code." }]
                 });
             }
@@ -166,9 +188,9 @@ export class GatewayManager {
             const target = req.query.target as string || 'https://chatgpt.com';
             const token = req.query.token as string;
             const port = this.server.address().port;
-            
+
             this.log(`🌉 Bridge handshake requested.`);
-            
+
             // 返回中转页，包含必要的元数据
             res.send(`
                 <!DOCTYPE html>
@@ -311,10 +333,10 @@ export class GatewayManager {
                     if (e.code === 'EADDRINUSE') {
                         // Fix: Prevent infinite loop if preferredPort equals config.port
                         if (config.preferredPort && currentPort === config.preferredPort && currentPort !== config.port) {
-                             this.log(`⚠️ Preferred port ${currentPort} busy. Falling back to default range.`);
-                             tryListen(config.port, 0);
+                            this.log(`⚠️ Preferred port ${currentPort} busy. Falling back to default range.`);
+                            tryListen(config.port, 0);
                         } else {
-                             tryListen(currentPort + 1, attempt + 1);
+                            tryListen(currentPort + 1, attempt + 1);
                         }
                     } else {
                         reject(e);
@@ -323,9 +345,9 @@ export class GatewayManager {
             };
 
             if (config.preferredPort && config.preferredPort !== config.port) {
-                 tryListen(config.preferredPort, 0);
+                tryListen(config.preferredPort, 0);
             } else {
-                 tryListen(config.port, 0);
+                tryListen(config.port, 0);
             }
         });
     }

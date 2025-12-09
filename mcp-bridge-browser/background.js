@@ -48,15 +48,53 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 });
 
-// === 保持连接逻辑 ===
+// === 工具函数：检查 URL 是否在白名单 ===
+function isUrlAllowed(url) {
+  if (!url) return false;
+  const manifest = chrome.runtime.getManifest();
+  
+  // [Fix] 合并 host_permissions 和 content_scripts.matches
+  // Bridge 页面通常运行在 content_scripts 定义的特定端口上
+  const hostPatterns = manifest.host_permissions || [];
+  const scriptPatterns = (manifest.content_scripts || []).flatMap(cs => cs.matches || []);
+  const allPatterns = [...new Set([...hostPatterns, ...scriptPatterns])];
+
+  return allPatterns.some(pattern => {
+    // 1. 去掉末尾的通配符 *
+    const base = pattern.replace(/\*$/, '');
+    // 2. 宽松匹配
+    return url.startsWith(base) || url === base.replace(/\/$/, '');
+  });
+}
+
+// === 保持连接逻辑 & 安全熔断 ===
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  // 1. 安全熔断：如果 URL 变化且不在白名单中，立即销毁 Session
+  if (changeInfo.url) {
+      if (!isUrlAllowed(changeInfo.url)) {
+          const session = await getSession(tabId);
+          if (session) {
+              console.log(`[WebMCP] Security Fuse: Url changed to ${changeInfo.url}, revoking session.`);
+              await removeSession(tabId);
+              updateBadge(tabId, false);
+              return;
+          }
+      }
+  }
+
+  // 2. 状态恢复
   if (changeInfo.status === 'complete') {
       const session = await getSession(tabId);
-      if (session) {
+      // 双重检查：即使 Session 存在，URL 也必须合法（防止边界情况）
+      if (session && isUrlAllowed(tab.url)) {
           updateBadge(tabId, true);
           if (session.showLog) {
               chrome.tabs.sendMessage(tabId, { type: 'TOGGLE_LOG', show: true }).catch(() => {});
           }
+      } else if (session && !isUrlAllowed(tab.url)) {
+          // 如果加载完成时发现是不合法 URL，也清理掉
+          await removeSession(tabId);
+          updateBadge(tabId, false);
       }
   }
 });
@@ -64,6 +102,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 // === 消息处理中心 ===
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   const currentTabId = sender.tab ? sender.tab.id : null;
+
   if (request.type === 'HANDSHAKE') {
     handleHandshake(request, currentTabId).then(sendResponse);
     return true;
@@ -91,6 +130,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "EXECUTE_TOOL") {
     executeTool(request, currentTabId).then(sendResponse);
     return true;
+  }
+  if (request.type === 'CONNECT_EXISTING') {
+      // 优先使用请求中显式传递的 tabId (来自 Popup)，否则回退到 sender (来自 ContentScript)
+      const targetTabId = request.tabId || currentTabId;
+      if (!targetTabId) {
+          sendResponse({ success: false, error: "Missing Tab ID" });
+          return true;
+      }
+      
+      // 顺便清理之前可能产生的错误数据
+      chrome.storage.local.remove('session_null');
+
+      bindSession(targetTabId, request.port, request.token)
+          .then(() => sendResponse({ success: true }))
+          .catch(err => sendResponse({ success: false, error: err.message }));
+      return true;
   }
 });
 
@@ -142,11 +197,13 @@ async function handleHandshake(request, tabId) {
   await bindSession(tabId, port, token);
   return { success: true };
 }
+
 async function bindSession(tabId, port, token) {
   await saveSession(tabId, { port, token, showLog: false });
   console.log(`[WebMCP] Tab ${tabId} bound to Port ${port}`);
   updateBadge(tabId, true);
 }
+
 function updateBadge(tabId, active) {
     if (active) {
         chrome.action.setBadgeText({ tabId, text: "ON" });
@@ -155,6 +212,7 @@ function updateBadge(tabId, active) {
         chrome.action.setBadgeText({ tabId, text: "" });
     }
 }
+
 async function executeTool(request, tabId) {
   const session = await getSession(tabId);
   if (!session) {
@@ -191,6 +249,7 @@ async function executeTool(request, tabId) {
     return { success: false, error: `Connection Failed: ${err.message}` };
   }
 }
+
 chrome.tabs.onRemoved.addListener((tabId) => {
   removeSession(tabId);
 });
