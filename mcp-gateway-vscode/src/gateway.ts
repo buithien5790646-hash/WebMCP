@@ -2,14 +2,17 @@ import express from 'express';
 import cors from 'cors';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
 // 定义服务器配置接口
 interface ServerConfig {
-    command: string;
-    args: string[];
+    type?: 'stdio' | 'sse' | 'http';
+    command?: string;
+    args?: string[];
+    url?: string;
     env?: Record<string, string>;
 }
 
@@ -62,38 +65,44 @@ export class GatewayManager {
 
         for (const [serverId, config] of Object.entries(servers)) {
             try {
-                let command = config.command;
-                let args = [...config.args];
-                const env = { ...process.env, ...config.env } as Record<string, string>;
+                let client: Client;
 
-                if (process.platform === 'win32') {
-                    if (command === 'npx' || command === 'npm') {
-                        command = `${command}.cmd`;
-                    }
-                }
-
-                if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-                    const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
-                    args = args.map(arg => {
-                        if (arg === '.' || arg === '${workspaceFolder}') {
-                            return root;
-                        }
-                        return arg;
+                if (config.type === 'sse' || config.type === 'http') {
+                    if (!config.url) throw new Error("Missing 'url' for HTTP/SSE config");
+                    this.log(`   -> Connecting [${serverId}] via HTTP/SSE: ${config.url}`);
+                    
+                    // 使用最新的流式 HTTP 传输协议
+                    const transport = new StreamableHTTPClientTransport(new URL(config.url), {
+                        // Headers are passed via requestInit in the new SDK if needed
+                        // headers: { Authorization: `Bearer ...` }
                     });
+                    client = new Client({ name: "mcp-gateway-vscode", version: "1.0.0" }, { capabilities: {} });
+                    await client.connect(transport);
+                
+                } else {
+                    // Default to Stdio
+                    let command = config.command!;
+                    let args = [...(config.args || [])];
+                    const env = { ...process.env, ...config.env } as Record<string, string>;
+
+                    if (process.platform === 'win32') {
+                        if (command === 'npx' || command === 'npm') command = `${command}.cmd`;
+                    }
+
+                    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                        const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                        args = args.map(arg => {
+                            if (arg === '.' || arg === '${workspaceFolder}') return root;
+                            return arg;
+                        });
+                    }
+
+                    this.log(`   -> Starting [${serverId}]: ${command} ${args.join(' ')}`);
+                    const transport = new StdioClientTransport({ command, args, env });
+                    client = new Client({ name: "mcp-gateway-vscode", version: "1.0.0" }, { capabilities: {} });
+                    await client.connect(transport);
                 }
 
-                this.log(`   -> Starting [${serverId}]: ${command} ${args.join(' ')}`);
-
-                const transport = new StdioClientTransport({
-                    command, args, env
-                });
-
-                const client = new Client(
-                    { name: "mcp-gateway-vscode", version: "1.0.0" },
-                    { capabilities: {} }
-                );
-
-                await client.connect(transport);
                 this.connectedClients.push({ id: serverId, client });
 
                 const list = await client.listTools();
