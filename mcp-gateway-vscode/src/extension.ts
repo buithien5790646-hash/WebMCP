@@ -25,6 +25,7 @@ let statusBarItem: vscode.StatusBarItem;
 let currentPort: number | null = null;
 let currentToken: string | null = null;
 let isStarting = false;
+let isRunning = false;
 
 export async function activate(context: vscode.ExtensionContext) {
     outputChannel = vscode.window.createOutputChannel("MCP Gateway");
@@ -73,25 +74,64 @@ export async function activate(context: vscode.ExtensionContext) {
             }
 
             isStarting = false;
+            isRunning = true;
             updateStatusBar(true, currentPort);
 
         } catch (e: any) {
             vscode.window.showErrorMessage(`Failed to start MCP Gateway: ${e.message}`);
             isStarting = false;
+            isRunning = false;
             updateStatusBar(false);
         }
     };
 
     // Fix: Register command BEFORE starting service to handle clicks during startup
+    const stopService = async () => {
+        await manager.stop();
+        isRunning = false;
+        currentPort = null;
+        currentToken = null;
+        updateStatusBar(false);
+        vscode.window.showInformationMessage("WebMCP Server Stopped");
+    };
+
     context.subscriptions.push(vscode.commands.registerCommand('mcp-gateway.connect', async () => {
-        // If starting, just show logs
+        // 1. Case: Starting -> Show Logs
         if (isStarting) {
             outputChannel.show();
             return;
         }
 
+        // 2. Case: Offline -> Show Start Option
+        if (!isRunning) {
+            const items: CustomActionItem[] = [
+                { label: '$(play) Turn On WebMCP', description: 'Start the local MCP server', action: 'start' },
+                { label: '$(output) View Logs', description: 'Show output panel', action: 'showLogs' },
+                { label: '$(settings-gear) Configure', description: 'Open settings', action: 'settings' }
+            ];
+            
+            const selection = await vscode.window.showQuickPick(items, {
+                placeHolder: 'WebMCP is Offline',
+                title: 'WebMCP Manager'
+            });
+            
+            if (!selection) return;
+            
+            if (selection.action === 'start') {
+                await startService();
+            } else if (selection.action === 'showLogs') {
+                outputChannel.show();
+            } else if (selection.action === 'settings') {
+                vscode.commands.executeCommand('workbench.action.openSettings', 'mcpGateway');
+            }
+            return;
+        }
+
+        // 3. Case: Online -> Show Full Menu
         if (!currentPort || !currentToken) {
-            vscode.window.showErrorMessage("MCP Gateway is not running.");
+            // Should not happen if isRunning is true, but safe guard
+            isRunning = false;
+            updateStatusBar(false);
             return;
         }
 
@@ -114,7 +154,8 @@ export async function activate(context: vscode.ExtensionContext) {
             { label: '$(run) Custom Launch...', description: 'Select AI and Browser manually', action: 'custom' },
             { label: '$(output) View Logs', description: 'Show MCP Gateway output panel', action: 'showLogs' },
             { label: '$(settings-gear) Configure Gateway', description: 'Quick access to MCP Gateway settings', action: 'settings' },
-            { label: '$(refresh) Restart Server', description: 'Restart local gateway', action: 'restart' }
+            { label: '$(refresh) Restart Server', description: 'Restart local gateway', action: 'restart' },
+            { label: '$(stop) Turn Off WebMCP', description: 'Stop the local server', action: 'stop' }
         ];
 
         const selection = await vscode.window.showQuickPick<CustomActionItem>(items, {
@@ -142,6 +183,12 @@ export async function activate(context: vscode.ExtensionContext) {
             await manager.stop();
             await startService();
             vscode.window.showInformationMessage("Server Restarted");
+            return;
+        }
+
+        // 2.5 停止
+        if (selection.action === 'stop') {
+            await stopService();
             return;
         }
 
@@ -181,13 +228,16 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async (e) => {
         if (e.affectsConfiguration('mcpGateway.port') || e.affectsConfiguration('mcpGateway.servers')) {
-            outputChannel.appendLine("⚙️ Server configuration changed, restarting...");
-            await startService();
+            if (isRunning) {
+                outputChannel.appendLine("⚙️ Server configuration changed, restarting...");
+                await startService();
+            }
         }
     }));
 
-    // Start service after command is registered
-    await startService();
+    // Initialize in OFF state
+    updateStatusBar(false, undefined, false);
+    // Do not auto-start
 }
 
 function launchBridge(targetUrl: string, browserMode: string) {
@@ -225,9 +275,10 @@ function updateStatusBar(online: boolean, port?: number, isLoading: boolean = fa
         statusBarItem.tooltip = "Click to connect AI";
         statusBarItem.backgroundColor = undefined;
     } else {
-        statusBarItem.text = `$(alert) WebMCP: Offline`;
-        statusBarItem.tooltip = "Server failed to start";
-        statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+        // Default OFF state
+        statusBarItem.text = `$(circle-slash) WebMCP: OFF`;
+        statusBarItem.tooltip = "Click to Start WebMCP Server";
+        statusBarItem.backgroundColor = undefined;
     }
     statusBarItem.show();
 }
