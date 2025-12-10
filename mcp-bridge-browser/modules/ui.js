@@ -158,16 +158,16 @@
     const safeName = escapeHtml(payload.name);
 
     card.innerHTML = `
-            <h2><span class="warn-icon">✋</span> Approval Required</h2>
+            <h2><span class="warn-icon">✋</span> ${WebMCP.t("hitl_title")}</h2>
             
             
             <div id="view-main">
                 <div class="field">
-                    <span class="label">Tool Name</span>
+                    <span class="label">${WebMCP.t("label_tool")}</span>
                     <div class="value" style="font-weight:bold; color:#d32f2f">${safeName}</div>
                 </div>
                 <div class="field">
-                    <span class="label">Arguments</span>
+                    <span class="label">${WebMCP.t("label_args")}</span>
                     <div class="value">${safeArgs}</div>
                 </div>
             </div>
@@ -175,21 +175,21 @@
             
             <div id="view-always-confirm" style="display:none; padding: 15px 0; text-align: center;">
                  <div style="font-size: 40px; margin-bottom: 10px;">🔓</div>
-                 <p style="color:#d32f2f; font-weight:bold; font-size: 16px; margin: 0 0 10px 0;">Remove Protection?</p>
+                 <p style="color:#d32f2f; font-weight:bold; font-size: 16px; margin: 0 0 10px 0;">${WebMCP.t("always_title")}</p>
                  <p style="color:#666; font-size: 13px; line-height: 1.5; margin: 0;">
-                    You are about to permanently allow <b>${safeName}</b>.<br>
-                    Future calls will execute automatically without approval.
+                    ${WebMCP.t("always_desc_1")} <b>${safeName}</b>.<br>
+                    ${WebMCP.t("always_desc_2")}
                  </p>
             </div>
 
-            <input type="text" class="reason" placeholder="Reason for rejection (Optional)...">
+            <input type="text" class="reason" placeholder="${WebMCP.t("placeholder_reason")}">
             
             <div class="buttons">
-                <button class="btn-always">⚡ Always Allow</button>
-                <button class="btn-back">Back</button>
-                <button class="btn-reject">Reject</button>
-                <button class="btn-confirm">Approve</button>
-                <button class="btn-confirm-always" style="display:none; background:#ff9800; color:white;">Confirm Allow</button>
+                <button class="btn-always">${WebMCP.t("btn_always")}</button>
+                <button class="btn-back">${WebMCP.t("btn_back")}</button>
+                <button class="btn-reject">${WebMCP.t("btn_reject")}</button>
+                <button class="btn-confirm">${WebMCP.t("btn_approve")}</button>
+                <button class="btn-confirm-always" style="display:none; background:#ff9800; color:white;">${WebMCP.t("btn_allow_confirm")}</button>
             </div>
         `;
 
@@ -235,7 +235,7 @@
         rejectStep = 1;
         inputReason.style.display = "block";
         inputReason.focus();
-        btnReject.textContent = "Confirm Rejection";
+        btnReject.textContent = WebMCP.t("btn_reject_confirm");
         
         btnConfirm.style.display = "none";
         btnAlways.style.display = "none";
@@ -253,7 +253,7 @@
       rejectStep = 0;
       inputReason.style.display = "none";
       inputReason.value = "";
-      btnReject.textContent = "Reject";
+      btnReject.textContent = WebMCP.t("btn_reject");
       
       // Reset Views
       viewMain.style.display = "block";

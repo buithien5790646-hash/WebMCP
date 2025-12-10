@@ -50,6 +50,23 @@
     waiting_tools: { en: "Waiting for tools...", zh: "等待工具执行..." },
     hitl_intercept: { en: "Intercepted for approval", zh: "拦截等待审批" },
     hitl_rejected: { en: "User rejected execution", zh: "用户拒绝执行" },
+
+    // HITL Modal UI
+    hitl_title: { en: "Approval Required", zh: "请求执行工具" },
+    label_tool: { en: "Tool Name", zh: "工具名称" },
+    label_args: { en: "Arguments", zh: "调用参数" },
+    placeholder_reason: { en: "Reason for rejection (Optional)...", zh: "拒绝理由 (可选)..." },
+    
+    btn_always: { en: "⚡ Always Allow", zh: "⚡ 永久允许" },
+    btn_back: { en: "Back", zh: "返回" },
+    btn_reject: { en: "Reject", zh: "拒绝" },
+    btn_reject_confirm: { en: "Confirm Rejection", zh: "确认拒绝" },
+    btn_approve: { en: "Approve", zh: "允许" },
+    btn_allow_confirm: { en: "Confirm Allow", zh: "确认永久允许" },
+
+    always_title: { en: "Remove Protection?", zh: "移除保护？" },
+    always_desc_1: { en: "You are about to permanently allow", zh: "您即将把以下工具移出保护名单：" },
+    always_desc_2: { en: "Future calls will execute automatically without approval.", zh: "今后 AI 调用此工具将不再经过人工审批。" }
   };
 
   WebMCP.t = function (key) {
