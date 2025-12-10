@@ -144,16 +144,29 @@
     const card = document.createElement("div");
     card.className = "card";
 
+        // Security: Escape HTML to prevent XSS and layout breaking
+    const escapeHtml = (unsafe) => {
+        return (unsafe || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    };
+
+    const safeArgs = escapeHtml(JSON.stringify(payload.arguments || {}, null, 2));
+    const safeName = escapeHtml(payload.name);
+
     card.innerHTML = `
             <h2><span class="warn-icon">✋</span> Approval Required</h2>
-            <div class="field"><span class="label">Tool Name</span><div class="value" style="font-weight:bold; color:#d32f2f">${
-              payload.name
-            }</div></div>
-            <div class="field"><span class="label">Arguments</span><div class="value">${JSON.stringify(
-              payload.arguments || {},
-              null,
-              2
-            )}</div></div>
+            <div class="field">
+                <span class="label">Tool Name</span>
+                <div class="value" style="font-weight:bold; color:#d32f2f">${safeName}</div>
+            </div>
+            <div class="field">
+                <span class="label">Arguments</span>
+                <div class="value">${safeArgs}</div>
+            </div>
             <input type="text" class="reason" placeholder="Reason for rejection (Optional)...">
             <div class="buttons">
                 <button class="btn-always">⚡ Always Allow</button>
