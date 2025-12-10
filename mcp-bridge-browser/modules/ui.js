@@ -159,43 +159,76 @@
 
     card.innerHTML = `
             <h2><span class="warn-icon">✋</span> Approval Required</h2>
-            <div class="field">
-                <span class="label">Tool Name</span>
-                <div class="value" style="font-weight:bold; color:#d32f2f">${safeName}</div>
+            
+            
+            <div id="view-main">
+                <div class="field">
+                    <span class="label">Tool Name</span>
+                    <div class="value" style="font-weight:bold; color:#d32f2f">${safeName}</div>
+                </div>
+                <div class="field">
+                    <span class="label">Arguments</span>
+                    <div class="value">${safeArgs}</div>
+                </div>
             </div>
-            <div class="field">
-                <span class="label">Arguments</span>
-                <div class="value">${safeArgs}</div>
+
+            
+            <div id="view-always-confirm" style="display:none; padding: 15px 0; text-align: center;">
+                 <div style="font-size: 40px; margin-bottom: 10px;">🔓</div>
+                 <p style="color:#d32f2f; font-weight:bold; font-size: 16px; margin: 0 0 10px 0;">Remove Protection?</p>
+                 <p style="color:#666; font-size: 13px; line-height: 1.5; margin: 0;">
+                    You are about to permanently allow <b>${safeName}</b>.<br>
+                    Future calls will execute automatically without approval.
+                 </p>
             </div>
+
             <input type="text" class="reason" placeholder="Reason for rejection (Optional)...">
+            
             <div class="buttons">
                 <button class="btn-always">⚡ Always Allow</button>
                 <button class="btn-back">Back</button>
                 <button class="btn-reject">Reject</button>
                 <button class="btn-confirm">Approve</button>
+                <button class="btn-confirm-always" style="display:none; background:#ff9800; color:white;">Confirm Allow</button>
             </div>
         `;
+
+    const viewMain = card.querySelector("#view-main");
+    const viewAlways = card.querySelector("#view-always-confirm");
 
     const btnAlways = card.querySelector(".btn-always");
     const btnBack = card.querySelector(".btn-back");
     const btnReject = card.querySelector(".btn-reject");
     const btnConfirm = card.querySelector(".btn-confirm");
+    const btnConfirmAlways = card.querySelector(".btn-confirm-always");
     const inputReason = card.querySelector(".reason");
 
-    // 1. 本次允许
+    // 1. Approve Once
     btnConfirm.onclick = () => {
       document.body.removeChild(host);
-      onConfirm(false); // isAlways = false
+      onConfirm(false);
     };
 
-    // 2. 永久允许
+    // 2. Always Allow Flow (Switch View)
     btnAlways.onclick = () => {
-        if (confirm("Are you sure? This tool will be removed from the protected list.")) {
-            document.body.removeChild(host);
-            onConfirm(true); // isAlways = true
-        }
+        viewMain.style.display = "none";
+        viewAlways.style.display = "block";
+        
+        btnAlways.style.display = "none";
+        btnReject.style.display = "none";
+        btnConfirm.style.display = "none";
+        
+        btnBack.style.display = "inline-block";
+        btnConfirmAlways.style.display = "inline-block";
     };
 
+    // 2.1 Always Allow Confirm Action
+    btnConfirmAlways.onclick = () => {
+        document.body.removeChild(host);
+        onConfirm(true);
+    };
+
+    // 3. Reject Flow
     let rejectStep = 0;
     btnReject.onclick = () => {
       if (rejectStep === 0) {
@@ -203,8 +236,9 @@
         inputReason.style.display = "block";
         inputReason.focus();
         btnReject.textContent = "Confirm Rejection";
+        
         btnConfirm.style.display = "none";
-        btnAlways.style.display = "none"; // Hide Always btn
+        btnAlways.style.display = "none";
         btnBack.style.display = "inline-block";
       } else {
         const reason = inputReason.value.trim();
@@ -213,14 +247,25 @@
       }
     };
 
+    // Back Handler (Reset all states)
     btnBack.onclick = () => {
+      // Reset Reject
       rejectStep = 0;
       inputReason.style.display = "none";
       inputReason.value = "";
       btnReject.textContent = "Reject";
+      
+      // Reset Views
+      viewMain.style.display = "block";
+      viewAlways.style.display = "none";
+      
+      // Reset Buttons
       btnConfirm.style.display = "inline-block";
+      btnReject.style.display = "inline-block";
       btnAlways.style.display = "inline-block";
+      
       btnBack.style.display = "none";
+      btnConfirmAlways.style.display = "none";
     };
 
     inputReason.onkeydown = (e) => {
