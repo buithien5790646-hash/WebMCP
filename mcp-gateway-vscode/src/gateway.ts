@@ -288,7 +288,11 @@ export class GatewayManager {
             let { name, arguments: args } = req.body;
             const toolStart = Date.now();
 
-            if (args && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            // Auto-resolve relative paths for local filesystem tools
+            // [Fix] Do NOT touch paths for remote tools like 'github_*' or 'gitlab_*'
+            const isRemoteTool = name.startsWith('github_') || name.startsWith('gitlab_') || name.startsWith('bitbucket_');
+
+            if (!isRemoteTool && args && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                 const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
                 const fixPath = (p: string) => {
                     if (typeof p === 'string' && !path.isAbsolute(p)) {
