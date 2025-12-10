@@ -253,9 +253,31 @@ async function fetchTools() {
 
         if (!resp.ok) throw new Error("Gateway rejected request");
         const data = await resp.json();
-        const toolNames = data.tools.map(t => t.name);
+        const newToolNames = data.tools.map(t => t.name);
 
-        await chrome.storage.local.set({ 'cached_tool_list': toolNames });
+        // [HITL] Security: Auto-protect new tools logic (Sync with content.js)
+        const localData = await chrome.storage.local.get(['cached_tool_list']);
+        const syncData = await chrome.storage.sync.get(['protected_tools']);
+        
+        const knownTools = new Set(localData.cached_tool_list || []);
+        const protectedTools = new Set(syncData.protected_tools || []);
+        let protectedDirty = false;
+
+        newToolNames.forEach(tName => {
+            // If it's a NEW tool (not in cache), protect it by default
+            if (!knownTools.has(tName)) {
+                if (!protectedTools.has(tName)) {
+                    protectedTools.add(tName);
+                    protectedDirty = true;
+                }
+            }
+        });
+
+        if (protectedDirty) {
+            await chrome.storage.sync.set({ protected_tools: Array.from(protectedTools) });
+        }
+
+        await chrome.storage.local.set({ 'cached_tool_list': newToolNames });
         await restoreOptions(); // Re-render
         showStatus(t('refresh_ok'));
 
