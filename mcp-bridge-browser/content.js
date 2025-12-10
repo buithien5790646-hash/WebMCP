@@ -74,6 +74,10 @@
     config_updated: {
       en: "Selectors config updated",
       zh: "选择器配置已更新"
+    },
+    waiting_tools: {
+      en: "Waiting for tools...",
+      zh: "等待工具执行..."
     }
   };
 
@@ -256,15 +260,19 @@
 
   // === 主逻辑：批处理与队列管理 ===
   const processedRequests = new Set();
+  // 新增：已回填的请求ID集合，防止重复计算进度
+  const flushedRequests = new Set();
+  
   const blockStates = new WeakMap(); 
-  // 缓冲已完成的结果 (requestId -> outputString)
   const resultBuffer = new Map();
-  // 追踪当前正在执行的请求 (requestId Set)
   const activeExecutions = new Set();
 
   const STABILIZATION_TIMEOUT = 3000;
   let toolCallCount = 0;
   let autoSendTimer = null;
+  
+  let lastProgressLogTime = 0;
+  let lastProgressStatus = "";
 
   setInterval(() => {
     if (!DOM) return;
@@ -285,7 +293,7 @@
     const lastMessage = messages[messages.length - 1];
     const codeElements = lastMessage.querySelectorAll(DOM.codeBlocks);
 
-    // 扫描当前轮次的所有 Request ID (按 DOM 顺序)
+    // 扫描当前轮次的所有 Request ID
     const currentTurnIds = [];
 
     codeElements.forEach((codeEl) => {
@@ -294,7 +302,6 @@
 
       try {
         const payload = JSON.parse(textContent);
-        // 解析成功，清除该块的错误状态记录
         if (blockStates.has(codeEl)) blockStates.delete(codeEl);
         if (codeEl.style.borderColor === "rgb(244, 67, 54)") codeEl.style.border = "none";
 
@@ -309,15 +316,12 @@
             Logger.log(`${t("captured")}: ${payload.name}`, "info");
             Logger.log(`${t("args")}: ${JSON.stringify(payload.arguments).substring(0, 50)}...`, "info");
 
-            // 执行工具
             executeTool(payload);
           } else {
-             // 确保视觉状态正确 (用于重载场景)
              if (codeEl.dataset.mcpVisual !== "true") markVisualSuccess(codeEl);
           }
         }
       } catch (e) {
-        // === 智能防抖错误检测 ===
         const now = Date.now();
         let state = blockStates.get(codeEl);
 
@@ -338,20 +342,25 @@
       }
     });
 
-    // === 批处理检查 ===
-    // 条件：当前有工具调用，且所有调用都不在活跃状态(都已返回)，且所有结果都在缓冲区中
-    if (currentTurnIds.length > 0) {
-        const allFinished = currentTurnIds.every(id => !activeExecutions.has(id) && resultBuffer.has(id));
+    // === 批处理逻辑修复 ===
+    
+    // 1. 过滤掉已经回填过的 ID (避免 DOM 残留导致重复计算/等待)
+    const actionableIds = currentTurnIds.filter(id => !flushedRequests.has(id));
+
+    if (actionableIds.length > 0) {
+        // 2. 仅计算未回填 ID 的进度
+        const completedCount = actionableIds.filter(id => !activeExecutions.has(id) && resultBuffer.has(id)).length;
+        const totalCount = actionableIds.length;
+        const allFinished = (completedCount === totalCount);
         
         if (allFinished) {
              // 按 DOM 顺序收集结果
              const orderedResults = [];
              let hasUnflushedContent = false;
 
-             currentTurnIds.forEach(id => {
+             actionableIds.forEach(id => {
                  const res = resultBuffer.get(id);
                  if (res) {
-                    // 只有非空结果才算有效内容 (排除虚拟工具的占位符)
                     orderedResults.push(res);
                     hasUnflushedContent = true;
                  }
@@ -363,17 +372,32 @@
                  const finalOutput = orderedResults.join("\n\n");
                  writeToInputBox(finalOutput);
                  
-                 // 清空已消费的缓冲区，防止重复写入
-                 currentTurnIds.forEach(id => resultBuffer.delete(id));
+                 // 3. 标记为已回填，并从 Buffer 中清理
+                 actionableIds.forEach(id => {
+                     resultBuffer.delete(id);
+                     flushedRequests.add(id);
+                 });
                  
                  triggerAutoSend();
              } else {
-                 // 可能是纯虚拟工具调用，消费掉 Buffer 即可，无需写入
-                 const anyVirtual = currentTurnIds.some(id => resultBuffer.has(id));
+                 // 纯虚拟工具，也要标记为已回填
+                 const anyVirtual = actionableIds.some(id => resultBuffer.has(id));
                  if (anyVirtual) {
-                      currentTurnIds.forEach(id => resultBuffer.delete(id));
+                      actionableIds.forEach(id => {
+                          resultBuffer.delete(id);
+                          flushedRequests.add(id);
+                      });
                  }
              }
+             lastProgressStatus = "";
+        } else {
+            const statusStr = `${completedCount}/${totalCount}`;
+            const now = Date.now();
+            if (statusStr !== lastProgressStatus || now - lastProgressLogTime > 3000) {
+                Logger.log(`${t("waiting_tools")} (${statusStr} completed)`, "warn");
+                lastProgressStatus = statusStr;
+                lastProgressLogTime = now;
+            }
         }
     }
   }, CONFIG.pollInterval);
@@ -385,7 +409,6 @@
           Logger.log(`🔔 Notification: ${msg}`, "action");
           chrome.runtime.sendMessage({ type: "SHOW_NOTIFICATION", title: "WebMCP Task Finished", message: msg });
           
-          // 标记完成，存入空结果占位
           activeExecutions.delete(payload.request_id);
           resultBuffer.set(payload.request_id, "");
           return;
@@ -399,7 +422,6 @@
               Logger.log(`${t("exec_success")}: ${payload.name}`, "success");
               let finalData = response.data;
               
-              // 注入虚拟工具定义
               if (payload.name === "list_tools") {
                   try {
                       const tools = JSON.parse(finalData);
@@ -435,7 +457,6 @@
               output: outputContent,
           };
 
-          // 训练提示注入逻辑
           toolCallCount++;
           if (toolCallCount > 0 && toolCallCount % 5 === 0) {
              if (i18n.train) {
