@@ -104,6 +104,14 @@
                 "@modelcontextprotocol/server-filesystem",
                 "."
               ]
+            },
+            "command": {
+              "command": "node",
+              "args": [
+                "${extensionPath}/dist/commandServer.js",
+                "--project-root",
+                "." 
+              ]
             }
           },
           "description": "Configuration for MCP Servers."

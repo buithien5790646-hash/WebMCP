@@ -37,10 +37,12 @@ export class GatewayManager {
     private toolRouter = new Map<string, { client: Client; definition: any }>();
     private connectedClients: { id: string; client: Client }[] = [];
     private outputChannel: vscode.OutputChannel;
+    private extensionPath: string;
     private authToken: string = '';
 
     constructor(outputChannel: vscode.OutputChannel, extensionPath: string) {
         this.outputChannel = outputChannel;
+        this.extensionPath = extensionPath;
     }
 
     private log(message: string) {
@@ -96,8 +98,11 @@ export class GatewayManager {
                 
                 } else {
                     // Default to Stdio
-                    let command = config.command!;
-                    let args = [...(config.args || [])];
+                    // [Fix] Resolve variable substitution for ${extensionPath}
+                    const replaceVars = (str: string) => str.replace(/\$\{extensionPath\}/g, this.extensionPath);
+
+                    let command = replaceVars(config.command!);
+                    let args = (config.args || []).map(arg => replaceVars(arg));
                     const env = { ...process.env, ...config.env } as Record<string, string>;
 
                     if (process.platform === 'win32') {
@@ -289,10 +294,17 @@ export class GatewayManager {
             const toolStart = Date.now();
 
             // Auto-resolve relative paths for local filesystem tools
-            // [Fix] Do NOT touch paths for remote tools like 'github_*' or 'gitlab_*'
-            const isRemoteTool = name.startsWith('github_') || name.startsWith('gitlab_') || name.startsWith('bitbucket_');
+            // [Fix v2] Use Allowlist instead of Blocklist to avoid matching remote tools like 'get_file_contents'
+            const localPathTools = [
+                'read_file', 'read_text_file', 'read_multiple_files', 'write_file', 'edit_file', 'append_file',
+                'list_directory', 'list_directory_with_sizes', 'directory_tree',
+                'move_file', 'search_files', 'get_file_info', 'create_directory',
+                'execute_command' // Our new built-in tool
+            ];
+            // Git tools also operate on local filesystem
+            const isLocalTool = localPathTools.includes(name) || name.startsWith('git_');
 
-            if (!isRemoteTool && args && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            if (isLocalTool && args && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                 const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
                 const fixPath = (p: string) => {
                     if (typeof p === 'string' && !path.isAbsolute(p)) {
@@ -302,6 +314,7 @@ export class GatewayManager {
                 };
 
                 if (args.path) args.path = fixPath(args.path);
+                if (args.cwd) args.cwd = fixPath(args.cwd); // Fix: Resolve CWD for execute_command
                 if (args.repo_path) args.repo_path = fixPath(args.repo_path); // Fix: Support relative path for Git tools
                 if (args.source) args.source = fixPath(args.source);
                 if (args.destination) args.destination = fixPath(args.destination);

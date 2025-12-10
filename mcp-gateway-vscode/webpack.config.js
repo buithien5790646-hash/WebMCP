@@ -9,22 +9,26 @@ const path = require('path');
 
 /** @type WebpackConfig */
 const extensionConfig = {
-  target: 'node', // VS Code extensions run in a Node.js-context 📖 -> https://webpack.js.org/configuration/node/
-	mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
+  target: 'node',
+  mode: 'none',
 
-  entry: './src/extension.ts', // the entry point of this extension, 📖 -> https://webpack.js.org/configuration/entry-context/
+  // 1. 修改入口：支持多文件打包
+  entry: {
+    extension: './src/extension.ts',
+    commandServer: './src/servers/command.ts' // 👈 新增：独立 Command Server
+  },
   output: {
-    // the bundle is stored in the 'dist' folder (check package.json), 📖 -> https://webpack.js.org/configuration/output/
     path: path.resolve(__dirname, 'dist'),
-    filename: 'extension.js',
+    filename: '[name].js', // 👈 修改：使用占位符，这样会生成 extension.js 和 commandServer.js
     libraryTarget: 'commonjs2'
   },
   externals: {
-    vscode: 'commonjs vscode' // the vscode-module is created on-the-fly and must be excluded. Add other modules that cannot be webpack'ed, 📖 -> https://webpack.js.org/configuration/externals/
-    // modules added here also need to be added in the .vscodeignore file
+    vscode: 'commonjs vscode',
+    // ⚠️ 关键：commandServer 运行在原生 Node 环境，不需要 'vscode' 模块，但 Webpack 可能会尝试打包 sdk 里的依赖。
+    // 我们可以让它保留 require，或者让 webpack 帮我们打包 sdk。
+    // 这里保持现状通常没问题，因为 target: node 会处理好大部分 native 模块。
   },
   resolve: {
-    // support reading TypeScript and JavaScript files, 📖 -> https://github.com/TypeStrong/ts-loader
     extensions: ['.ts', '.js']
   },
   module: {
@@ -42,7 +46,7 @@ const extensionConfig = {
   },
   devtool: 'nosources-source-map',
   infrastructureLogging: {
-    level: "log", // enables logging required for problem matchers
+    level: "log",
   },
 };
 module.exports = [ extensionConfig ];
