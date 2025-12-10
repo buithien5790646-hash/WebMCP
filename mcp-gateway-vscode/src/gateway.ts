@@ -3,6 +3,8 @@ import cors from 'cors';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+// @ts-ignore: We intentionally import the deprecated SSE transport for backward compatibility
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -13,6 +15,7 @@ interface ServerConfig {
     command?: string;
     args?: string[];
     url?: string;
+    headers?: Record<string, string>;
     env?: Record<string, string>;
 }
 
@@ -67,14 +70,26 @@ export class GatewayManager {
             try {
                 let client: Client;
 
-                if (config.type === 'sse' || config.type === 'http') {
-                    if (!config.url) throw new Error("Missing 'url' for HTTP/SSE config");
-                    this.log(`   -> Connecting [${serverId}] via HTTP/SSE: ${config.url}`);
+                if (config.type === 'http') {
+                    if (!config.url) throw new Error("Missing 'url' for HTTP config");
+                    this.log(`   -> Connecting [${serverId}] via HTTP (Standard): ${config.url}`);
                     
-                    // 使用最新的流式 HTTP 传输协议
+                    // 标准 HTTP 传输 (新版)
                     const transport = new StreamableHTTPClientTransport(new URL(config.url), {
-                        // Headers are passed via requestInit in the new SDK if needed
-                        // headers: { Authorization: `Bearer ...` }
+                        requestInit: { headers: config.headers },
+                    });
+                    client = new Client({ name: "mcp-gateway-vscode", version: "1.0.0" }, { capabilities: {} });
+                    await client.connect(transport);
+                
+                } else if (config.type === 'sse') {
+                    if (!config.url) throw new Error("Missing 'url' for SSE config");
+                    this.log(`   -> Connecting [${serverId}] via SSE (Legacy): ${config.url}`);
+                    
+                    // SSE 传输 (旧版，向后兼容)
+                    const transport = new SSEClientTransport(new URL(config.url), {
+                        requestInit: { headers: config.headers } as any, // 强制类型转换以应对弃用API的严格类型
+                        // @ts-ignore
+                        eventSourceInit: { headers: config.headers },
                     });
                     client = new Client({ name: "mcp-gateway-vscode", version: "1.0.0" }, { capabilities: {} });
                     await client.connect(transport);
