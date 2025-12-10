@@ -256,8 +256,29 @@
             try {
               const realTools = JSON.parse(finalData);
               const toolNames = realTools.map((t) => t.name);
-              chrome.storage.local.set({ cached_tool_list: toolNames });
-            } catch (e) {}
+              
+              // [HITL] Security: Auto-protect new tools
+              chrome.storage.local.get(['cached_tool_list'], (localData) => {
+                  const knownTools = new Set(localData.cached_tool_list || []);
+                  let protectedDirty = false;
+                  toolNames.forEach(tName => {
+                      // 如果是新面孔，且还没被保护
+                      if (!knownTools.has(tName)) {
+                          if (!protectedTools.has(tName)) {
+                              protectedTools.add(tName);
+                              protectedDirty = true;
+                          }
+                      }
+                  });
+                  if (protectedDirty) {
+                      chrome.storage.sync.set({ protected_tools: Array.from(protectedTools) });
+                      Logger.log("🛡️ New tools detected & protected", "warn");
+                  }
+                  // 更新已知的工具缓存
+                  chrome.storage.local.set({ 'cached_tool_list': toolNames });
+              });
+
+            } catch (e) { console.error("Auto-protect logic error", e); }
             try {
               const tools = JSON.parse(finalData);
               tools.push({
@@ -301,8 +322,11 @@
       request_id: requestId,
       status: isError ? "error" : "success",
     };
-    if (isError) responseJson.error = content;
-    else responseJson.output = content;
+    if (isError) {
+      responseJson.error = content;
+    } else {
+      responseJson.output = content;
+    }
 
     toolCallCount++;
     if (toolCallCount > 0 && toolCallCount % 5 === 0) {
@@ -333,11 +357,19 @@
 
     UI.showConfirmationModal(
       payload,
-      () => {
+      (isAlways) => {
         confirmationQueue.shift();
         isPopupOpen = false;
         const inputEl = document.querySelector(DOM.inputArea);
         if (inputEl) inputEl.focus();
+
+        // [HITL] Handle Always Allow
+        if (isAlways) {
+            protectedTools.delete(payload.name);
+            chrome.storage.sync.set({ protected_tools: Array.from(protectedTools) });
+            Logger.log(`⚡ Tool '${payload.name}' set to Always Allow`, "action");
+        }
+
         performExecution(payload);
         processConfirmationQueue();
       },

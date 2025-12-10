@@ -21,6 +21,7 @@ const els = {
   // HITL
   sec_hitl: document.getElementById("sec_hitl"),
   desc_hitl: document.getElementById("desc_hitl"),
+  refreshTools: document.getElementById("refreshTools"),
   toolList: document.getElementById("toolList"),
   save: document.getElementById("save"),
   reset: document.getElementById("reset"),
@@ -77,6 +78,8 @@ const UI = {
     reset_confirm: "确定要重置所有设置（选择器和提示词）为默认值吗？",
     error_json: "错误：选择器配置 JSON 格式无效。",
     restored: "已从文件恢复默认设置。",
+    refresh_ok: "工具列表已更新！",
+    refresh_fail: "连接网关失败，请确保 VS Code 正在运行。"
   },
 };
 
@@ -228,6 +231,40 @@ function saveOptions() {
   });
 }
 
+async function fetchTools() {
+    try {
+        const all = await chrome.storage.local.get(null);
+        let port = null, token = null;
+        
+        // Find first active session
+        for (const [key, val] of Object.entries(all)) {
+            if (key.startsWith('session_') && val.port && val.token) {
+                port = val.port;
+                token = val.token;
+                break;
+            }
+        }
+
+        if (!port || !token) throw new Error("No active session found");
+
+        const resp = await fetch(`http://127.0.0.1:${port}/v1/tools`, {
+            headers: { 'X-WebMCP-Token': token }
+        });
+
+        if (!resp.ok) throw new Error("Gateway rejected request");
+        const data = await resp.json();
+        const toolNames = data.tools.map(t => t.name);
+
+        await chrome.storage.local.set({ 'cached_tool_list': toolNames });
+        await restoreOptions(); // Re-render
+        showStatus(t('refresh_ok'));
+
+    } catch (e) {
+        console.error(e);
+        showStatus(t('refresh_fail'), 'error');
+    }
+}
+
 async function resetOptions() {
   if (confirm(t("reset_confirm"))) {
     els.selectors.value = JSON.stringify(DEFAULT_SELECTORS, null, 2);
@@ -251,3 +288,4 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 els.save.addEventListener("click", saveOptions);
 els.reset.addEventListener("click", resetOptions);
+els.refreshTools.addEventListener("click", fetchTools);

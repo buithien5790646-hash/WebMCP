@@ -129,6 +129,8 @@
             .btn-reject:hover { background: #dc3545; color: white; }
             .btn-confirm { background: #2e7d32; color: white; box-shadow: 0 2px 5px rgba(46, 125, 50, 0.3); }
             .btn-confirm:hover { background: #1b5e20; box-shadow: 0 4px 8px rgba(46, 125, 50, 0.4); }
+            .btn-always { background: #ff9800; color: white; margin-right: auto; }
+            .btn-always:hover { background: #f57c00; }
             .btn-back { background: #6c757d; color: white; display: none; margin-right: auto; }
             .btn-back:hover { background: #5a6268; }
             input.reason { width: 100%; box-sizing: border-box; padding: 10px; margin-top: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; display: none; }
@@ -154,20 +156,31 @@
             )}</div></div>
             <input type="text" class="reason" placeholder="Reason for rejection (Optional)...">
             <div class="buttons">
+                <button class="btn-always">⚡ Always Allow</button>
                 <button class="btn-back">Back</button>
                 <button class="btn-reject">Reject</button>
-                <button class="btn-confirm">Approve & Execute</button>
+                <button class="btn-confirm">Approve</button>
             </div>
         `;
 
+    const btnAlways = card.querySelector(".btn-always");
     const btnBack = card.querySelector(".btn-back");
     const btnReject = card.querySelector(".btn-reject");
     const btnConfirm = card.querySelector(".btn-confirm");
     const inputReason = card.querySelector(".reason");
 
+    // 1. 本次允许
     btnConfirm.onclick = () => {
       document.body.removeChild(host);
-      onConfirm();
+      onConfirm(false); // isAlways = false
+    };
+
+    // 2. 永久允许
+    btnAlways.onclick = () => {
+        if (confirm("Are you sure? This tool will be removed from the protected list.")) {
+            document.body.removeChild(host);
+            onConfirm(true); // isAlways = true
+        }
     };
 
     let rejectStep = 0;
@@ -178,6 +191,7 @@
         inputReason.focus();
         btnReject.textContent = "Confirm Rejection";
         btnConfirm.style.display = "none";
+        btnAlways.style.display = "none"; // Hide Always btn
         btnBack.style.display = "inline-block";
       } else {
         const reason = inputReason.value.trim();
@@ -192,6 +206,7 @@
       inputReason.value = "";
       btnReject.textContent = "Reject";
       btnConfirm.style.display = "inline-block";
+      btnAlways.style.display = "inline-block";
       btnBack.style.display = "none";
     };
 
