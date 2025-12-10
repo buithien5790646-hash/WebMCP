@@ -94,7 +94,7 @@
       console.log(`[MCP] Loaded i18n resources (${i18n.lang})`);
   });
 
-  // === 悬浮日志系统 (省略, 未变) ===
+  // === 悬浮日志系统 ===
   const Logger = {
     el: null,
     contentEl: null,
@@ -254,10 +254,15 @@
     }
   });
 
-  // === 主逻辑 ===
+  // === 主逻辑：批处理与队列管理 ===
   const processedRequests = new Set();
-  const blockStates = new WeakMap(); // 用于追踪代码块变化的 WeakMap
-  const STABILIZATION_TIMEOUT = 3000; // 3秒无变化且解析失败，则报错
+  const blockStates = new WeakMap(); 
+  // 缓冲已完成的结果 (requestId -> outputString)
+  const resultBuffer = new Map();
+  // 追踪当前正在执行的请求 (requestId Set)
+  const activeExecutions = new Set();
+
+  const STABILIZATION_TIMEOUT = 3000;
   let toolCallCount = 0;
   let autoSendTimer = null;
 
@@ -280,43 +285,121 @@
     const lastMessage = messages[messages.length - 1];
     const codeElements = lastMessage.querySelectorAll(DOM.codeBlocks);
 
+    // 扫描当前轮次的所有 Request ID (按 DOM 顺序)
+    const currentTurnIds = [];
+
     codeElements.forEach((codeEl) => {
       const textContent = codeEl.textContent.trim();
       if (!textContent.includes('"mcp_action": "call"')) return;
 
       try {
         const payload = JSON.parse(textContent);
-        // 解析成功，清除该块的错误状态记录（如果有）
+        // 解析成功，清除该块的错误状态记录
         if (blockStates.has(codeEl)) blockStates.delete(codeEl);
-        if (codeEl.style.borderColor === "rgb(244, 67, 54)") codeEl.style.border = "none"; // 清除红色边框
+        if (codeEl.style.borderColor === "rgb(244, 67, 54)") codeEl.style.border = "none";
 
         if (payload.mcp_action === "call" && payload.request_id) {
-          if (processedRequests.has(payload.request_id)) {
-            if (codeEl.dataset.mcpVisual !== "true") markVisualSuccess(codeEl);
-            return;
+          currentTurnIds.push(payload.request_id);
+
+          if (!processedRequests.has(payload.request_id)) {
+            processedRequests.add(payload.request_id);
+            activeExecutions.add(payload.request_id);
+            markVisualSuccess(codeEl);
+
+            Logger.log(`${t("captured")}: ${payload.name}`, "info");
+            Logger.log(`${t("args")}: ${JSON.stringify(payload.arguments).substring(0, 50)}...`, "info");
+
+            // 执行工具
+            executeTool(payload);
+          } else {
+             // 确保视觉状态正确 (用于重载场景)
+             if (codeEl.dataset.mcpVisual !== "true") markVisualSuccess(codeEl);
           }
+        }
+      } catch (e) {
+        // === 智能防抖错误检测 ===
+        const now = Date.now();
+        let state = blockStates.get(codeEl);
 
-          processedRequests.add(payload.request_id);
-          markVisualSuccess(codeEl);
+        if (!state || state.text !== textContent) {
+            blockStates.set(codeEl, { text: textContent, time: now, errorNotified: false });
+            if (codeEl.style.borderColor === "rgb(244, 67, 54)") {
+                codeEl.style.border = "none";
+            }
+        } else {
+            if (now - state.time > STABILIZATION_TIMEOUT && !state.errorNotified) {
+                Logger.log("JSON Parse Error (Stable): " + e.message, "error");
+                codeEl.style.border = "2px solid #F44336";
+                chrome.runtime.sendMessage({ type: "SHOW_NOTIFICATION", title: "WebMCP Error", message: "Invalid JSON format (Stuck)." });
+                state.errorNotified = true;
+                blockStates.set(codeEl, state);
+            }
+        }
+      }
+    });
 
-          Logger.log(`${t("captured")}: ${payload.name}`, "info");
-          Logger.log(`${t("args")}: ${JSON.stringify(payload.arguments).substring(0, 50)}...`, "info");
+    // === 批处理检查 ===
+    // 条件：当前有工具调用，且所有调用都不在活跃状态(都已返回)，且所有结果都在缓冲区中
+    if (currentTurnIds.length > 0) {
+        const allFinished = currentTurnIds.every(id => !activeExecutions.has(id) && resultBuffer.has(id));
+        
+        if (allFinished) {
+             // 按 DOM 顺序收集结果
+             const orderedResults = [];
+             let hasUnflushedContent = false;
 
-          // [New] Virtual Tool: Task Completion Notification
-          if (payload.name === "task_completion_notification") {
-             const msg = payload.arguments?.message || "Task Completed";
-             Logger.log(`🔔 Notification: ${msg}`, "action");
-             chrome.runtime.sendMessage({ type: "SHOW_NOTIFICATION", title: "WebMCP Task Finished", message: msg });
-             // 直接返回，不回填输入框
-             return;
-          }
+             currentTurnIds.forEach(id => {
+                 const res = resultBuffer.get(id);
+                 if (res) {
+                    // 只有非空结果才算有效内容 (排除虚拟工具的占位符)
+                    orderedResults.push(res);
+                    hasUnflushedContent = true;
+                 }
+             });
 
-          chrome.runtime.sendMessage({ type: "EXECUTE_TOOL", payload: payload }, (response) => {
-            if (response && response.success) {
+             if (hasUnflushedContent) {
+                 Logger.log(`Batch finished: ${orderedResults.length} tools. Writing...`, "success");
+                 
+                 const finalOutput = orderedResults.join("\n\n");
+                 writeToInputBox(finalOutput);
+                 
+                 // 清空已消费的缓冲区，防止重复写入
+                 currentTurnIds.forEach(id => resultBuffer.delete(id));
+                 
+                 triggerAutoSend();
+             } else {
+                 // 可能是纯虚拟工具调用，消费掉 Buffer 即可，无需写入
+                 const anyVirtual = currentTurnIds.some(id => resultBuffer.has(id));
+                 if (anyVirtual) {
+                      currentTurnIds.forEach(id => resultBuffer.delete(id));
+                 }
+             }
+        }
+    }
+  }, CONFIG.pollInterval);
+
+  // === 执行工具 ===
+  function executeTool(payload) {
+      if (payload.name === "task_completion_notification") {
+          const msg = payload.arguments?.message || "Task Completed";
+          Logger.log(`🔔 Notification: ${msg}`, "action");
+          chrome.runtime.sendMessage({ type: "SHOW_NOTIFICATION", title: "WebMCP Task Finished", message: msg });
+          
+          // 标记完成，存入空结果占位
+          activeExecutions.delete(payload.request_id);
+          resultBuffer.set(payload.request_id, "");
+          return;
+      }
+
+      chrome.runtime.sendMessage({ type: "EXECUTE_TOOL", payload: payload }, (response) => {
+          activeExecutions.delete(payload.request_id);
+
+          let outputContent = "";
+          if (response && response.success) {
               Logger.log(`${t("exec_success")}: ${payload.name}`, "success");
-              
-              // [New] Inject Virtual Tool into list_tools response
               let finalData = response.data;
+              
+              // 注入虚拟工具定义
               if (payload.name === "list_tools") {
                   try {
                       const tools = JSON.parse(finalData);
@@ -339,42 +422,34 @@
                       console.error("Failed to inject virtual tool", e);
                   }
               }
-
-              sendResponseToChat(payload.request_id, finalData);
-            } else {
+              outputContent = finalData;
+          } else {
               Logger.log(`${t("exec_fail")}: ${response.error}`, "error");
-              sendResponseToChat(payload.request_id, `❌ Error: ${response.error}`);
-            }
-          });
-        }
-      } catch (e) {
-        // === 智能防抖错误检测 ===
-        const now = Date.now();
-        let state = blockStates.get(codeEl);
+              outputContent = `❌ Error: ${response.error}`;
+          }
 
-        if (!state || state.text !== textContent) {
-            // 内容发生了变化（正在生成中），或者第一次遇到此块
-            // 更新状态，重置计时器，并移除可能的错误样式（因为可能正在修正）
-            blockStates.set(codeEl, { text: textContent, time: now, errorNotified: false });
-            if (codeEl.style.borderColor === "rgb(244, 67, 54)") {
-                codeEl.style.border = "none";
-            }
-        } else {
-            // 内容没有变化（可能卡住了或生成完毕）
-            if (now - state.time > STABILIZATION_TIMEOUT && !state.errorNotified) {
-                // 超过 N 秒没变，且依然解析失败 -> 确认为错误
-                Logger.log("JSON Parse Error (Stable): " + e.message, "error");
-                codeEl.style.border = "2px solid #F44336"; // Red Border
-                chrome.runtime.sendMessage({ type: "SHOW_NOTIFICATION", title: "WebMCP Error", message: "Invalid JSON format (Stuck)." });
-                
-                // 标记已通知，避免重复弹窗
-                state.errorNotified = true;
-                blockStates.set(codeEl, state);
-            }
-        }
-      }
-    });
-  }, CONFIG.pollInterval);
+          const responseJson = {
+              mcp_action: "result",
+              request_id: payload.request_id,
+              status: "success",
+              output: outputContent,
+          };
+
+          // 训练提示注入逻辑
+          toolCallCount++;
+          if (toolCallCount > 0 && toolCallCount % 5 === 0) {
+             if (i18n.train) {
+                  responseJson.system_note = i18n.train;
+                  Logger.log(t("training_hint") + " (Train/i18n)", "info");
+             } else {
+                  responseJson.system_note = `[System] Reminder: Tool calls MUST use this JSON format: {"mcp_action":"call", "name": "tool_name", "arguments": {...}}.`;
+             }
+          }
+
+          const jsonString = `\`\`\`json\n${JSON.stringify(responseJson, null, 2)}\n\`\`\``;
+          resultBuffer.set(payload.request_id, jsonString);
+      });
+  }
 
   function markVisualSuccess(element) {
     element.dataset.mcpVisual = "true";
@@ -382,32 +457,16 @@
     element.style.borderRadius = "4px";
   }
 
-  function sendResponseToChat(requestId, outputContent) {
-    toolCallCount++;
-    const responseJson = {
-      mcp_action: "result",
-      request_id: requestId,
-      status: "success",
-      output: outputContent,
-    };
+  function writeToInputBox(textToAdd) {
+    if (!textToAdd.trim()) return;
 
-    if (toolCallCount > 0 && toolCallCount % 5 === 0) {
-        if (i18n.train) {
-             responseJson.system_note = i18n.train;
-             Logger.log(t("training_hint") + " (Train/i18n)", "info");
-        } else {
-             responseJson.system_note = `[System] Reminder: Tool calls MUST use this JSON format: {"mcp_action":"call", "name": "tool_name", "arguments": {...}}.`;
-        }
-    }
-
-    const replyText = `\`\`\`json\n${JSON.stringify(responseJson, null, 2)}\n\`\`\``;
     const inputEl = document.querySelector(DOM.inputArea);
     if (!inputEl) { Logger.log(t("input_not_found"), "error"); return; }
 
     let currentText = inputEl.innerText || inputEl.value || "";
     currentText = currentText.replace(/\r\n/g, "\n").replace(/\n+/g, "\n").trim();
     const separator = currentText ? "\n\n" : "";
-    const finalText = currentText + separator + replyText;
+    const finalText = currentText + separator + textToAdd;
 
     inputEl.focus();
     let success = false;
@@ -425,46 +484,49 @@
         inputEl.dispatchEvent(new Event("input", { bubbles: true }));
     }
     Logger.log(t("result_written"), "action");
+  }
 
-    if (CONFIG.autoSend) {
-      // Debounce: Clear previous pending retry
-      if (autoSendTimer) {
-          clearTimeout(autoSendTimer);
-          autoSendTimer = null;
+  function triggerAutoSend() {
+    if (!CONFIG.autoSend) return;
+
+    if (autoSendTimer) {
+        clearTimeout(autoSendTimer);
+        autoSendTimer = null;
+    }
+
+    let retryCount = 0;
+    const maxRetries = 5;
+    const trySend = () => {
+      const btn = document.querySelector(DOM.sendButton);
+      const inputEl = document.querySelector(DOM.inputArea);
+      const currentVal = inputEl ? (inputEl.value || inputEl.innerText || "") : "";
+      
+      if (currentVal.trim().length === 0) { Logger.log(t("send_success_cleared"), "success"); return; }
+
+      if (inputEl) {
+          inputEl.focus();
+          inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+          inputEl.dispatchEvent(new Event("change", { bubbles: true }));
       }
 
-      let retryCount = 0;
-      const maxRetries = 5;
-      const trySend = () => {
-        const btn = document.querySelector(DOM.sendButton);
-        const currentVal = inputEl.value || inputEl.innerText || "";
-        if (currentVal.trim().length === 0) { Logger.log(t("send_success_cleared"), "success"); return; }
+      if (btn && !btn.disabled) {
+         btn.focus();
+         btn.click();
+         Logger.log(`${t("auto_send_attempt")} (${retryCount + 1})`, "action");
+      } else if (!btn) {
+         Logger.log(t("send_btn_missing"), "warn");
+      } else {
+         Logger.log(t("send_btn_disabled"), "warn");
+      }
 
-        if (inputEl) {
-            inputEl.focus();
-            inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-            inputEl.dispatchEvent(new Event("change", { bubbles: true }));
-        }
-
-        if (btn && !btn.disabled) {
-           btn.focus();
-           btn.click();
-           Logger.log(`${t("auto_send_attempt")} (${retryCount + 1})`, "action");
-        } else if (!btn) {
-           Logger.log(t("send_btn_missing"), "warn");
-        } else {
-           Logger.log(t("send_btn_disabled"), "warn");
-        }
-
-        retryCount++;
-        if (retryCount < maxRetries) {
-            autoSendTimer = setTimeout(trySend, 2000);
-        } else {
-            Logger.log(t("auto_send_timeout"), "error");
-            chrome.runtime.sendMessage({ type: "SHOW_NOTIFICATION", title: "Auto-Send Failed", message: "Could not click send button." });
-        }
-      };
-      autoSendTimer = setTimeout(trySend, 1000);
-    }
+      retryCount++;
+      if (retryCount < maxRetries) {
+          autoSendTimer = setTimeout(trySend, 2000);
+      } else {
+          Logger.log(t("auto_send_timeout"), "error");
+          chrome.runtime.sendMessage({ type: "SHOW_NOTIFICATION", title: "Auto-Send Failed", message: "Could not click send button." });
+      }
+    };
+    autoSendTimer = setTimeout(trySend, 1000);
   }
 })();
