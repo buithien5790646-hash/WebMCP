@@ -10,6 +10,8 @@
         background-color: #f5f5f5;
         color: #333;
         padding: 20px;
+        /* Increased bottom padding to prevent content from being hidden behind the sticky footer */
+        padding-bottom: 80px;
         max-width: 800px;
         margin: 0 auto;
       }
@@ -65,13 +67,34 @@
         background-color: #fafafa;
         resize: vertical;
       }
-      .buttons {
+      
+      /* Sticky Footer Styles */
+      .sticky-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        border-top: 1px solid #e0e0e0;
+        padding: 15px 20px;
         display: flex;
-        gap: 10px;
-        margin-top: 20px;
-        padding-top: 10px;
-        border-top: 1px solid #eee;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 15px;
+        box-shadow: 0 -4px 12px rgba(0,0,0,0.05);
+        z-index: 1000;
       }
+      
+      .sticky-footer .footer-content {
+        max-width: 800px;
+        width: 100%;
+        margin: 0 auto;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 10px;
+      }
+
       button {
         padding: 8px 16px;
         border-radius: 4px;
@@ -79,25 +102,29 @@
         cursor: pointer;
         font-size: 14px;
         transition: background 0.2s;
+        font-weight: 500;
       }
       button.primary {
         background-color: #007bff;
         color: white;
+        box-shadow: 0 2px 4px rgba(0,123,255,0.2);
       }
       button.primary:hover {
         background-color: #0056b3;
       }
       button.secondary {
-        background-color: #6c757d;
-        color: white;
+        background-color: #f8f9fa;
+        color: #333;
+        border: 1px solid #ddd;
       }
       button.secondary:hover {
-        background-color: #545b62;
+        background-color: #e2e6ea;
       }
+      
       #status {
-        margin-top: 10px;
         font-weight: bold;
-        min-height: 20px;
+        margin-right: auto;
+        font-size: 14px;
       }
       .status-success {
         color: #28a745;
@@ -126,7 +153,7 @@
         <h2 id="sec_hitl">Human-in-the-Loop (Approval)</h2>
         <div class="description">
           <span id="desc_hitl">Select tools that require manual approval before execution.</span>
-          <button id="refreshTools" style="padding:2px 8px; font-size:11px; margin-left:10px; cursor:pointer;">🔄 Refresh List</button>
+          <button id="refreshTools" class="secondary" style="padding:2px 8px; font-size:11px; margin-left:10px;">🔄 Refresh List</button>
         </div>
         <div
           id="toolList"
@@ -180,11 +207,15 @@
         <textarea id="errorPrompt" style="height: 100px"></textarea>
       </div>
 
-      <div class="buttons">
-        <button id="save" class="primary">Save Settings</button>
+    </div>
+
+    
+    <div class="sticky-footer">
+      <div class="footer-content">
+        <div id="status"></div>
         <button id="reset" class="secondary">Reset to Defaults</button>
+        <button id="save" class="primary">Save Settings</button>
       </div>
-      <div id="status"></div>
     </div>
 
     <script src="config.js"></script>
