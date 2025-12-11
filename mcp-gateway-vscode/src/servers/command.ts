@@ -4,6 +4,64 @@ import { z } from 'zod';
 import { exec } from 'child_process';
 import * as path from 'path';
 
+// --- 安全配置 ---
+const ALLOWED_COMMANDS = new Set([
+  // 包管理器
+  'npm', 'pnpm', 'yarn', 'bun',
+  // 运行时 & 编译器
+  'node', 'deno', 'ts-node', 'python', 'python3', 'go', 'cargo', 'java', 'javac', 'dotnet', 'gcc', 'g++',
+  // 构建工具
+  'npx', 'vite', 'webpack', 'rollup', 'esbuild', 'parcel', 'make', 'cmake', 'gradle', 'mvn',
+  // 版本控制
+  'git', 'svn',
+  // 常用工具
+  'ls', 'dir', 'echo', 'cat', 'type', 'mkdir', 'touch', 'grep', 'pwd', 'whoami', 'test',
+  // 代码质量
+  'eslint', 'prettier', 'tsc'
+]);
+
+// 危险字符/模式黑名单
+const DANGEROUS_PATTERNS = [
+  'rm ', 'rmdir', 'del ', // 删除
+  'mv ', 'move ', // 移动 (可能覆盖文件)
+  '>', '>>', // 重定向 (可能覆盖文件)
+  'sudo', 'su ', // 提权
+  'chmod', 'chown', // 权限修改
+  'shutdown', 'reboot', // 系统操作
+  'wget', 'curl', // 下载 (可能下载恶意脚本)
+  '| sh', '| bash', '| zsh', '| cmd', '| powershell', // 管道执行
+  ':(){ :|:& };:', // Fork Bomb
+];
+
+function isSubPath(parent: string, child: string): boolean {
+  const relative = path.relative(parent, child);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function validateCommand(command: string): { valid: boolean; reason?: string } {
+  const trimmed = command.trim();
+  if (!trimmed) return { valid: false, reason: "Empty command" };
+
+  // 1. 检查危险模式
+  for (const pattern of DANGEROUS_PATTERNS) {
+    if (trimmed.includes(pattern)) {
+      return { valid: false, reason: `Blocked dangerous pattern: "${pattern}"` };
+    }
+  }
+
+  // 2. 检查命令白名单 (检查第一个单词)
+  // 处理 'npm run test' 或 'git status' 等情况
+  // 简单分割，取第一个 token
+  const firstToken = trimmed.split(/\s+/)[0];
+  const baseCommand = path.basename(firstToken).replace(/\.(exe|cmd|bat|sh)$/i, ''); // 移除扩展名
+
+  if (!ALLOWED_COMMANDS.has(baseCommand)) {
+    return { valid: false, reason: `Command "${baseCommand}" is not in the allowed whitelist.` };
+  }
+
+  return { valid: true };
+}
+
 // --- 命令行参数解析 --- 
 
 function getProjectRoot() {
@@ -57,11 +115,11 @@ server.registerTool(
         ? path.normalize(cwd) 
         : path.resolve(projectRoot, cwd);
 
-      // 🔒 安全检查：必须以 projectRoot 开头
-      if (!resolvedCwd.startsWith(projectRoot)) {
+      // 🔒 安全检查：使用 path.relative 进行严格检查
+      if (!isSubPath(projectRoot, resolvedCwd)) {
         return {
           content: [
-            { type: 'text', text: `❌ Permission Denied: Access to '${cwd}' is forbidden. You can only execute commands within the workspace: ${projectRoot}` },
+            { type: 'text', text: `❌ Permission Denied: Access to '${cwd}' is forbidden. Path must be within workspace: ${projectRoot}` },
           ],
           isError: true,
         };
@@ -69,12 +127,12 @@ server.registerTool(
       targetCwd = resolvedCwd;
     }
 
-    // 2. 命令安全检查 (基础黑名单)
-    const dangerous = ['rm -rf /', ':(){ :|:& };:', '> /dev/sda'];
-    if (dangerous.some(d => command.includes(d))) {
+    // 2. 命令安全检查
+    const validation = validateCommand(command);
+    if (!validation.valid) {
       return {
         content: [
-          { type: 'text', text: `❌ Error: Command contains dangerous patterns blocked by safety policy.` },
+          { type: 'text', text: `❌ Security Error: ${validation.reason}\nAllowed commands: ${Array.from(ALLOWED_COMMANDS).join(', ')}` },
         ],
         isError: true,
       };
@@ -129,3 +187,4 @@ server.connect(transport).catch((error) => {
   console.error('Server failed to start:', error);
   process.exit(1);
 });
+
