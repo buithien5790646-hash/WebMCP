@@ -96,6 +96,55 @@
         },
         "mcpGateway.servers": {
           "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "Command to execute"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Arguments"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "stdio",
+                  "sse",
+                  "http"
+                ],
+                "description": "Connection type",
+                "default": "stdio"
+              },
+              "url": {
+                "type": "string",
+                "description": "URL for SSE/HTTP"
+              },
+              "headers": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "HTTP Headers"
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Environment variables"
+              },
+              "enabled": {
+                "type": "boolean",
+                "default": true,
+                "description": "Enable or disable this server"
+              }
+            }
+          },
           "default": {
             "filesystem": {
               "command": "npx",
@@ -110,8 +159,9 @@
               "args": [
                 "${extensionPath}/dist/commandServer.js",
                 "--project-root",
-                "." 
-              ]
+                "."
+              ],
+              "enabled": false
             }
           },
           "description": "Configuration for MCP Servers."
