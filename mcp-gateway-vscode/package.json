@@ -161,7 +161,7 @@
                 "--project-root",
                 "."
               ],
-              "enabled": false
+              "disabled": true
             }
           },
           "description": "Configuration for MCP Servers."
