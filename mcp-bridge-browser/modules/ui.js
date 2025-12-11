@@ -6,9 +6,32 @@
   let autoSendTimer = null;
 
   // === 视觉标记 ===
+  
+  // 状态 1: 处理中 (蓝色)
+  WebMCP.UI.markVisualProcessing = function (element) {
+    if (element.dataset.mcpState === "processing") return;
+    element.dataset.mcpState = "processing";
+    element.dataset.mcpVisual = "true"; // 兼容旧逻辑
+    element.style.border = "2px solid #2196F3"; // Blue
+    element.style.borderRadius = "4px";
+    element.style.transition = "border-color 0.3s ease";
+  };
+
+  // 状态 2: 成功 (绿色)
   WebMCP.UI.markVisualSuccess = function (element) {
+    if (element.dataset.mcpState === "success") return;
+    element.dataset.mcpState = "success";
     element.dataset.mcpVisual = "true";
-    element.style.border = "2px solid #00E676";
+    element.style.border = "2px solid #00E676"; // Green
+    element.style.borderRadius = "4px";
+  };
+
+  // 状态 3: 错误 (红色)
+  WebMCP.UI.markVisualError = function (element) {
+    if (element.dataset.mcpState === "error") return;
+    element.dataset.mcpState = "error";
+    element.dataset.mcpVisual = "true";
+    element.style.border = "2px solid #F44336"; // Red
     element.style.borderRadius = "4px";
   };
 
@@ -156,6 +179,7 @@
 
     const safeArgs = escapeHtml(JSON.stringify(payload.arguments || {}, null, 2));
     const safeName = escapeHtml(payload.name);
+    const safePurpose = escapeHtml(payload.purpose || "No purpose provided.");
 
     card.innerHTML = `
             <h2><span class="warn-icon">✋</span> ${WebMCP.t("hitl_title")}</h2>
@@ -165,6 +189,10 @@
                 <div class="field">
                     <span class="label">${WebMCP.t("label_tool")}</span>
                     <div class="value" style="font-weight:bold; color:#d32f2f">${safeName}</div>
+                </div>
+                <div class="field">
+                    <span class="label">${WebMCP.t("label_purpose")}</span>
+                    <div class="value" style="color:#1976d2; font-weight:500">${safePurpose}</div>
                 </div>
                 <div class="field">
                     <span class="label">${WebMCP.t("label_args")}</span>

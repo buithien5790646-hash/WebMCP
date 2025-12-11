@@ -10,6 +10,7 @@
 {
   "mcp_action": "call",
   "name": "工具名称",
+  "purpose": "执行此操作的简要原因",
   "arguments": {
     "key": "value"
   },

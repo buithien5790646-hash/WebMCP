@@ -54,6 +54,7 @@
     // HITL Modal UI
     hitl_title: { en: "Approval Required", zh: "请求执行工具" },
     label_tool: { en: "Tool Name", zh: "工具名称" },
+    label_purpose: { en: "Purpose", zh: "操作意图" },
     label_args: { en: "Arguments", zh: "调用参数" },
     placeholder_reason: { en: "Reason for rejection (Optional)...", zh: "拒绝理由 (可选)..." },
     

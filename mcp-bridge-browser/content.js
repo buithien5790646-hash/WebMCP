@@ -123,20 +123,38 @@
       try {
         const payload = JSON.parse(textContent);
         if (blockStates.has(codeEl)) blockStates.delete(codeEl);
-        if (codeEl.style.borderColor === "rgb(244, 67, 54)")
-          codeEl.style.border = "none";
+        
+        // 成功解析 JSON，尝试清除旧的错误样式（如果存在）
+        if (codeEl.dataset.mcpState === "error") {
+            codeEl.style.border = "none";
+            delete codeEl.dataset.mcpState;
+        }
 
         if (payload.mcp_action === "call" && payload.request_id) {
           currentTurnIds.push(payload.request_id);
-          if (!processedRequests.has(payload.request_id)) {
+          
+          const isProcessing = activeExecutions.has(payload.request_id);
+          const isKnown = processedRequests.has(payload.request_id);
+
+          if (!isKnown) {
+            // === Case 1: 新发现的任务 ===
             processedRequests.add(payload.request_id);
             activeExecutions.add(payload.request_id);
-            UI.markVisualSuccess(codeEl);
+            
+            // 立即标记为处理中 (Blue)
+            UI.markVisualProcessing(codeEl);
+            
             Logger.log(`${t("captured")}: ${payload.name}`, "info");
             executeTool(payload);
           } else {
-            if (codeEl.dataset.mcpVisual !== "true")
-              UI.markVisualSuccess(codeEl);
+            // === Case 2: 已知任务，更新视觉状态 ===
+            if (isProcessing) {
+                // 仍在执行或等待审批 -> 蓝色
+                UI.markVisualProcessing(codeEl);
+            } else {
+                // 已从 activeExecutions 移除 (执行完成/失败/被拒) -> 绿色
+                UI.markVisualSuccess(codeEl);
+            }
           }
         }
       } catch (e) {
@@ -149,15 +167,22 @@
             time: now,
             errorNotified: false,
           });
-          if (codeEl.style.borderColor === "rgb(244, 67, 54)")
-            codeEl.style.border = "none";
+          // 如果之前标记为 error，但内容变了，先重置样式等待再次稳定
+          if (codeEl.dataset.mcpState === "error") {
+              codeEl.style.border = "none";
+              delete codeEl.dataset.mcpState;
+              delete codeEl.dataset.mcpVisual;
+          }
         } else {
           if (
             now - state.time > STABILIZATION_TIMEOUT &&
             !state.errorNotified
           ) {
             Logger.log("JSON Parse Error (Stable): " + e.message, "error");
-            codeEl.style.border = "2px solid #F44336";
+            
+            // 使用 UI 模块统一标记红色
+            UI.markVisualError(codeEl);
+            
             chrome.runtime.sendMessage({
               type: "SHOW_NOTIFICATION",
               title: "WebMCP Error",

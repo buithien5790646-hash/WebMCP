@@ -25,6 +25,9 @@ const els = {
   toolList: document.getElementById("toolList"),
   save: document.getElementById("save"),
   reset: document.getElementById("reset"),
+  btnImport: document.getElementById("btnImport"),
+  btnExport: document.getElementById("btnExport"),
+  importFile: document.getElementById("importFile"),
 };
 
 // Determine language context
@@ -57,6 +60,10 @@ const UI = {
       "Are you sure you want to reset ALL settings (Selectors & Prompts) to defaults?",
     error_json: "Error: Invalid JSON format in Selectors.",
     restored: "Restored defaults from files.",
+    btn_import: "Import Config",
+    btn_export: "Export Config",
+    import_success: "Configuration imported successfully!",
+    import_error: "Import failed: Invalid JSON or structure.",
   },
   zh: {
     title: "WebMCP 设置",
@@ -79,7 +86,11 @@ const UI = {
     error_json: "错误：选择器配置 JSON 格式无效。",
     restored: "已从文件恢复默认设置。",
     refresh_ok: "工具列表已更新！",
-    refresh_fail: "连接网关失败，请确保 VS Code 正在运行。"
+    refresh_fail: "连接网关失败，请确保 VS Code 正在运行。",
+    btn_import: "导入配置",
+    btn_export: "导出配置",
+    import_success: "配置导入成功！",
+    import_error: "导入失败：JSON 格式错误或结构无效。",
   },
 };
 
@@ -104,6 +115,8 @@ function initUI() {
   els.desc_hitl.textContent = t("desc_hitl");
   els.save.textContent = t("save");
   els.reset.textContent = t("reset");
+  els.btnImport.textContent = t("btn_import");
+  els.btnExport.textContent = t("btn_export");
 }
 
 function showStatus(msg, type = "success") {
@@ -311,3 +324,57 @@ document.addEventListener("DOMContentLoaded", () => {
 els.save.addEventListener("click", saveOptions);
 els.reset.addEventListener("click", resetOptions);
 els.refreshTools.addEventListener("click", fetchTools);
+
+// Export Config
+els.btnExport.addEventListener("click", () => {
+  chrome.storage.sync.get(["customSelectors", "protected_tools"], (syncData) => {
+    // Export all possible local prompt keys to be safe
+    const localKeys = [
+      "prompt_en", "prompt_zh", 
+      "train_en", "train_zh", 
+      "error_en", "error_zh"
+    ];
+    chrome.storage.local.get(localKeys, (localData) => {
+      const config = {
+        version: 1,
+        timestamp: new Date().toISOString(),
+        sync: syncData,
+        local: localData
+      };
+      const blob = new Blob([JSON.stringify(config, null, 2)], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `webmcp-config-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  });
+});
+
+// Import Config
+els.btnImport.addEventListener("click", () => els.importFile.click());
+els.importFile.addEventListener("change", (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const config = JSON.parse(e.target.result);
+      if (!config.sync || !config.local) throw new Error("Invalid structure");
+
+      chrome.storage.sync.set(config.sync, () => {
+        chrome.storage.local.set(config.local, () => {
+          restoreOptions();
+          showStatus(t("import_success"));
+        });
+      });
+    } catch (err) {
+      console.error(err);
+      showStatus(t("import_error"), "error");
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = "";
+});

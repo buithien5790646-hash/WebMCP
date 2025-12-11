@@ -10,6 +10,7 @@ When calling tools, you must output a **JSON code block**.
 {
   "mcp_action": "call",
   "name": "tool_name",
+  "purpose": "Brief justification for this action",
   "arguments": {
     "key": "value"
   },

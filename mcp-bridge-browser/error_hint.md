@@ -6,6 +6,7 @@ Your model response content does not meet the requirements. Please ensure your r
 {
   "mcp_action": "call", 
   "name": "tool_name", 
+  "purpose": "justification",
   "arguments": {
     "key": "value"
   },

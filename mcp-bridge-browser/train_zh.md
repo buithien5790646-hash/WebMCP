@@ -1,1 +1,1 @@
-[系统提示] 请保持工具调用格式：{"mcp_action":"call", "name": "tool_name", "arguments": {...}}。如果不确定，请调用 "list_tools" 刷新能力列表。
+[系统提示] 请保持工具调用格式：{"mcp_action":"call", "name": "tool_name", "purpose": "原因", "arguments": {...}}。如果不确定，请调用 "list_tools" 刷新能力列表。
