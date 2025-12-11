@@ -9,7 +9,7 @@
   },
   "license": "MIT",
   "icon": "images/icon.png",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "engines": {
     "vscode": "^1.106.1"
   },
@@ -138,10 +138,10 @@
                 },
                 "description": "Environment variables"
               },
-              "enabled": {
+              "disabled": {
                 "type": "boolean",
-                "default": true,
-                "description": "Enable or disable this server"
+                "default": false,
+                "description": "Disable this server. If true, the server will not be started."
               }
             }
           },

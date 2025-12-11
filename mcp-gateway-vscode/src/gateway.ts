@@ -17,7 +17,7 @@ interface ServerConfig {
     url?: string;
     headers?: Record<string, string>;
     env?: Record<string, string>;
-    enabled?: boolean;
+    disabled?: boolean;
 }
 
 interface Config {
@@ -70,7 +70,7 @@ export class GatewayManager {
         this.log('🔌 Connecting to MCP servers...');
 
         for (const [serverId, config] of Object.entries(servers)) {
-            if (config.enabled === false) {
+            if (config.disabled === true) {
                 this.log(`   -> Skipping [${serverId}] (Disabled)`);
                 continue;
             }
