@@ -40,10 +40,25 @@ export class GatewayManager {
     private outputChannel: vscode.OutputChannel;
     private extensionPath: string;
     private authToken: string = '';
+    private watchdogTimer: NodeJS.Timeout | null = null;
+    private readonly WATCHDOG_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    private onAutoStop: (() => void) | null = null;
 
-    constructor(outputChannel: vscode.OutputChannel, extensionPath: string) {
+    constructor(outputChannel: vscode.OutputChannel, extensionPath: string, onAutoStop?: () => void) {
         this.outputChannel = outputChannel;
         this.extensionPath = extensionPath;
+        this.onAutoStop = onAutoStop || null;
+        // [Persistence] Generate token once per VS Code session
+        this.authToken = crypto.randomUUID();
+    }
+
+    private resetWatchdog() {
+        if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
+        this.watchdogTimer = setTimeout(() => {
+            this.log('💤 No activity for 30 minutes. Shutting down...');
+            this.stop();
+            if (this.onAutoStop) this.onAutoStop();
+        }, this.WATCHDOG_TIMEOUT);
     }
 
     private log(message: string) {
@@ -154,9 +169,12 @@ export class GatewayManager {
         }
         await this.connectToServers(config.mcpServers);
 
-        // 1. 生成一次性 Token
-        this.authToken = crypto.randomUUID();
-        this.log(`🔐 Security Token Generated: ${this.authToken}`);
+        // 1. 使用持久化 Token (仅首次生成)
+        if (!this.authToken) this.authToken = crypto.randomUUID();
+        // this.log(`🔐 Security Token: ${this.authToken}`); // Reduce noise on restart
+
+        // Start Watchdog
+        this.resetWatchdog();
 
         this.app = express();
         this.app.use(express.json());
@@ -185,8 +203,9 @@ export class GatewayManager {
             }
         }));
 
-        // 3. 日志中间件
+        // 3. 日志与看门狗中间件
         this.app.use((req, res, next) => {
+            this.resetWatchdog(); // Keep alive on any request
             const start = Date.now();
             if (req.method !== 'OPTIONS') {
                 this.log(`🔔 [${req.method}] ${req.url}`);
@@ -401,10 +420,14 @@ export class GatewayManager {
     }
 
     async stop() {
+        if (this.watchdogTimer) {
+            clearTimeout(this.watchdogTimer);
+            this.watchdogTimer = null;
+        }
         if (this.server) {
             this.server.close();
             this.server = null;
-            this.authToken = '';
+            // [Persistence] Do NOT clear authToken here
             this.log('🛑 Gateway server stopped.');
         }
         this.connectedClients.forEach(c => {
