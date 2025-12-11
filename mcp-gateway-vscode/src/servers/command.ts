@@ -87,7 +87,7 @@ const server = new McpServer({
 server.registerTool(
   'execute_command',
   {
-    description: 'Execute a shell command. SECURITY RESTRICTION: Commands are strictly limited to the current workspace directory. Accessing files outside the workspace is forbidden.',
+    description: 'Execute a shell command in the background. Use this for short-lived commands where you need to analyze the output (e.g., "ls", "git status"). For long-running processes (e.g., "npm start") or when user visibility is required, use "run_in_terminal" instead. SECURITY RESTRICTION: Commands are strictly limited to the current workspace directory. Accessing files outside the workspace is forbidden.',
     inputSchema: {
       command: z.string().describe('The command to execute (e.g., "npm test", "ls -la")'),
       cwd: z.string().optional().describe('Optional: Current working directory. Must be within the workspace. Defaults to workspace root.'),

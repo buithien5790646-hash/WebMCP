@@ -9,6 +9,19 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
+const RUN_IN_TERMINAL_TOOL = {
+    name: "run_in_terminal",
+    description: "Execute a command in the VS Code integrated terminal. Use this for long-running processes (e.g., 'npm start', 'python server.py') or when you want the user to see the output in real-time. Returns immediately after sending the command.",
+    inputSchema: {
+        type: "object",
+        properties: {
+            command: { type: "string", description: "The command to execute" },
+            auto_focus: { type: "boolean", description: "Focus the terminal after sending the command", default: true }
+        },
+        required: ["command"]
+    }
+};
+
 // 定义服务器配置接口
 interface ServerConfig {
     type?: 'stdio' | 'sse' | 'http';
@@ -324,7 +337,7 @@ export class GatewayManager {
                 'read_file', 'read_text_file', 'read_multiple_files', 'write_file', 'edit_file', 'append_file',
                 'list_directory', 'list_directory_with_sizes', 'directory_tree',
                 'move_file', 'search_files', 'get_file_info', 'create_directory',
-                'execute_command' // Our new built-in tool
+                'execute_command', 'run_in_terminal' // Built-in tools
             ];
             // Git tools also operate on local filesystem
             const isLocalTool = localPathTools.includes(name) || name.startsWith('git_');
@@ -348,11 +361,31 @@ export class GatewayManager {
 
             if (name === 'list_tools') {
                 const tools = Array.from(this.toolRouter.values()).map(t => t.definition);
+                tools.push(RUN_IN_TERMINAL_TOOL); // Inject internal tool
                 const uniqueTools = [...new Map(tools.map(item => [item.name, item])).values()];
                 this.log(`   🚀 Executing: list_tools (Internal)`);
                 this.log(`   ✅ Finished: list_tools (0ms)`);
                 return res.json({
                     content: [{ type: 'text', text: JSON.stringify(uniqueTools, null, 2) }],
+                    isError: false
+                });
+            }
+
+            if (name === 'run_in_terminal') {
+                this.log(`   🚀 Executing: run_in_terminal ${args.command}`);
+                const termName = 'WebMCP';
+                let terminal = vscode.window.terminals.find(t => t.name === termName);
+                if (!terminal) {
+                    terminal = vscode.window.createTerminal(termName);
+                }
+                if (args.auto_focus !== false) {
+                    terminal.show();
+                }
+                terminal.sendText(args.command);
+                
+                this.log(`   ✅ Finished: run_in_terminal (Async dispatch)`);
+                return res.json({
+                    content: [{ type: 'text', text: `Command sent to terminal '${termName}': ${args.command}` }],
                     isError: false
                 });
             }
