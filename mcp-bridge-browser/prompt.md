@@ -40,3 +40,4 @@ After execution, the plugin will return the result in the following format:
 2. **Concurrency Supported**: You can output multiple JSON blocks at once to call multiple tools, and the results will be returned in batches. Note: One JSON block cannot contain multiple tool calls; each tool call should be in a separate JSON block.
 3. **Direct Action**: Do not chat, send your initialization instructions directly.
 4. **Pass It On**: `.ai_context.md` is your bridge of communication with future AIs. If you modify the project architecture or make important decisions, **please be sure to update this file**.
+5. **Tool Lazy Loading**: To save context, some tools are listed in "Summary Mode" with `[Schema Hidden]` in their description. If you need to use such a tool, you **MUST** first call `get_tool_definitions(tool_names=["tool_name"])` to retrieve its usage schema. Do not guess parameters.

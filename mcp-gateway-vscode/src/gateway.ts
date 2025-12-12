@@ -22,6 +22,30 @@ const RUN_IN_TERMINAL_TOOL = {
     }
 };
 
+const GET_TOOL_DEFINITIONS_TOOL = {
+    name: "get_tool_definitions",
+    description: "Fetch detailed schemas for tools that are in 'Summary Mode'. Use this when you need to use a tool but its inputSchema is hidden.",
+    inputSchema: {
+        type: "object",
+        properties: {
+            tool_names: {
+                type: "array",
+                items: { type: "string" },
+                description: "List of tool names to fetch definitions for (e.g. ['git_commit', 'git_status'])"
+            }
+        },
+        required: ["tool_names"]
+    }
+};
+
+// Tools that always show full schema (Hot Tools)
+const BASIC_TOOLS = [
+    'read_file', 'read_text_file', 'write_file', 'edit_file', 
+    'list_directory', 'list_directory_with_sizes', 
+    'run_in_terminal', 'execute_command', 
+    'search_files', 'get_tool_definitions', 'list_tools'
+];
+
 // 定义服务器配置接口
 interface ServerConfig {
     type?: 'stdio' | 'sse' | 'http';
@@ -360,13 +384,35 @@ export class GatewayManager {
             }
 
             if (name === 'list_tools') {
-                const tools = Array.from(this.toolRouter.values()).map(t => t.definition);
-                tools.push(RUN_IN_TERMINAL_TOOL); // Inject internal tool
-                const uniqueTools = [...new Map(tools.map(item => [item.name, item])).values()];
-                this.log(`   🚀 Executing: list_tools (Internal)`);
+                const rawTools = Array.from(this.toolRouter.values()).map(t => t.definition);
+                rawTools.push(RUN_IN_TERMINAL_TOOL); // Inject internal tool
+                rawTools.push(GET_TOOL_DEFINITIONS_TOOL); // Inject internal tool
+
+                // De-duplicate
+                const uniqueTools = [...new Map(rawTools.map(item => [item.name, item])).values()];
+
+                // Apply Lazy Loading Logic
+                const optimizedTools = uniqueTools.map(tool => {
+                    // If it's a Basic Tool, return as is
+                    if (BASIC_TOOLS.includes(tool.name)) {
+                        return tool;
+                    }
+                    // Otherwise, hide schema (Lazy Tool)
+                    return {
+                        name: tool.name,
+                        description: tool.description + " [Schema Hidden] Call 'get_tool_definitions' to retrieve usage.",
+                        inputSchema: {
+                            type: "object",
+                            properties: {},
+                            description: "SCHEMA_HIDDEN_FOR_PERFORMANCE"
+                        }
+                    };
+                });
+
+                this.log(`   🚀 Executing: list_tools (Internal) - Optimized ${optimizedTools.length} tools`);
                 this.log(`   ✅ Finished: list_tools (0ms)`);
                 return res.json({
-                    content: [{ type: 'text', text: JSON.stringify(uniqueTools, null, 2) }],
+                    content: [{ type: 'text', text: JSON.stringify(optimizedTools, null, 2) }],
                     isError: false
                 });
             }
@@ -386,6 +432,29 @@ export class GatewayManager {
                 this.log(`   ✅ Finished: run_in_terminal (Async dispatch)`);
                 return res.json({
                     content: [{ type: 'text', text: `Command sent to terminal '${termName}': ${args.command}` }],
+                    isError: false
+                });
+            }
+
+            if (name === 'get_tool_definitions') {
+                const requestedNames = args.tool_names as string[] || [];
+                this.log(`   🚀 Executing: get_tool_definitions for [${requestedNames.join(', ')}]`);
+                
+                const definitions = [];
+                // 1. Check Tool Router
+                for (const tName of requestedNames) {
+                    if (this.toolRouter.has(tName)) {
+                        definitions.push(this.toolRouter.get(tName)!.definition);
+                    } else if (tName === 'run_in_terminal') {
+                        definitions.push(RUN_IN_TERMINAL_TOOL);
+                    } else if (tName === 'get_tool_definitions') {
+                        definitions.push(GET_TOOL_DEFINITIONS_TOOL);
+                    }
+                }
+
+                this.log(`   ✅ Finished: get_tool_definitions (Found ${definitions.length}/${requestedNames.length})`);
+                return res.json({
+                    content: [{ type: 'text', text: JSON.stringify(definitions, null, 2) }],
                     isError: false
                 });
             }
