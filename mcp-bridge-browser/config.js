@@ -29,6 +29,6 @@ const DEFAULT_SELECTORS = {
     messageBlocks: "div[data-turn-role='Model']",
     codeBlocks: "pre code",
     inputArea: "textarea",
-    sendButton: "ms-run-button",
+    sendButton: "ms-run-button button",
   },
 };
