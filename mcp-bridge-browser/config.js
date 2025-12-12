@@ -25,4 +25,10 @@ const DEFAULT_SELECTORS = {
     sendButton:
       'button[aria-label="发送"], button[aria-label="Send"], button[aria-label*="Send"]',
   },
+  aistudio: {
+    messageBlocks: "div[data-turn-role='Model']",
+    codeBlocks: "pre code",
+    inputArea: "textarea",
+    sendButton: "ms-run-button",
+  },
 };

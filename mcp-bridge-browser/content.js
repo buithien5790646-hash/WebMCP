@@ -45,6 +45,8 @@
     ? "deepseek"
     : location.host.includes("gemini")
     ? "gemini"
+    : location.host.includes("aistudio")
+    ? "aistudio"
     : "chatgpt";
 
   function updateDOMConfig() {
@@ -123,16 +125,16 @@
       try {
         const payload = JSON.parse(textContent);
         if (blockStates.has(codeEl)) blockStates.delete(codeEl);
-        
+
         // 成功解析 JSON，尝试清除旧的错误样式（如果存在）
         if (codeEl.dataset.mcpState === "error") {
-            codeEl.style.border = "none";
-            delete codeEl.dataset.mcpState;
+          codeEl.style.border = "none";
+          delete codeEl.dataset.mcpState;
         }
 
         if (payload.mcp_action === "call" && payload.request_id) {
           currentTurnIds.push(payload.request_id);
-          
+
           const isProcessing = activeExecutions.has(payload.request_id);
           const isKnown = processedRequests.has(payload.request_id);
 
@@ -140,20 +142,20 @@
             // === Case 1: 新发现的任务 ===
             processedRequests.add(payload.request_id);
             activeExecutions.add(payload.request_id);
-            
+
             // 立即标记为处理中 (Blue)
             UI.markVisualProcessing(codeEl);
-            
+
             Logger.log(`${t("captured")}: ${payload.name}`, "info");
             executeTool(payload);
           } else {
             // === Case 2: 已知任务，更新视觉状态 ===
             if (isProcessing) {
-                // 仍在执行或等待审批 -> 蓝色
-                UI.markVisualProcessing(codeEl);
+              // 仍在执行或等待审批 -> 蓝色
+              UI.markVisualProcessing(codeEl);
             } else {
-                // 已从 activeExecutions 移除 (执行完成/失败/被拒) -> 绿色
-                UI.markVisualSuccess(codeEl);
+              // 已从 activeExecutions 移除 (执行完成/失败/被拒) -> 绿色
+              UI.markVisualSuccess(codeEl);
             }
           }
         }
@@ -169,9 +171,9 @@
           });
           // 如果之前标记为 error，但内容变了，先重置样式等待再次稳定
           if (codeEl.dataset.mcpState === "error") {
-              codeEl.style.border = "none";
-              delete codeEl.dataset.mcpState;
-              delete codeEl.dataset.mcpVisual;
+            codeEl.style.border = "none";
+            delete codeEl.dataset.mcpState;
+            delete codeEl.dataset.mcpVisual;
           }
         } else {
           if (
@@ -179,10 +181,10 @@
             !state.errorNotified
           ) {
             Logger.log("JSON Parse Error (Stable): " + e.message, "error");
-            
+
             // 使用 UI 模块统一标记红色
             UI.markVisualError(codeEl);
-            
+
             chrome.runtime.sendMessage({
               type: "SHOW_NOTIFICATION",
               title: "WebMCP Error",
@@ -281,29 +283,32 @@
             try {
               const realTools = JSON.parse(finalData);
               const toolNames = realTools.map((t) => t.name);
-              
-              // [HITL] Security: Auto-protect new tools
-              chrome.storage.local.get(['cached_tool_list'], (localData) => {
-                  const knownTools = new Set(localData.cached_tool_list || []);
-                  let protectedDirty = false;
-                  toolNames.forEach(tName => {
-                      // 如果是新面孔，且还没被保护
-                      if (!knownTools.has(tName)) {
-                          if (!protectedTools.has(tName)) {
-                              protectedTools.add(tName);
-                              protectedDirty = true;
-                          }
-                      }
-                  });
-                  if (protectedDirty) {
-                      chrome.storage.sync.set({ protected_tools: Array.from(protectedTools) });
-                      Logger.log("🛡️ New tools detected & protected", "warn");
-                  }
-                  // 更新已知的工具缓存
-                  chrome.storage.local.set({ 'cached_tool_list': toolNames });
-              });
 
-            } catch (e) { console.error("Auto-protect logic error", e); }
+              // [HITL] Security: Auto-protect new tools
+              chrome.storage.local.get(["cached_tool_list"], (localData) => {
+                const knownTools = new Set(localData.cached_tool_list || []);
+                let protectedDirty = false;
+                toolNames.forEach((tName) => {
+                  // 如果是新面孔，且还没被保护
+                  if (!knownTools.has(tName)) {
+                    if (!protectedTools.has(tName)) {
+                      protectedTools.add(tName);
+                      protectedDirty = true;
+                    }
+                  }
+                });
+                if (protectedDirty) {
+                  chrome.storage.sync.set({
+                    protected_tools: Array.from(protectedTools),
+                  });
+                  Logger.log("🛡️ New tools detected & protected", "warn");
+                }
+                // 更新已知的工具缓存
+                chrome.storage.local.set({ cached_tool_list: toolNames });
+              });
+            } catch (e) {
+              console.error("Auto-protect logic error", e);
+            }
             try {
               const tools = JSON.parse(finalData);
               tools.push({
@@ -390,9 +395,11 @@
 
         // [HITL] Handle Always Allow
         if (isAlways) {
-            protectedTools.delete(payload.name);
-            chrome.storage.sync.set({ protected_tools: Array.from(protectedTools) });
-            Logger.log(`⚡ Tool '${payload.name}' set to Always Allow`, "action");
+          protectedTools.delete(payload.name);
+          chrome.storage.sync.set({
+            protected_tools: Array.from(protectedTools),
+          });
+          Logger.log(`⚡ Tool '${payload.name}' set to Always Allow`, "action");
         }
 
         performExecution(payload);

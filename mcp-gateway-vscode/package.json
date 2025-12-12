@@ -44,6 +44,11 @@
               "showQuickLaunch": true
             },
             {
+              "name": "aistudio",
+              "address": "https://aistudio.google.com/",
+              "showQuickLaunch": true
+            },
+            {
               "name": "DeepSeek",
               "address": "https://chat.deepseek.com",
               "showQuickLaunch": true

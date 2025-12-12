@@ -214,7 +214,12 @@ function saveOptions() {
   let config;
   try {
     config = JSON.parse(jsonString);
-    if (!config.deepseek || !config.chatgpt || !config.gemini) {
+    if (
+      !config.deepseek ||
+      !config.chatgpt ||
+      !config.gemini ||
+      !config.aistudio
+    ) {
       throw new Error("Missing required platform keys");
     }
   } catch (e) {
@@ -245,59 +250,61 @@ function saveOptions() {
 }
 
 async function fetchTools() {
-    try {
-        const all = await chrome.storage.local.get(null);
-        let port = null, token = null;
-        
-        // Find first active session
-        for (const [key, val] of Object.entries(all)) {
-            if (key.startsWith('session_') && val.port && val.token) {
-                port = val.port;
-                token = val.token;
-                break;
-            }
-        }
+  try {
+    const all = await chrome.storage.local.get(null);
+    let port = null,
+      token = null;
 
-        if (!port || !token) throw new Error("No active session found");
-
-        const resp = await fetch(`http://127.0.0.1:${port}/v1/tools`, {
-            headers: { 'X-WebMCP-Token': token }
-        });
-
-        if (!resp.ok) throw new Error("Gateway rejected request");
-        const data = await resp.json();
-        const newToolNames = data.tools.map(t => t.name);
-
-        // [HITL] Security: Auto-protect new tools logic (Sync with content.js)
-        const localData = await chrome.storage.local.get(['cached_tool_list']);
-        const syncData = await chrome.storage.sync.get(['protected_tools']);
-        
-        const knownTools = new Set(localData.cached_tool_list || []);
-        const protectedTools = new Set(syncData.protected_tools || []);
-        let protectedDirty = false;
-
-        newToolNames.forEach(tName => {
-            // If it's a NEW tool (not in cache), protect it by default
-            if (!knownTools.has(tName)) {
-                if (!protectedTools.has(tName)) {
-                    protectedTools.add(tName);
-                    protectedDirty = true;
-                }
-            }
-        });
-
-        if (protectedDirty) {
-            await chrome.storage.sync.set({ protected_tools: Array.from(protectedTools) });
-        }
-
-        await chrome.storage.local.set({ 'cached_tool_list': newToolNames });
-        await restoreOptions(); // Re-render
-        showStatus(t('refresh_ok'));
-
-    } catch (e) {
-        console.error(e);
-        showStatus(t('refresh_fail'), 'error');
+    // Find first active session
+    for (const [key, val] of Object.entries(all)) {
+      if (key.startsWith("session_") && val.port && val.token) {
+        port = val.port;
+        token = val.token;
+        break;
+      }
     }
+
+    if (!port || !token) throw new Error("No active session found");
+
+    const resp = await fetch(`http://127.0.0.1:${port}/v1/tools`, {
+      headers: { "X-WebMCP-Token": token },
+    });
+
+    if (!resp.ok) throw new Error("Gateway rejected request");
+    const data = await resp.json();
+    const newToolNames = data.tools.map((t) => t.name);
+
+    // [HITL] Security: Auto-protect new tools logic (Sync with content.js)
+    const localData = await chrome.storage.local.get(["cached_tool_list"]);
+    const syncData = await chrome.storage.sync.get(["protected_tools"]);
+
+    const knownTools = new Set(localData.cached_tool_list || []);
+    const protectedTools = new Set(syncData.protected_tools || []);
+    let protectedDirty = false;
+
+    newToolNames.forEach((tName) => {
+      // If it's a NEW tool (not in cache), protect it by default
+      if (!knownTools.has(tName)) {
+        if (!protectedTools.has(tName)) {
+          protectedTools.add(tName);
+          protectedDirty = true;
+        }
+      }
+    });
+
+    if (protectedDirty) {
+      await chrome.storage.sync.set({
+        protected_tools: Array.from(protectedTools),
+      });
+    }
+
+    await chrome.storage.local.set({ cached_tool_list: newToolNames });
+    await restoreOptions(); // Re-render
+    showStatus(t("refresh_ok"));
+  } catch (e) {
+    console.error(e);
+    showStatus(t("refresh_fail"), "error");
+  }
 }
 
 async function resetOptions() {
@@ -327,29 +334,39 @@ els.refreshTools.addEventListener("click", fetchTools);
 
 // Export Config
 els.btnExport.addEventListener("click", () => {
-  chrome.storage.sync.get(["customSelectors", "protected_tools"], (syncData) => {
-    // Export all possible local prompt keys to be safe
-    const localKeys = [
-      "prompt_en", "prompt_zh", 
-      "train_en", "train_zh", 
-      "error_en", "error_zh"
-    ];
-    chrome.storage.local.get(localKeys, (localData) => {
-      const config = {
-        version: 1,
-        timestamp: new Date().toISOString(),
-        sync: syncData,
-        local: localData
-      };
-      const blob = new Blob([JSON.stringify(config, null, 2)], {type: "application/json"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `webmcp-config-${new Date().toISOString().slice(0,10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    });
-  });
+  chrome.storage.sync.get(
+    ["customSelectors", "protected_tools"],
+    (syncData) => {
+      // Export all possible local prompt keys to be safe
+      const localKeys = [
+        "prompt_en",
+        "prompt_zh",
+        "train_en",
+        "train_zh",
+        "error_en",
+        "error_zh",
+      ];
+      chrome.storage.local.get(localKeys, (localData) => {
+        const config = {
+          version: 1,
+          timestamp: new Date().toISOString(),
+          sync: syncData,
+          local: localData,
+        };
+        const blob = new Blob([JSON.stringify(config, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `webmcp-config-${new Date()
+          .toISOString()
+          .slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+  );
 });
 
 // Import Config
