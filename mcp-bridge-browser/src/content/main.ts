@@ -389,6 +389,9 @@ function performExecution(payload: any) {
         outputContent = `❌ Error: ${response.error}`;
       }
       saveToBuffer(payload.request_id, outputContent);
+      
+      // [Fix 5] Manual check required: Tool completion doesn't trigger MutationObserver.
+      setTimeout(runMainLoop, 50);
     }
   );
 }
