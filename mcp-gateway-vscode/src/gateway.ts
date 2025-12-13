@@ -73,7 +73,7 @@ interface StartResult {
 export class GatewayManager {
     private app: express.Express | null = null;
     private server: any = null;
-    private toolRouter = new Map<string, { client: Client; definition: any }>();
+    private toolRouter = new Map<string, { client: Client; definition: any; serverId: string }>();
     private connectedClients: { id: string; client: Client }[] = [];
     private outputChannel: vscode.OutputChannel;
     private extensionPath: string;
@@ -193,7 +193,7 @@ export class GatewayManager {
                     if (this.toolRouter.has(tool.name)) {
                         this.log(`   ⚠️ Warning: Tool '${tool.name}' overridden by ${serverId}.`);
                     }
-                    this.toolRouter.set(tool.name, { client, definition: tool });
+                    this.toolRouter.set(tool.name, { client, definition: tool, serverId });
                 });
 
             } catch (err) {
@@ -406,35 +406,45 @@ export class GatewayManager {
             }
 
             if (name === 'list_tools') {
-                const rawTools = Array.from(this.toolRouter.values()).map(t => t.definition);
-                rawTools.push(RUN_IN_TERMINAL_TOOL); // Inject internal tool
-                rawTools.push(GET_TOOL_DEFINITIONS_TOOL); // Inject internal tool
+                // 1. Gather all tools with their server association
+                const allTools = Array.from(this.toolRouter.values()).map(t => ({ ...t.definition, _server: t.serverId }));
+                
+                // 2. Inject Internal Tools
+                allTools.push({ ...RUN_IN_TERMINAL_TOOL, _server: 'internal' });
+                allTools.push({ ...GET_TOOL_DEFINITIONS_TOOL, _server: 'internal' });
 
-                // De-duplicate
-                const uniqueTools = [...new Map(rawTools.map(item => [item.name, item])).values()];
+                // 3. Group by Server
+                const groups: Record<string, { tools: any[], hidden_tools: string[] }> = {};
 
-                // Apply Lazy Loading Logic
-                const optimizedTools = uniqueTools.map(tool => {
-                    // If it's a Basic Tool, return as is
-                    if (BASIC_TOOLS.includes(tool.name)) {
-                        return tool;
+                allTools.forEach(tool => {
+                    const server = tool._server || 'unknown';
+                    if (!groups[server]) {
+                        groups[server] = { tools: [], hidden_tools: [] };
                     }
-                    // Otherwise, hide schema (Lazy Tool)
-                    return {
-                        name: tool.name,
-                        description: tool.description + " [Schema Hidden] Call 'get_tool_definitions' to retrieve usage.",
-                        inputSchema: {
-                            type: "object",
-                            properties: {},
-                            description: "SCHEMA_HIDDEN_FOR_PERFORMANCE"
-                        }
-                    };
+
+                    // Hot vs Cold decision
+                    if (BASIC_TOOLS.includes(tool.name)) {
+                        // Hot: Show full schema
+                        // Remove internal grouping tag before sending
+                        const { _server, ...cleanTool } = tool;
+                        groups[server].tools.push(cleanTool);
+                    } else {
+                        // Cold: Only name
+                        groups[server].hidden_tools.push(tool.name);
+                    }
                 });
 
-                this.log(`   🚀 Executing: list_tools (Internal) - Optimized ${optimizedTools.length} tools`);
+                // 4. Transform to Array format
+                const result = Object.entries(groups).map(([server, data]) => ({
+                    server,
+                    tools: data.tools,
+                    hidden_tools: data.hidden_tools.sort()
+                }));
+
+                this.log(`   🚀 Executing: list_tools (Internal) - Grouped into ${result.length} servers`);
                 this.log(`   ✅ Finished: list_tools (0ms)`);
                 return res.json({
-                    content: [{ type: 'text', text: JSON.stringify(optimizedTools, null, 2) }],
+                    content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
                     isError: false
                 });
             }

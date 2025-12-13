@@ -169,32 +169,79 @@ async function restoreOptions() {
 
     // HITL: Render Tool List
     const protectedTools = new Set(items.protected_tools || []);
-    chrome.storage.local.get(["cached_tool_list"], (localItems) => {
+    chrome.storage.local.get(["cached_tool_list", "cached_tool_groups"], (localItems) => {
       const tools = localItems.cached_tool_list || [];
+      const groups = localItems.cached_tool_groups || null;
       const container = els.toolList;
+      container.innerHTML = "";
 
-      if (tools.length > 0) {
-        container.innerHTML = "";
-        tools.forEach((toolName: string) => {
+      const renderToolItem = (tName: string, parent: HTMLElement) => {
           const div = document.createElement("div");
           div.style.marginBottom = "5px";
+          div.style.display = "flex";
+          div.style.alignItems = "center";
+          
           const checkbox = document.createElement("input");
           checkbox.type = "checkbox";
-          checkbox.id = "tool_" + toolName;
-          checkbox.value = toolName;
-          checkbox.checked = protectedTools.has(toolName);
+          checkbox.id = "tool_" + tName;
+          checkbox.value = tName;
+          checkbox.checked = protectedTools.has(tName);
 
           const label = document.createElement("label");
-          label.htmlFor = "tool_" + toolName;
-          label.style.display = "inline";
+          label.htmlFor = "tool_" + tName;
           label.style.marginLeft = "8px";
           label.style.fontWeight = "normal";
-          label.textContent = toolName;
+          label.style.cursor = "pointer";
+          label.textContent = tName;
 
           div.appendChild(checkbox);
           div.appendChild(label);
-          container.appendChild(div);
+          parent.appendChild(div);
+      };
+
+      if (groups) {
+        // Grouped Rendering
+        groups.forEach((g: any) => {
+            const groupDiv = document.createElement("div");
+            groupDiv.style.marginBottom = "15px";
+            groupDiv.style.border = "1px solid #444";
+            groupDiv.style.borderRadius = "6px";
+            groupDiv.style.overflow = "hidden";
+
+            const header = document.createElement("div");
+            header.style.background = "#333";
+            header.style.padding = "8px 12px";
+            header.style.fontWeight = "bold";
+            header.style.color = "#eee";
+            header.style.fontSize = "13px";
+            header.textContent = `📦 ${g.server.toUpperCase()}`;
+            groupDiv.appendChild(header);
+
+            const content = document.createElement("div");
+            content.style.padding = "10px";
+            
+            // Collect all names in this group
+            const groupNames: string[] = [];
+            if (g.tools) g.tools.forEach((t: any) => groupNames.push(t.name));
+            if (g.hidden_tools) g.hidden_tools.forEach((n: string) => groupNames.push(n));
+            groupNames.sort();
+
+            if (groupNames.length === 0) {
+                const empty = document.createElement("div");
+                empty.textContent = "No tools available";
+                empty.style.color = "#666";
+                empty.style.fontSize = "12px";
+                content.appendChild(empty);
+            } else {
+                groupNames.forEach(name => renderToolItem(name, content));
+            }
+
+            groupDiv.appendChild(content);
+            container.appendChild(groupDiv);
         });
+      } else if (tools.length > 0) {
+        // Fallback: Flat List
+        tools.forEach((toolName: string) => renderToolItem(toolName, container));
       }
     });
   });
@@ -299,8 +346,18 @@ async function fetchTools() {
     });
 
     if (!resp.ok) throw new Error("Gateway rejected request");
-    const data = await resp.json();
-    const newToolNames = data.tools.map((t: any) => t.name);
+    const json = await resp.json();
+    
+    // Parse Grouped Data
+    // API now returns: [{ server: '...', tools: [...], hidden_tools: [...] }]
+    // We need to flatten it for 'cached_tool_list' compatibility, but keep structure for UI
+    const rawGroups = JSON.parse(json.content[0].text);
+    const newToolNames: string[] = [];
+    
+    rawGroups.forEach((g: any) => {
+        if (g.tools) g.tools.forEach((t: any) => newToolNames.push(t.name));
+        if (g.hidden_tools) g.hidden_tools.forEach((n: string) => newToolNames.push(n));
+    });
 
     // [HITL] Security: Auto-protect new tools logic (Sync with content.js)
     const localData = await chrome.storage.local.get(["cached_tool_list"]);
@@ -326,7 +383,10 @@ async function fetchTools() {
       });
     }
 
-    await chrome.storage.local.set({ cached_tool_list: newToolNames });
+    await chrome.storage.local.set({ 
+        cached_tool_list: newToolNames, 
+        cached_tool_groups: rawGroups 
+    });
     await restoreOptions(); // Re-render
     showStatus(t("refresh_ok"));
   } catch (e) {

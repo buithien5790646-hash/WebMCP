@@ -330,8 +330,34 @@ function performExecution(payload: any) {
         let finalData = response.data;
         if (payload.name === "list_tools") {
           try {
-            const realTools = JSON.parse(finalData);
-            const toolNames = realTools.map((t: any) => t.name);
+            const groups = JSON.parse(finalData);
+            const toolNames: string[] = [];
+
+            // 1. Inject Virtual Client Tools
+            let clientGroup = groups.find((g: any) => g.server === "client");
+            if (!clientGroup) {
+               clientGroup = { server: "client", tools: [], hidden_tools: [] };
+               groups.push(clientGroup);
+            }
+            clientGroup.tools.push({
+              name: "task_completion_notification",
+              description:
+                "Notify the user that a long-running task or a series of complex operations is complete. Use this when you need the user's attention to review your work or provide new instructions. Calling this will trigger a system notification on the user's device.",
+              inputSchema: {
+                type: "object",
+                properties: { message: { type: "string" } },
+                required: ["message"],
+              },
+            });
+
+            // 2. Extract Names for Security Check
+            groups.forEach((g: any) => {
+                if (g.tools) g.tools.forEach((t: any) => toolNames.push(t.name));
+                if (g.hidden_tools) g.hidden_tools.forEach((n: string) => toolNames.push(n));
+            });
+
+            // 3. Update Output
+            finalData = JSON.stringify(groups, null, 2);
 
             // [HITL] Security: Auto-protect new tools
             chrome.storage.local.get(["cached_tool_list"], (localData) => {
@@ -354,22 +380,8 @@ function performExecution(payload: any) {
               chrome.storage.local.set({ cached_tool_list: toolNames });
             });
           } catch (e) {
-            console.error("Auto-protect logic error", e);
+            console.error("Tool list processing error", e);
           }
-          try {
-            const tools = JSON.parse(finalData);
-            tools.push({
-              name: "task_completion_notification",
-              description:
-                "Notify the user that a long-running task or a series of complex operations is complete. Use this when you need the user's attention to review your work or provide new instructions. Calling this will trigger a system notification on the user's device.",
-              inputSchema: {
-                type: "object",
-                properties: { message: { type: "string" } },
-                required: ["message"],
-              },
-            });
-            finalData = JSON.stringify(tools, null, 2);
-          } catch (e) {}
         }
         outputContent = finalData;
       } else {
