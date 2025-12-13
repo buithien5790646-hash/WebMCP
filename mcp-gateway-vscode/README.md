@@ -17,7 +17,7 @@
 ## ⚙️ Installation & Usage
 
 1. **Install**: Search for `WebMCP Gateway` in the VS Code Marketplace and install it.
-2. **Start Service**: After installation, click the `MCP Gateway: Off` button in the status bar (bottom right). When it changes to `On`, the service is running.
+2. **Start Service**: After installation, click the `WebMCP: OFF` button in the status bar (bottom right), then select "Turn On". When it changes to `WebMCP: <Port>` (e.g., `34567`), the service is running successfully.
 3. **Browser Companion**: Ensure you have the **WebMCP Bridge** extension installed in your browser.
 
 ## ❓ FAQ
@@ -26,7 +26,7 @@
 A: Check if any other program is using ports in the 30000-40000 range, or try restarting VS Code.
 
 **Q: Browser extension shows "Disconnected"?**
-A: Ensure VS Code is running and the status bar shows `On`. If it's the first time connecting, try refreshing the AI page.
+A: Ensure VS Code is running and the status bar shows `WebMCP: <Port>`. Ensure the page is opened from the VS Code extension.
 
 ---
 ## 📄 License

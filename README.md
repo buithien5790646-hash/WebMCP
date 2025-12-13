@@ -28,10 +28,14 @@
 
 ### 1. Installation
 - **VS Code**: Search for `WebMCP Gateway` in the Extension Marketplace and install.
-- **Browser**: Search for `WebMCP Bridge` in the Chrome/Edge Web Store and install.
+- **Browser (Manual Install)**:
+  1. Download the latest `mcp-bridge-browser.zip` from [Releases](https://github.com/three-water666/WebMCP/releases).
+  2. Unzip the file.
+  3. Go to Chrome/Edge Extensions (`chrome://extensions`), enable **Developer mode**.
+  4. Click **Load unpacked** and select the unzipped folder.
 
 ### 2. Connect
-1. Open VS Code. The status bar at the bottom right will show `WebMCP: <Port>` (e.g., `34567`), indicating the service is ready.
+1. Open VS Code. Click the `WebMCP: OFF` button in the status bar (bottom right) to start the service. When it shows `WebMCP: <Port>` (e.g., `34567`), it is ready.
 2. Click the status bar icon and select the AI platform you want to use (e.g., `Open Gemini`).
 3. The browser will open a bridge page, perform an **Automatic Handshake**, and then redirect to the AI page.
 4. **Connected!** The browser extension icon will turn green (`ON`).
