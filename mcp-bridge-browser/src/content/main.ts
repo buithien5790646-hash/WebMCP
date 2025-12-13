@@ -46,16 +46,19 @@ chrome.runtime.onMessage.addListener((request) => {
 // === DOM 选择器与配置 ===
 let activeSelectors = DEFAULT_SELECTORS;
 let DOM: SiteSelectors | null = null;
-const currentPlatform = location.host.includes("deepseek")
+const host = location.host;
+const currentPlatform = host.includes("deepseek")
   ? "deepseek"
-  : location.host.includes("gemini")
+  : host.includes("gemini")
   ? "gemini"
-  : location.host.includes("aistudio")
+  : host.includes("aistudio")
   ? "aistudio"
-  : "chatgpt";
+  : (host.includes("chatgpt") || host.includes("openai"))
+  ? "chatgpt"
+  : null;
 
 function updateDOMConfig() {
-  if (activeSelectors && activeSelectors[currentPlatform])
+  if (currentPlatform && activeSelectors && activeSelectors[currentPlatform])
     DOM = activeSelectors[currentPlatform];
 }
 
@@ -282,15 +285,20 @@ const observer = new MutationObserver((mutations) => {
   }
 });
 
-// 启动监听 (监听子节点变化和文本内容变化)
-observer.observe(document.body, {
-  childList: true,
-  subtree: true,
-  characterData: true
-});
+if (currentPlatform) {
+  // 启动监听 (监听子节点变化和文本内容变化)
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true
+  });
 
-// 启动时先执行一次，确保初始状态正确
-runMainLoop();
+  // 启动时先执行一次，确保初始状态正确
+  runMainLoop();
+  Logger.log(`WebMCP activated for ${currentPlatform}`, "info");
+} else {
+  console.log("WebMCP: Platform not supported, staying idle.");
+}
 
 // === 执行工具 ===
 function executeTool(payload: ToolExecutionPayload) {

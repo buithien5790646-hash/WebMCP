@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const statusDot = document.getElementById("statusDot") as HTMLElement;
   const portDisplay = document.getElementById("portDisplay") as HTMLElement;
   const copyPromptBtn = document.getElementById("copyPromptBtn") as HTMLButtonElement;
+  const openOptionsBtn = document.getElementById("openOptionsBtn") as HTMLButtonElement;
   const autoSendInput = document.getElementById("autoSend") as HTMLInputElement;
   const showLogInput = document.getElementById("showLog") as HTMLInputElement;
   const availableView = document.getElementById("availableView") as HTMLElement;
@@ -125,6 +126,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         copyPromptBtn.innerText = "Prompt Not Found";
       }
     });
+  });
+
+  // Open Options Page
+  openOptionsBtn?.addEventListener("click", () => {
+    chrome.runtime.openOptionsPage();
   });
 
   // Auto Send (Global Config)
