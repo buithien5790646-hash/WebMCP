@@ -2,7 +2,7 @@
 
 **连接网页版 AI 与本地开发环境的通用桥梁。**
 
-> 🛑 **告别 Copy-Paste**：不再需要在 DeepSeek/ChatGPT/Gemini 和 VS Code 之间手动复制粘贴代码。
+> 🛑 **告别 Copy-Paste**：不再需要在 Gemini/ChatGPT/DeepSeek 和 VS Code 之间手动复制粘贴代码。
 > 🚀 **零配置体验**：无需复杂配置，点击即用。
 > 🔐 **安全无忧**：采用动态 Token 认证机制，确保只有您的 VS Code 能连接浏览器。
 
@@ -11,7 +11,7 @@
 ## 🌟 核心特性
 
 - **⚡️ Zero-Config (零配置)**：VS Code 自动管理端口和认证 Token，一键握手连接。
-- **🌍 全平台支持**：完美适配 **DeepSeek**、**ChatGPT**、**Gemini** 等主流网页版 AI。
+- **🌍 全平台支持**：完美适配 **Gemini**、**ChatGPT**、**DeepSeek** 等主流网页版 AI。
 - **🔌 协议标准化**：基于 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)，支持挂载本地文件系统、Git 等任意工具。
 - **🛡️ 动态安全**：
   - 每次启动生成随机 **Token**，彻底告别繁琐的 Extension ID 白名单。
@@ -32,7 +32,7 @@
 
 ### 2. 启动连接
 1. 打开 VS Code，状态栏右下角会出现 `WebMCP: <Port>` (如 `34567`)，表示服务已就绪。
-2. 点击状态栏图标，选择您想使用的 AI 平台（例如 `Open DeepSeek`）。
+2. 点击状态栏图标，选择您想使用的 AI 平台（例如 `Open Gemini`）。
 3. 浏览器会自动打开一个中转页，进行 **自动握手**，随后跳转到 AI 页面。
 4. **连接成功！** 浏览器插件图标将变为绿色 `ON` 状态。
 

@@ -4,7 +4,7 @@
 
 [中文文档](README_zh.md)
 
-> 🛑 **No More Copy-Paste**: Stop manually copying code between DeepSeek/ChatGPT/Gemini and VS Code.
+> 🛑 **No More Copy-Paste**: Stop manually copying code between Gemini/ChatGPT/DeepSeek and VS Code.
 > 🚀 **Zero-Config**: No complex configuration required, just click and use.
 > 🔐 **Secure**: Uses dynamic Token authentication to ensure only your VS Code can connect.
 
@@ -13,7 +13,7 @@
 ## 🌟 Core Features
 
 - **⚡️ Zero-Config**: VS Code manages ports and tokens automatically, one-click handshake.
-- **🌍 Cross-Platform**: Fully supports **DeepSeek**, **ChatGPT**, **Gemini**, and other web-based AIs.
+- **🌍 Cross-Platform**: Fully supports **Gemini**, **ChatGPT**, **DeepSeek**, and other web-based AIs.
 - **🔌 Standardized**: Based on [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), supports mounting local filesystems, Git, and other tools.
 - **🛡️ Dynamic Security**:
   - Random **Token** generated per session, eliminating the need for fixed Extension ID whitelists.
@@ -32,7 +32,7 @@
 
 ### 2. Connect
 1. Open VS Code. The status bar at the bottom right will show `WebMCP: <Port>` (e.g., `34567`), indicating the service is ready.
-2. Click the status bar icon and select the AI platform you want to use (e.g., `Open DeepSeek`).
+2. Click the status bar icon and select the AI platform you want to use (e.g., `Open Gemini`).
 3. The browser will open a bridge page, perform an **Automatic Handshake**, and then redirect to the AI page.
 4. **Connected!** The browser extension icon will turn green (`ON`).
 

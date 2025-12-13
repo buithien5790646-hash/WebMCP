@@ -7,7 +7,7 @@
 > You must install and start the `WebMCP Gateway` extension in VS Code before using this.
 
 ## 🚀 Introduction
-**WebMCP Bridge** is the connector that links Web AI Chatbots (ChatGPT, Claude, Gemini, etc.) to your local VS Code environment. It intercepts specific AI tool calls and securely forwards them to your local VS Code server, allowing the cloud AI to "see" and "operate" on your local projects.
+**WebMCP Bridge** is the connector that links Web AI Chatbots (Gemini, ChatGPT, DeepSeek, etc.) to your local VS Code environment. It intercepts specific AI tool calls and securely forwards them to your local VS Code server, allowing the cloud AI to "see" and "operate" on your local projects.
 
 ## 🔧 Usage
 

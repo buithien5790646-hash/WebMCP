@@ -5,7 +5,7 @@
 > 请确保您已在 Chrome 或 Edge 浏览器中安装了对应的扩展。
 
 ## 🚀 简介
-**WebMCP Gateway** 将您的 VS Code 转变为一个本地 MCP (Model Context Protocol) 服务器。这使得基于 Web 的 AI 模型（如 ChatGPT, Gemini, DeepSeek 等）能够安全地访问您的本地文件、执行终端命令，并协助您编写代码。
+**WebMCP Gateway** 将您的 VS Code 转变为一个本地 MCP (Model Context Protocol) 服务器。这使得基于 Web 的 AI 模型（如 Gemini, ChatGPT, DeepSeek 等）能够安全地访问您的本地文件、执行终端命令，并协助您编写代码。
 
 ## ✨ 核心功能
 * **零配置连接**: 自动寻找可用端口，无需繁琐设置。
