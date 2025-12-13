@@ -110,8 +110,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 2. 复制逻辑：动态读取对应语言的 Prompt
   copyPromptBtn.addEventListener("click", () => {
-    chrome.storage.local.get([promptKey], (items) => {
-      const promptContent = items[promptKey];
+    // [Fix] 同时获取基础提示词和用户规则
+    chrome.storage.local.get([promptKey, "userRules"], (items) => {
+      let promptContent = items[promptKey];
+      const userRules = items.userRules || "";
+      
+      if (promptContent && userRules) {
+        // 拼接用户规则
+        promptContent = `${promptContent}\n\n--- [User Rules] ---\n${userRules}`;
+      }
       if (promptContent) {
         navigator.clipboard.writeText(promptContent).then(() => {
           const originalText = copyPromptBtn.innerText;
