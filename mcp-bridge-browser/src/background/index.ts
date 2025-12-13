@@ -235,7 +235,8 @@ async function bindSession(tabId: number, port: number, token: string) {
   await saveSession(tabId, { port, token, showLog: false });
   console.log(`[WebMCP] Tab ${tabId} bound to Port ${port}`);
   updateBadge(tabId, true);
-  syncConfigFromGateway(port, token);
+  await syncConfigFromGateway(port, token);
+  prefetchToolList(port, token);
 }
 
 // === 配置同步 (Host Sync) ===
@@ -279,6 +280,59 @@ async function pushConfigToGateway() {
   } catch (e) {
     console.error("[WebMCP] Failed to push config:", e);
     return false;
+  }
+}
+
+async function prefetchToolList(port: number, token: string) {
+  try {
+    console.log("[WebMCP] Prefetching tool list...");
+    const resp = await fetch(`http://127.0.0.1:${port}/v1/tools`, {
+      headers: { "X-WebMCP-Token": token },
+    });
+    if (!resp.ok) return;
+    const json = await resp.json();
+    
+    // Parse Grouped Data
+    const rawGroups = json.groups || [];
+    const newToolNames: string[] = [];
+    
+    rawGroups.forEach((g: any) => {
+        if (g.tools) g.tools.forEach((t: any) => newToolNames.push(t.name));
+        if (g.hidden_tools) g.hidden_tools.forEach((n: string) => newToolNames.push(n));
+    });
+
+    // [HITL] Security: Auto-protect new tools logic
+    const localData = await chrome.storage.local.get(["cached_tool_list"]);
+    const syncData = await chrome.storage.sync.get(["protected_tools"]);
+
+    const knownTools = new Set(localData.cached_tool_list || []);
+    const protectedTools = new Set(syncData.protected_tools || []);
+    let protectedDirty = false;
+
+    newToolNames.forEach((tName: string) => {
+      // If it's a NEW tool (not in cache), protect it by default
+      if (!knownTools.has(tName)) {
+        if (!protectedTools.has(tName)) {
+          protectedTools.add(tName);
+          protectedDirty = true;
+        }
+      }
+    });
+
+    if (protectedDirty) {
+      await chrome.storage.sync.set({
+        protected_tools: Array.from(protectedTools),
+      });
+      console.log("[WebMCP] New tools detected & protected during prefetch.");
+    }
+
+    await chrome.storage.local.set({ 
+        cached_tool_list: newToolNames, 
+        cached_tool_groups: rawGroups 
+    });
+    console.log("[WebMCP] Tool list cached.");
+  } catch (e) {
+    console.error("[WebMCP] Tool prefetch failed:", e);
   }
 }
 

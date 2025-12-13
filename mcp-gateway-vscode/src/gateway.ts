@@ -75,6 +75,44 @@ export class GatewayManager {
     private server: any = null;
     private toolRouter = new Map<string, { client: Client; definition: any; serverId: string }>();
     private connectedClients: { id: string; client: Client }[] = [];
+
+    // Helper: Generate grouped tool list
+    private _generateGroupedTools() {
+        // 1. Gather all tools with their server association
+        const allTools = Array.from(this.toolRouter.values()).map(t => ({ ...t.definition, _server: t.serverId }));
+        
+        // 2. Inject Internal Tools
+        allTools.push({ ...RUN_IN_TERMINAL_TOOL, _server: 'internal' });
+        allTools.push({ ...GET_TOOL_DEFINITIONS_TOOL, _server: 'internal' });
+
+        // 3. Group by Server
+        const groups: Record<string, { tools: any[], hidden_tools: string[] }> = {};
+
+        allTools.forEach(tool => {
+            const server = tool._server || 'unknown';
+            if (!groups[server]) {
+                groups[server] = { tools: [], hidden_tools: [] };
+            }
+
+            // Hot vs Cold decision
+            if (BASIC_TOOLS.includes(tool.name)) {
+                // Hot: Show full schema
+                // Remove internal grouping tag before sending
+                const { _server, ...cleanTool } = tool;
+                groups[server].tools.push(cleanTool);
+            } else {
+                // Cold: Only name
+                groups[server].hidden_tools.push(tool.name);
+            }
+        });
+
+        // 4. Transform to Array format
+        return Object.entries(groups).map(([server, data]) => ({
+            server,
+            tools: data.tools,
+            hidden_tools: data.hidden_tools.sort()
+        }));
+    }
     private outputChannel: vscode.OutputChannel;
     private extensionPath: string;
     private context: vscode.ExtensionContext;
@@ -367,9 +405,9 @@ export class GatewayManager {
         });
 
         this.app.get('/v1/tools', (req, res) => {
-            const tools = Array.from(this.toolRouter.values()).map(t => t.definition);
-            this.log(`   🚀 Executing: GET /v1/tools (Discovery)`);
-            res.json({ tools });
+            const groups = this._generateGroupedTools();
+            this.log(`   🚀 Executing: GET /v1/tools (Discovery) - Grouped`);
+            res.json({ groups });
         });
 
         this.app.post('/v1/tools/call', async (req, res) => {
@@ -406,41 +444,7 @@ export class GatewayManager {
             }
 
             if (name === 'list_tools') {
-                // 1. Gather all tools with their server association
-                const allTools = Array.from(this.toolRouter.values()).map(t => ({ ...t.definition, _server: t.serverId }));
-                
-                // 2. Inject Internal Tools
-                allTools.push({ ...RUN_IN_TERMINAL_TOOL, _server: 'internal' });
-                allTools.push({ ...GET_TOOL_DEFINITIONS_TOOL, _server: 'internal' });
-
-                // 3. Group by Server
-                const groups: Record<string, { tools: any[], hidden_tools: string[] }> = {};
-
-                allTools.forEach(tool => {
-                    const server = tool._server || 'unknown';
-                    if (!groups[server]) {
-                        groups[server] = { tools: [], hidden_tools: [] };
-                    }
-
-                    // Hot vs Cold decision
-                    if (BASIC_TOOLS.includes(tool.name)) {
-                        // Hot: Show full schema
-                        // Remove internal grouping tag before sending
-                        const { _server, ...cleanTool } = tool;
-                        groups[server].tools.push(cleanTool);
-                    } else {
-                        // Cold: Only name
-                        groups[server].hidden_tools.push(tool.name);
-                    }
-                });
-
-                // 4. Transform to Array format
-                const result = Object.entries(groups).map(([server, data]) => ({
-                    server,
-                    tools: data.tools,
-                    hidden_tools: data.hidden_tools.sort()
-                }));
-
+                const result = this._generateGroupedTools();
                 this.log(`   🚀 Executing: list_tools (Internal) - Grouped into ${result.length} servers`);
                 this.log(`   ✅ Finished: list_tools (0ms)`);
                 return res.json({

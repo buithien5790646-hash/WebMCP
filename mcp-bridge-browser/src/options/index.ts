@@ -349,9 +349,8 @@ async function fetchTools() {
     const json = await resp.json();
     
     // Parse Grouped Data
-    // API now returns: [{ server: '...', tools: [...], hidden_tools: [...] }]
-    // We need to flatten it for 'cached_tool_list' compatibility, but keep structure for UI
-    const rawGroups = JSON.parse(json.content[0].text);
+    // API returns: { groups: [{ server: '...', tools: [...], hidden_tools: [...] }] }
+    const rawGroups = json.groups || [];
     const newToolNames: string[] = [];
     
     rawGroups.forEach((g: any) => {
