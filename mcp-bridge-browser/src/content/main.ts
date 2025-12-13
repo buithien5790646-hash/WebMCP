@@ -91,6 +91,9 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 });
 
 // === 主循环逻辑 ===
+
+// 正则表达式匹配常见的非标准空白字符，包括不间断空格 (\u00a0)
+const nonStandardSpaces = /[\u00a0\uFEFF\u200B]/g;
 const processedRequests = new Set<string>();
 const flushedRequests = new Set<string>();
 const blockStates = new WeakMap<
@@ -138,8 +141,11 @@ function runMainLoop() {
     const textContent = (codeEl.textContent || "").trim();
     if (!textContent.includes('"mcp_action": "call"')) return;
 
+    // 核心修复: 清理非标准空白字符 (如不间断空格 \u00a0)，以防止 JSON.parse 失败。
+    const cleanedText = textContent.replace(nonStandardSpaces, ' ');
+
     try {
-      const payload = JSON.parse(textContent);
+      const payload = JSON.parse(cleanedText);
       if (blockStates.has(codeEl)) blockStates.delete(codeEl);
 
       // 成功解析 JSON，尝试清除旧的错误样式（如果存在）
