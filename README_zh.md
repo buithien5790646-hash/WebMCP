@@ -17,7 +17,7 @@
   - 每次启动生成随机 **Token**，彻底告别繁琐的 Extension ID 白名单。
   - 支持 **Origin 隔离**，防止恶意网页访问本地网关。
 - **🧠 智能路由**：
-  - 支持根据 URL 自动选择浏览器 (如 DeepSeek -> Edge, ChatGPT -> Chrome)。
+  - 支持根据 URL 自动选择浏览器 (如 Gemini -> Edge, ChatGPT -> Chrome)。
   - 支持同时打开多个 VS Code 窗口，多路连接互不干扰。
 
 ---

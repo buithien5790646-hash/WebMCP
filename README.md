@@ -19,7 +19,7 @@
   - Random **Token** generated per session, eliminating the need for fixed Extension ID whitelists.
   - Supports **Origin Isolation** to prevent malicious pages from accessing the local gateway.
 - **🧠 Smart Routing**:
-  - Automatically selects the browser based on the URL (e.g., DeepSeek -> Edge, ChatGPT -> Chrome).
+  - Automatically selects the browser based on the URL (e.g., Gemini -> Edge, ChatGPT -> Chrome).
   - Supports multiple VS Code windows and multiple concurrent connections.
 
 ---

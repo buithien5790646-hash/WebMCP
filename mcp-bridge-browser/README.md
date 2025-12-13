@@ -12,7 +12,7 @@
 ## 🔧 Usage
 
 1. **Preparation**: Open VS Code, ensure **WebMCP Gateway** is installed, and click the status bar to start the service.
-2. **Auto Connect**: Open ChatGPT or other supported AI pages. The extension will automatically detect and connect to the local service (the icon will turn green).
+2. **Auto Connect**: Open Gemini or other supported AI pages. The extension will automatically detect and connect to the local service (the icon will turn green).
 3. **Send Prompt (Critical Step)**:
     * Click the extension icon in the browser toolbar.
     * Click the **Copy System Prompt** button.
