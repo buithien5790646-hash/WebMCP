@@ -92,6 +92,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const session = await getSession(tabId);
     if (session && isUrlAllowed(tab.url)) {
       updateBadge(tabId, true);
+      // [Sync] Restore connection state in Content Script after reload
+      chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true }).catch(() => {});
       if (session.showLog) {
         chrome.tabs.sendMessage(tabId, { type: "TOGGLE_LOG", show: true }).catch(() => {});
       }
@@ -111,7 +113,8 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
     return true;
   }
   if (request.type === "GET_STATUS") {
-    const targetTabId = request.tabId;
+    // Support both external (Popup) and internal (Content Script) status checks
+    const targetTabId = request.tabId || (sender.tab ? sender.tab.id : null);
     if (targetTabId) {
         getSession(targetTabId).then((session) => {
           sendResponse({
@@ -120,6 +123,8 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
             showLog: session?.showLog || false,
           });
         });
+    } else {
+        sendResponse({ connected: false, error: "Unknown Tab ID" });
     }
     return true;
   }
@@ -195,6 +200,8 @@ async function updateSessionLog(tabId: number, showLog: boolean) {
 async function removeSession(tabId: number) {
   const key = `session_${tabId}`;
   await chrome.storage.local.remove(key);
+  // [Sync] Notify Content Script
+  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: false }).catch(() => {});
 }
 
 // === 逻辑实现 ===
@@ -235,6 +242,8 @@ async function bindSession(tabId: number, port: number, token: string) {
   await saveSession(tabId, { port, token, showLog: false });
   console.log(`[WebMCP] Tab ${tabId} bound to Port ${port}`);
   updateBadge(tabId, true);
+  // [Sync] Notify Content Script
+  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true }).catch(() => {});
   await syncConfigFromGateway(port, token);
   prefetchToolList(port, token);
 }
