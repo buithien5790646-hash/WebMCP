@@ -6,7 +6,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   resolve: {
     alias: {
-      '@webmcp/core': path.resolve(__dirname, '../packages/mcp-core/src/index.ts')
+      '@webmcp/core': path.resolve(__dirname, '../mcp-core/src/index.ts')
     }
   },
   plugins: [
@@ -17,7 +17,7 @@ export default defineConfig({
         vite: {
           resolve: {
             alias: {
-              '@webmcp/core': path.resolve(__dirname, '../packages/mcp-core/src/index.ts')
+              '@webmcp/core': path.resolve(__dirname, '../mcp-core/src/index.ts')
             }
           }
         }

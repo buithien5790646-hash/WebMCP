@@ -37,11 +37,39 @@ importers:
         specifier: ^5.0.0
         version: 5.4.21(@types/node@20.19.26)(terser@5.44.1)
 
+  mcp-core:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.0.1
+        version: 1.24.3(zod@3.25.76)
+      '@webmcp/shared':
+        specifier: workspace:*
+        version: link:../shared
+      cors:
+        specifier: ^2.8.5
+        version: 2.8.5
+      express:
+        specifier: ^4.18.2
+        version: 4.22.1
+    devDependencies:
+      '@types/cors':
+        specifier: ^2.8.17
+        version: 2.8.19
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.2
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   mcp-gateway-desktop:
     dependencies:
       '@webmcp/core':
         specifier: workspace:*
-        version: link:../packages/mcp-core
+        version: link:../mcp-core
       electron-store:
         specifier: ^8.1.0
         version: 8.2.0
@@ -140,34 +168,6 @@ importers:
       webpack-cli:
         specifier: ^6.0.1
         version: 6.0.1(webpack@5.103.0)
-
-  packages/mcp-core:
-    dependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.0.1
-        version: 1.24.3(zod@3.25.76)
-      '@webmcp/shared':
-        specifier: workspace:*
-        version: link:../../shared
-      cors:
-        specifier: ^2.8.5
-        version: 2.8.5
-      express:
-        specifier: ^4.18.2
-        version: 4.22.1
-    devDependencies:
-      '@types/cors':
-        specifier: ^2.8.17
-        version: 2.8.19
-      '@types/express':
-        specifier: ^4.17.21
-        version: 4.17.25
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.2
-      typescript:
-        specifier: ^5.0.0
-        version: 5.9.3
 
   shared:
     devDependencies:
