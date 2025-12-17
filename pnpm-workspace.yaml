@@ -1,4 +1,10 @@
 packages:
-  - 'mcp-gateway-vscode'
-  - 'mcp-bridge-browser'
-  - 'shared'
+  - mcp-gateway-vscode
+  - mcp-bridge-browser
+  - shared
+  - packages/*
+  - mcp-gateway-desktop
+
+onlyBuiltDependencies:
+  - electron
+  - esbuild

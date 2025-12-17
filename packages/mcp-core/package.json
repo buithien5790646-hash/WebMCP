@@ -1,0 +1,23 @@
+{
+  "name": "@webmcp/core",
+  "version": "0.1.0",
+  "description": "Core Gateway logic for WebMCP (Platform Agnostic)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.1",
+    "@webmcp/shared": "workspace:*",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0"
+  }
+}
