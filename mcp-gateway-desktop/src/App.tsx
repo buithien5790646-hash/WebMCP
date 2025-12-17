@@ -228,7 +228,7 @@ export default function App() {
                   onStart={() => handleStart(profile.id)}
                   onStop={() => handleStop(profile.id)}
                   onDelete={() => handleDeleteProfile(profile.id)}
-                  onOpenBridge={(port, token) => handleOpenBridge(port, token)}
+                  onOpenBridge={(port: number, token: string) => handleOpenBridge(port, token)}
                 />
               ))}
             </div>

@@ -1,237 +1,189 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import path from 'node:path'
-import Store from 'electron-store'
-import { McpGateway, IGatewayLogger, IGatewayStorage, IRuntimeContext, GatewayConfig } from '@webmcp/core'
-import * as crypto from 'crypto';
+import { McpGateway, IGatewayLogger, IGatewayStorage, IRuntimeContext, ServerConfig } from '@webmcp/core'
 
-// ----------------------------------------------------------------------
-// 0. Type Definitions & Store Schema
-// ----------------------------------------------------------------------
-
-interface ServerDefinition {
-  id: string;
-  name: string;
-  type: 'stdio' | 'sse' | 'http';
+// --- Interfaces for Type Safety ---
+interface ServerDef {
+  name?: string;
   command?: string;
   args?: string[];
-  url?: string;
   env?: Record<string, string>;
+  type?: 'stdio' | 'sse' | 'http';
+  url?: string;
+  disabled?: boolean;
 }
 
-interface ServiceProfile {
-  id: string;
+interface ProfileDef {
   name: string;
   port: number;
   serverIds: string[];
-  color?: string;
 }
 
 interface StoreSchema {
-  servers: Record<string, ServerDefinition>;
-  profiles: Record<string, ServiceProfile>;
+  profiles: Record<string, ProfileDef>;
+  servers: Record<string, ServerDef>;
 }
 
-const store = new Store<StoreSchema>({
-  defaults: {
-    servers: {
-      'default-fs': {
-        id: 'default-fs',
-        name: 'Local Filesystem',
-        type: 'stdio',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-filesystem', '.']
-      }
-    },
-    profiles: {
-      'default-profile': {
-        id: 'default-profile',
-        name: 'Default Workspace',
-        port: 34567,
-        serverIds: ['default-fs'],
-        color: '#3498db'
-      }
-    }
-  }
-});
-
-// ----------------------------------------------------------------------
-// 1. Gateway Runtime Manager
-// ----------------------------------------------------------------------
-
-class GatewayRuntime {
-  private instances = new Map<string, { gateway: McpGateway, status: string }>();
-  private mainWindow: BrowserWindow | null = null;
-
-  setWindow(win: BrowserWindow) {
-    this.mainWindow = win;
-  }
-
-  private createLogger(profileId: string): IGatewayLogger {
-    return {
-      info: (msg) => console.log(`[${profileId}] INFO: ${msg}`),
-      error: (msg, err) => console.error(`[${profileId}] ERROR: ${msg}`, err),
-      appendLine: (msg) => {
-        if (this.mainWindow) this.mainWindow.webContents.send(`log:${profileId}`, msg);
-      }
-    };
-  }
-
-  private createStorage(): IGatewayStorage {
-    return {
-      get: async (key) => store.get(`runtime.${key}`),
-      update: async (key, value) => store.set(`runtime.${key}`, value)
-    };
-  }
-
-  private createContext(): IRuntimeContext {
-    return {
-      extensionPath: app.getAppPath(),
-      getWorkspaceRoot: () => app.getPath('home')
-    };
-  }
-
-  async startProfile(profileId: string) {
-    const profile = store.get(`profiles.${profileId}`);
-    if (!profile) throw new Error(`Profile ${profileId} not found`);
-
-    const mcpServers: Record<string, any> = {};
-    for (const srvId of profile.serverIds) {
-      const srvDef = store.get(`servers.${srvId}`);
-      if (srvDef) {
-        mcpServers[srvDef.name] = {
-          command: srvDef.command,
-          args: srvDef.args,
-          env: srvDef.env,
-          type: srvDef.type,
-          url: srvDef.url
-        };
-      }
-    }
-
-    if (this.instances.has(profileId)) {
-      await this.stopProfile(profileId);
-    }
-
-    const gateway = new McpGateway(
-      this.createLogger(profileId),
-      this.createStorage(),
-      this.createContext(),
-      () => { this.broadcastStatus(profileId, 'offline'); },
-      (status, port) => { this.broadcastStatus(profileId, status, port); }
-    );
-
-    try {
-      const result = await gateway.start({
-        port: profile.port,
-        mcpServers,
-        allowedOrigins: []
-      });
-      this.instances.set(profileId, { gateway, status: 'online' });
-      return result;
-    } catch (e) {
-      this.instances.delete(profileId);
-      throw e;
-    }
-  }
-
-  async stopProfile(profileId: string) {
-    const inst = this.instances.get(profileId);
-    if (inst) {
-      await inst.gateway.stop();
-      this.instances.delete(profileId);
-      this.broadcastStatus(profileId, 'offline');
-    }
-  }
-
-  broadcastStatus(profileId: string, status: string, port?: number) {
-    if (this.mainWindow) {
-      this.mainWindow.webContents.send('profile-status', { profileId, status, port });
-    }
-  }
-}
-
-const runtime = new GatewayRuntime();
-
-// ----------------------------------------------------------------------
-// 2. Electron App Lifecycle
-// ----------------------------------------------------------------------
+// ----------------------------------
 
 process.env.DIST = path.join(__dirname, '../dist')
-process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public')
+process.env.VITE_PUBLIC = app.isPackaged 
+  ? process.env.DIST 
+  : path.join(process.env.DIST, '../public')
 
 let win: BrowserWindow | null
+// -------------------------------------------------------------------
+// 1. 实现 Logger (适配 Core 接口: appendLine)
+// -------------------------------------------------------------------
+const logger: IGatewayLogger = {
+  info: (msg: string) => {
+    console.log('[INFO]', msg)
+    win?.webContents.send('log', { level: 'info', msg, timestamp: Date.now() })
+  },
+  error: (msg: string, error?: any) => {
+    console.error('[ERROR]', msg, error || '')
+    win?.webContents.send('log', { level: 'error', msg, error, timestamp: Date.now() })
+  },
+  appendLine: (msg: string) => {
+    // console.log('[STREAM]', msg) 
+    win?.webContents.send('log', { level: 'stream', msg, timestamp: Date.now() })
+  }
+}
 
+// -------------------------------------------------------------------
+// 2. 实现 Storage (适配 Core 接口: update)
+// -------------------------------------------------------------------
+import Store from 'electron-store'
+const store = new Store<StoreSchema>()
+
+const storage: IGatewayStorage = {
+  get: (key: string) => Promise.resolve(store.get(key)),
+  update: (key: string, value: any) => { 
+    store.set(key, value);
+    return Promise.resolve();
+  }
+}
+
+// -------------------------------------------------------------------
+// 3. 实现 RuntimeContext
+// -------------------------------------------------------------------
+const context: IRuntimeContext = {
+  extensionPath: app.getAppPath(),
+  getWorkspaceRoot: () => null // Desktop App typically has no single workspace root unless specified
+}
+
+// -------------------------------------------------------------------
+// 4. 初始化 Core Gateway
+// -------------------------------------------------------------------
+const gateway = new McpGateway(logger, storage, context)
+
+// -------------------------------------------------------------------
+// 5. IPC Handlers
+// -------------------------------------------------------------------
+
+// Handle: Start Gateway
+ipcMain.handle('gateway:start', async (_event, profileId: string) => {
+  try {
+    // 1. Load Profile Config
+    const profiles = (store.get('profiles') || {}) as Record<string, ProfileDef>
+    const servers = (store.get('servers') || {}) as Record<string, ServerDef>
+
+    const profile = profiles[profileId]
+    if (!profile) throw new Error(`Profile ${profileId} not found`)
+
+    // 2. Construct Gateway Config
+    const mcpServers: Record<string, ServerConfig> = {}
+    
+    if (Array.isArray(profile.serverIds)) {
+      for (const srvId of profile.serverIds) {
+        const srvDef = servers[srvId]
+        if (srvDef) {
+          // Map Store definition to Core definition
+          mcpServers[srvDef.name || srvId] = {
+            command: srvDef.command,
+            args: srvDef.args,
+            env: srvDef.env,
+            type: srvDef.type || 'stdio',
+            url: srvDef.url,
+            disabled: srvDef.disabled
+          }
+        }
+      }
+    }
+
+    const config = {
+        port: profile.port,
+        mcpServers: mcpServers,
+        allowedOrigins: [] // Default allow none (or logic in core)
+    }
+
+    // 3. Start & Get Result directly
+    // Fix: use the return value from start() instead of getter methods
+    const result = await gateway.start(config)
+    
+    return { status: 'success', port: result.port, token: result.token }
+  } catch (err: any) {
+    return { status: 'error', message: err.message }
+  }
+})
+
+// Handle: Stop Gateway
+ipcMain.handle('gateway:stop', async () => {
+  await gateway.stop()
+  return { status: 'stopped' }
+})
+
+// Handle: Get Store Value
+ipcMain.handle('store:get', (_event, key: string) => {
+  return store.get(key)
+})
+
+// Handle: Set Store Value
+ipcMain.handle('store:set', (_event, key: string, val: any) => {
+  store.set(key, val)
+})
+
+ipcMain.handle('open-external', (_event, url: string) => {
+    shell.openExternal(url);
+});
+
+// -------------------------------------------------------------------
+// Electron Boilerplate
+// -------------------------------------------------------------------
 function createWindow() {
   win = new BrowserWindow({
     width: 1200,
     height: 800,
-    icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      sandbox: false,
+      nodeIntegration: true,
+      contextIsolation: true,
     },
   })
 
-  runtime.setWindow(win);
+  win.webContents.on('did-finish-load', () => {
+    win?.webContents.send('main-process-message', (new Date).toLocaleString())
+  })
 
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL)
-    // win.webContents.openDevTools() // DevTools disabled for cleaner startup
   } else {
-    win.loadFile(path.join(process.env.DIST, 'index.html'))
+    win.loadFile(path.join(process.env.DIST || '', 'index.html'))
   }
 }
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  if (process.platform !== 'darwin') {
+    app.quit()
+    win = null
+  }
 })
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow()
+  }
 })
 
-app.whenReady().then(() => {
-  createWindow()
-
-  ipcMain.handle('db:get-all', () => ({
-      servers: store.get('servers'),
-      profiles: store.get('profiles')
-  }));
-
-  ipcMain.handle('db:save-server', (_e, server: ServerDefinition) => {
-    store.set(`servers.${server.id}`, server);
-    return true;
-  });
-
-  ipcMain.handle('db:delete-server', (_e, id: string) => {
-    store.delete(`servers.${id}` as any);
-    return true;
-  });
-
-  ipcMain.handle('db:save-profile', (_e, profile: ServiceProfile) => {
-    store.set(`profiles.${profile.id}`, profile);
-    return true;
-  });
-
-  ipcMain.handle('db:delete-profile', (_e, id: string) => {
-    store.delete(`profiles.${id}` as any);
-    return true;
-  });
-
-  ipcMain.handle('gateway:start', async (_e, profileId: string) => {
-    try {
-      const res = await runtime.startProfile(profileId);
-      return { success: true, ...res };
-    } catch (e: any) {
-      return { success: false, error: e.message };
-    }
-  });
-
-  ipcMain.handle('gateway:stop', async (_e, profileId: string) => {
-    await runtime.stopProfile(profileId);
-    return { success: true };
-  });
-
-  ipcMain.handle('open-url', (_e, url: string) => {
-    shell.openExternal(url);
-  });
-})
+app.whenReady().then(createWindow)
