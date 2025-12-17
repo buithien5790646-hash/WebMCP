@@ -15,7 +15,7 @@ The project uses `pnpm workspace`.
 ### 2. Desktop App (`mcp-gateway-desktop`) [CURRENT FOCUS]
 - **Role**: The main GUI for managing MCP servers.
 - **Tech**: Electron, Vite, React, TypeScript.
-- **Status**: MVP v1.0 Stable.
+- **Status**: MVP v1.0 Completed.
 - **Features**:
   - **Dashboard**: Start/Stop profiles, view logs, open bridge links.
   - **Library**: Add/Remove MCP server definitions (STDIO/SSE).
@@ -30,17 +30,14 @@ The project uses `pnpm workspace`.
 - **Role**: Chrome Extension to inject MCP capabilities into web pages.
 - **Status**: Stable.
 
-## Recent Changes & Fixes (2025-08-18)
-- **Architecture**: Extracted core logic to `packages/mcp-core`. Setup `pnpm` workspace.
-- **Desktop App**: Created `mcp-gateway-desktop` (MVP completed).
-- **Build Fixes**:
-  - Configured Electron mirror for `pnpm`.
-  - Fixed `vite.config.ts` alias to point to `@webmcp/core/src`.
-- **Runtime Fixes**:
-  - Fixed `preload.ts` to return disposer functions for IPC listeners.
-  - Added safety checks in `App.tsx` (`typeof removeStatusListener === 'function'`) to prevent React crash on reload.
+## Recent Changes (2025-08-18)
+- Extracted core logic from VSCode to `packages/mcp-core`.
+- Created `mcp-gateway-desktop` from scratch.
+- Implemented `pnpm` workspace structure.
+- Fixed Electron build issues (mirror, rebuild).
+- Fixed React `useEffect` cleanup crash in `preload.ts`.
 
 ## Next Steps
 1. **Marketplace**: Add preset MCP servers (GitHub, Postgres, etc.) for easy installation.
-2. **Environment Inspector**: Detect Node/Docker availability in the Desktop app.
+2. **Environment Inspector**: Detect Node/Docker availability.
 3. **Refactor VSCode**: Update VSCode extension to consume `@webmcp/core`.

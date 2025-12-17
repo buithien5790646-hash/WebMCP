@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import Library from './Library';
 
-// ... (保持原有的 Interface 定义不变)
 interface ServiceProfile {
   id: string;
   name: string;
@@ -23,19 +22,14 @@ interface ProfileStatus {
 }
 
 export default function App() {
-  // 1. 安全检查：如果 preload 没加载成功，直接显示错误
+  // 1. 安全检查：确保 IPC 可用
   if (!window.ipcRenderer) {
     return (
       <div style={{ padding: 40, color: 'red', fontFamily: 'sans-serif' }}>
         <h1>❌ Fatal Error</h1>
         <p>Could not connect to the Main Process.</p>
         <p><code>window.ipcRenderer</code> is undefined.</p>
-        <p>Possible causes:</p>
-        <ul>
-           <li>Preload script failed to compile or load.</li>
-           <li>Context Isolation is preventing access.</li>
-        </ul>
-        <p>Check the DevTools Console (right side) for red error messages.</p>
+        <p>Try restarting the terminal (Ctrl+C and pnpm run dev).</p>
       </div>
     );
   }
@@ -52,6 +46,7 @@ export default function App() {
   useEffect(() => {
     loadData();
     
+    // [修复] 获取监听器的返回值
     const removeStatusListener = window.ipcRenderer.on('profile-status', (_e: any, data: { profileId: string, status: 'online'|'offline', port?: number }) => {
       setStatuses(prev => ({
         ...prev,
@@ -60,7 +55,11 @@ export default function App() {
     });
 
     return () => {
-      removeStatusListener();
+      // [关键修复] 加一层判断：只有当它真的是个函数时才调用
+      // 这能兼容旧版 Preload 脚本，防止崩溃
+      if (typeof removeStatusListener === 'function') {
+        removeStatusListener();
+      }
     };
   }, []);
 
@@ -83,6 +82,8 @@ export default function App() {
   };
 
   const registerLogListener = (profileId: string) => {
+    // 这里的 on 也是同样的道理，但因为是在 useEffect 依赖变化时调用，
+    // 只要上面不崩，这里通常没事。但为了保险也可以不用清理（日志监听器常驻也可以接受，或者同样加检查）
     window.ipcRenderer.on(`log:${profileId}`, (_e: any, msg: string) => {
       setLogs(prev => ({
         ...prev,
