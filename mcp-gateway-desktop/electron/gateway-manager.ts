@@ -208,7 +208,30 @@ export class GatewayManager {
             next();
         });
 
+        // Auth Middleware
+        this.app.use((req, res, next) => {
+            const publicPaths = ['/bridge', '/v1/config', '/favicon.ico'];
+            if (req.method === 'OPTIONS' || publicPaths.includes(req.path)) {
+                return next();
+            }
+            const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token as string;
+            if (token !== this.authToken) {
+                this.log(`⚠️ Unauthorized access attempt: ${req.path}`);
+                return res.status(401).json({ error: 'Unauthorized' });
+            }
+            next();
+        });
+
         // Routes
+
+        // Config Sync (Required for Extension Handshake)
+        this.app.get('/v1/config', (_req, res) => {
+             res.json({ config: null });
+        });
+        this.app.post('/v1/config', (_req, res) => {
+             res.json({ success: true });
+        });
+
         this.app.get('/bridge', (req, res) => {
              const target = req.query.target as string || 'https://chatgpt.com';
              const token = req.query.token as string;
@@ -216,26 +239,97 @@ export class GatewayManager {
 
              this.log('🌉 Bridge Page requested');
              
-             // Minimal Bridge HTML (Aligned with VS Code version)
+             // Full Bridge HTML with Detection Logic
              res.send(`
                 <!DOCTYPE html>
                 <html>
                 <head>
                     <title>WebMCP Bridge</title>
                     <style>
-                        body { font-family: sans-serif; background: #1e1e1e; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-                        .loader { border: 3px solid #333; border-top: 3px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+                        body { font-family: 'Segoe UI', sans-serif; background: #1e1e1e; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin:0; }
+                        .loader { border: 3px solid #333; border-top: 3px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
                         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                        .card { background: #252526; padding: 30px; border-radius: 8px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+                        .card { background: #252526; padding: 40px; border-radius: 12px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-width: 400px; width: 90%; transition: all 0.3s; }
+                        h2 { margin-top: 0; color: #3498db; font-size: 24px; }
+                        p { color: #aaa; margin-bottom: 20px; line-height: 1.5; }
+                        .btn { display: inline-block; padding: 10px 20px; background: #3498db; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; transition: background 0.2s; border: none; cursor: pointer; }
+                        .btn:hover { background: #2980b9; }
+                        .btn-secondary { background: transparent; border: 1px solid #555; color: #ccc; margin-top: 10px; font-size: 14px; }
+                        .btn-secondary:hover { border-color: #888; color: #fff; }
+                        .hidden { display: none; }
+                        .error-state { border-top: 4px solid #e74c3c; }
+                        .error-state h2 { color: #e74c3c; }
                     </style>
                 </head>
                 <body>
-                    <div class="card">
+                    
+                    <div class="card" id="loading-card">
                         <div class="loader"></div>
-                        <h2>Connecting to WebMCP...</h2>
-                        <p>Synchronizing with Desktop Gateway...</p>
+                        <h2>Connecting...</h2>
+                        <p>Waiting for WebMCP Bridge extension...</p>
                     </div>
+
+                    
+                    <div class="card hidden" id="action-card">
+                        <h2 id="msg-title">🧩 Extension Missing</h2>
+                        <p id="msg-desc">To enable AI connection, you need the <b>WebMCP Bridge</b> extension.</p>
+                        
+                        <div id="btn-install-group">
+                            <a href="https://chromewebstore.google.com/detail/webmcp-bridge/hifhgpldhlnpjmcobflcbnfpiefannkh" target="_blank" class="btn">Get Extension</a>
+                        </div>
+                        
+                        <div class="error-details hidden" id="debug-info" style="margin: 15px 0; font-family: monospace; font-size: 12px; color: #666; background: #000; padding: 10px; border-radius: 4px; text-align: left;">
+                            Port: ${port}<br>Target: ${target}
+                        </div>
+
+                        <br>
+                        <button onclick="forceRedirect()" class="btn btn-secondary">Skip & Open Website (No MCP)</button>
+                    </div>
+
+                    
                     <div id="mcp-data" data-port="${port}" data-token="${token}" data-target="${target}" style="display:none;"></div>
+
+                    <script>
+                        const targetUrl = "${target}";
+                        function forceRedirect() { window.location.href = targetUrl; }
+
+                        setTimeout(() => {
+                            const isInstalled = document.documentElement.getAttribute('data-extension-installed') === 'true';
+                            const bodyText = document.body.innerText;
+                            const isBusy = bodyText.includes('Connected') || bodyText.includes('Redirecting');
+
+                            if (isBusy) return; // Already working
+
+                            const loader = document.getElementById('loading-card');
+                            const card = document.getElementById('action-card');
+                            const title = document.getElementById('msg-title');
+                            const desc = document.getElementById('msg-desc');
+                            const installGroup = document.getElementById('btn-install-group');
+                            const debugInfo = document.getElementById('debug-info');
+
+                            if (!isInstalled) {
+                                // Case 1: Not installed
+                                loader.classList.add('hidden');
+                                card.classList.remove('hidden');
+                                card.classList.add('error-state');
+                            } else {
+                                // Case 2: Installed but stuck (wait a bit more)
+                                loader.querySelector('p').innerText = "Extension detected. Handshaking...";
+                                
+                                setTimeout(() => {
+                                    // Final Timeout Fallback
+                                    loader.classList.add('hidden');
+                                    card.classList.remove('hidden');
+                                    card.classList.add('error-state');
+                                    
+                                    title.innerText = "Connection Timeout";
+                                    desc.innerHTML = "Extension detected but failed to connect.<br>Please check if the Gateway port is blocked.";
+                                    installGroup.style.display = 'none'; // Hide install button since it is installed
+                                    debugInfo.classList.remove('hidden');
+                                }, 3000);
+                            }
+                        }, 2000);
+                    </script>
                 </body>
                 </html>
              `);
