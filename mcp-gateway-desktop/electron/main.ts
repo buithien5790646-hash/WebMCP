@@ -1,22 +1,26 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, globalShortcut } from 'electron'
 import path from 'node:path'
 import { McpGateway, IGatewayLogger, IGatewayStorage, IRuntimeContext, ServerConfig } from '@webmcp/core'
+import Store from 'electron-store'
 
 // --- Interfaces for Type Safety ---
 interface ServerDef {
-  name?: string;
+  id: string;
+  name: string;
+  type: 'stdio' | 'sse';
   command?: string;
   args?: string[];
   env?: Record<string, string>;
-  type?: 'stdio' | 'sse' | 'http';
   url?: string;
   disabled?: boolean;
 }
 
 interface ProfileDef {
+  id: string;
   name: string;
   port: number;
   serverIds: string[];
+  color?: string;
 }
 
 interface StoreSchema {
@@ -32,6 +36,7 @@ process.env.VITE_PUBLIC = app.isPackaged
   : path.join(process.env.DIST, '../public')
 
 let win: BrowserWindow | null
+
 // -------------------------------------------------------------------
 // 1. 实现 Logger (适配 Core 接口: appendLine)
 // -------------------------------------------------------------------
@@ -53,7 +58,6 @@ const logger: IGatewayLogger = {
 // -------------------------------------------------------------------
 // 2. 实现 Storage (适配 Core 接口: update)
 // -------------------------------------------------------------------
-import Store from 'electron-store'
 const store = new Store<StoreSchema>()
 
 const storage: IGatewayStorage = {
@@ -69,7 +73,7 @@ const storage: IGatewayStorage = {
 // -------------------------------------------------------------------
 const context: IRuntimeContext = {
   extensionPath: app.getAppPath(),
-  getWorkspaceRoot: () => null // Desktop App typically has no single workspace root unless specified
+  getWorkspaceRoot: () => null // Desktop App typically has no single workspace root
 }
 
 // -------------------------------------------------------------------
@@ -81,7 +85,7 @@ const gateway = new McpGateway(logger, storage, context)
 // 5. IPC Handlers
 // -------------------------------------------------------------------
 
-// Handle: Start Gateway
+// Gateway: Start
 ipcMain.handle('gateway:start', async (_event, profileId: string) => {
   try {
     // 1. Load Profile Config
@@ -114,11 +118,10 @@ ipcMain.handle('gateway:start', async (_event, profileId: string) => {
     const config = {
         port: profile.port,
         mcpServers: mcpServers,
-        allowedOrigins: [] // Default allow none (or logic in core)
+        allowedOrigins: [] // Default allow none
     }
 
-    // 3. Start & Get Result directly
-    // Fix: use the return value from start() instead of getter methods
+    // 3. Start & Get Result
     const result = await gateway.start(config)
     
     return { status: 'success', port: result.port, token: result.token }
@@ -127,23 +130,44 @@ ipcMain.handle('gateway:start', async (_event, profileId: string) => {
   }
 })
 
-// Handle: Stop Gateway
+// Gateway: Stop
 ipcMain.handle('gateway:stop', async () => {
   await gateway.stop()
   return { status: 'stopped' }
 })
 
-// Handle: Get Store Value
-ipcMain.handle('store:get', (_event, key: string) => {
-  return store.get(key)
+// DB: Get All Data
+ipcMain.handle('db:get-all', () => {
+  return {
+    profiles: store.get('profiles') || {},
+    servers: store.get('servers') || {}
+  }
 })
 
-// Handle: Set Store Value
-ipcMain.handle('store:set', (_event, key: string, val: any) => {
-  store.set(key, val)
+// DB: Profile Operations
+ipcMain.handle('db:save-profile', (_event, profile: ProfileDef) => {
+  store.set(`profiles.${profile.id}`, profile)
+  return { success: true }
 })
 
-ipcMain.handle('open-external', (_event, url: string) => {
+ipcMain.handle('db:delete-profile', (_event, id: string) => {
+  store.delete(`profiles.${id}` as any)
+  return { success: true }
+})
+
+// DB: Server Operations
+ipcMain.handle('db:save-server', (_event, server: ServerDef) => {
+  store.set(`servers.${server.id}`, server)
+  return { success: true }
+})
+
+ipcMain.handle('db:delete-server', (_event, id: string) => {
+  store.delete(`servers.${id}` as any)
+  return { success: true }
+})
+
+// Utils
+ipcMain.handle('open-url', (_event, url: string) => {
     shell.openExternal(url);
 });
 
@@ -186,4 +210,14 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+  
+  // Register F12 to open DevTools
+  globalShortcut.register('F12', () => {
+    win?.webContents.toggleDevTools()
+  })
+  globalShortcut.register('CommandOrControl+Shift+I', () => {
+    win?.webContents.toggleDevTools()
+  })
+})

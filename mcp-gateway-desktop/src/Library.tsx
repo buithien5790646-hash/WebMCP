@@ -1,4 +1,9 @@
 import { useState } from 'react';
+import { Trash2, Plus, Globe, Terminal, Save, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface ServerDefinition {
   id: string;
@@ -47,87 +52,120 @@ export default function Library({ servers, onReload }: Props) {
   };
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2 style={{ margin: 0 }}>📚 Server Library</h2>
-        <button 
-          onClick={() => setIsAdding(true)}
-          style={{ padding: '8px 16px', background: '#3498db', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-        >
-          + Add Server
-        </button>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Server Library</h2>
+          <p className="text-muted-foreground">Manage reusable MCP server definitions.</p>
+        </div>
+        {!isAdding && (
+            <Button onClick={() => setIsAdding(true)}>
+                <Plus className="mr-2 h-4 w-4" /> Add Server
+            </Button>
+        )}
       </div>
 
       {isAdding && (
-        <div style={{ background: 'white', padding: 20, borderRadius: 8, marginBottom: 20, boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-          <h3>New Server Definition</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-            <input 
-              placeholder="Display Name (e.g. Docker Git)" 
-              value={newServer.name || ''} 
-              onChange={e => setNewServer({...newServer, name: e.target.value})}
-              style={{ padding: 8, borderRadius: 4, border: '1px solid #ddd' }}
-            />
-            <select 
-              value={newServer.type} 
-              onChange={e => setNewServer({...newServer, type: e.target.value as any})}
-              style={{ padding: 8, borderRadius: 4, border: '1px solid #ddd' }}
-            >
-              <option value="stdio">STDIO (Local Command)</option>
-              <option value="sse">SSE (Remote URL)</option>
-            </select>
-          </div>
-
-          {newServer.type === 'stdio' ? (
-            <>
-              <input 
-                placeholder="Command (e.g. npx, docker, python)" 
-                value={newServer.command || ''} 
-                onChange={e => setNewServer({...newServer, command: e.target.value})}
-                style={{ width: '100%', padding: 8, borderRadius: 4, border: '1px solid #ddd', marginBottom: 10, boxSizing: 'border-box' }}
-              />
-              <input 
-                placeholder="Arguments (space separated, e.g. -y @modelcontextprotocol/server-filesystem)" 
-                value={argsStr} 
-                onChange={e => setArgsStr(e.target.value)}
-                style={{ width: '100%', padding: 8, borderRadius: 4, border: '1px solid #ddd', marginBottom: 10, boxSizing: 'border-box' }}
-              />
-            </>
-          ) : (
-            <input 
-              placeholder="SSE URL (e.g. http://localhost:8080/sse)" 
-              value={newServer.url || ''} 
-              onChange={e => setNewServer({...newServer, url: e.target.value})}
-              style={{ width: '100%', padding: 8, borderRadius: 4, border: '1px solid #ddd', marginBottom: 10, boxSizing: 'border-box' }}
-            />
-          )}
-
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button onClick={() => setIsAdding(false)} style={{ padding: '8px 16px', border: '1px solid #ddd', background: 'white', borderRadius: 4, cursor: 'pointer' }}>Cancel</button>
-            <button onClick={handleSave} style={{ padding: '8px 16px', background: '#2ecc71', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Save Definition</button>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gap: 10 }}>
-        {Object.values(servers).map(server => (
-          <div key={server.id} style={{ background: 'white', padding: 15, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #eee' }}>
-            <div>
-              <div style={{ fontWeight: 'bold' }}>{server.name} <span style={{ fontSize: 10, background: '#eee', padding: '2px 6px', borderRadius: 4 }}>{server.type}</span></div>
-              <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-                {server.type === 'stdio' 
-                  ? `$ ${server.command} ${(server.args || []).join(' ')}` 
-                  : `🔗 ${server.url}`
-                }
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader>
+            <CardTitle>Add New Server</CardTitle>
+            <CardDescription>Define a local command or remote SSE endpoint.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Display Name</label>
+                <Input 
+                  placeholder="e.g. Docker Git" 
+                  value={newServer.name || ''} 
+                  onChange={e => setNewServer({...newServer, name: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Type</label>
+                <select 
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={newServer.type} 
+                  onChange={e => setNewServer({...newServer, type: e.target.value as any})}
+                >
+                  <option value="stdio">STDIO (Local Command)</option>
+                  <option value="sse">SSE (Remote URL)</option>
+                </select>
               </div>
             </div>
-            <button 
+
+            {newServer.type === 'stdio' ? (
+              <>
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Command</label>
+                    <Input 
+                        placeholder="e.g. npx, docker, python" 
+                        value={newServer.command || ''} 
+                        onChange={e => setNewServer({...newServer, command: e.target.value})}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Arguments</label>
+                    <Input 
+                        placeholder="Space separated args (e.g. -y @server/filesystem)" 
+                        value={argsStr} 
+                        onChange={e => setArgsStr(e.target.value)}
+                    />
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">SSE URL</label>
+                <Input 
+                    placeholder="http://localhost:8080/sse" 
+                    value={newServer.url || ''} 
+                    onChange={e => setNewServer({...newServer, url: e.target.value})}
+                />
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="justify-end gap-2">
+            <Button variant="ghost" onClick={() => setIsAdding(false)}>Cancel</Button>
+            <Button onClick={handleSave}><Save className="mr-2 h-4 w-4"/> Save Definition</Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      <div className="grid gap-3">
+        {Object.values(servers).length === 0 && !isAdding && (
+            <div className="text-center py-12 text-muted-foreground bg-muted/20 rounded-lg border border-dashed">
+                No servers defined yet. Click "Add Server" to get started.
+            </div>
+        )}
+        
+        {Object.values(servers).map(server => (
+          <Card key={server.id} className="flex items-center justify-between p-4 hover:bg-accent/5 transition-colors">
+            <div className="flex items-center gap-4">
+              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                {server.type === 'stdio' ? <Terminal className="h-5 w-5" /> : <Globe className="h-5 w-5" />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                    <span className="font-semibold">{server.name}</span>
+                    <Badge variant="outline" className="text-[10px] h-5">{server.type.toUpperCase()}</Badge>
+                </div>
+                <div className="text-sm text-muted-foreground mt-1 font-mono">
+                  {server.type === 'stdio' 
+                    ? `$ ${server.command} ${(server.args || []).join(' ')}` 
+                    : `🔗 ${server.url}`
+                  }
+                </div>
+              </div>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="icon" 
               onClick={() => handleDelete(server.id)}
-              style={{ color: '#e74c3c', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}
+              className="text-muted-foreground hover:text-destructive"
             >
-              🗑
-            </button>
-          </div>
+              <Trash2 className="h-5 w-5" />
+            </Button>
+          </Card>
         ))}
       </div>
     </div>
