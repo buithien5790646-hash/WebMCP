@@ -46,6 +46,7 @@ export default function App() {
   const [servers, setServers] = useState<Record<string, ServerDefinition>>({});
   const [statuses, setStatuses] = useState<Record<string, ProfileStatus>>({});
   const [logs, setLogs] = useState<Record<string, string[]>>({});
+  const [envStatus, setEnvStatus] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState<'dashboard' | 'library'>('dashboard');
   
   const [isCreating, setIsCreating] = useState(false);
@@ -79,6 +80,9 @@ export default function App() {
         const data = await window.ipcRenderer.invoke('db:get-all');
         setProfiles(data.profiles || {});
         setServers(data.servers || {});
+        
+        const envs = await window.ipcRenderer.invoke('env:check');
+        setEnvStatus(envs);
     } catch (err) {
         console.error("Failed to load data:", err);
     }
@@ -241,7 +245,7 @@ export default function App() {
             </div>
           </div>
         ) : (
-          <Library servers={servers} onReload={loadData} />
+          <Library servers={servers} envStatus={envStatus} onReload={loadData} />
         )}
       </main>
     </div>

@@ -1,5 +1,9 @@
 import { app, BrowserWindow, ipcMain, shell, globalShortcut } from 'electron'
 import path from 'node:path'
+import { exec, spawn } from 'node:child_process'
+import { promisify } from 'node:util'
+
+const execAsync = promisify(exec)
 import { McpGateway, IGatewayLogger, IGatewayStorage, IRuntimeContext, ServerConfig } from '@webmcp/core'
 import Store from 'electron-store'
 
@@ -169,6 +173,71 @@ ipcMain.handle('db:delete-server', (_event, id: string) => {
 // Utils
 ipcMain.handle('open-url', (_event, url: string) => {
     shell.openExternal(url);
+});
+
+// Environment Check
+ipcMain.handle('gateway:test', async (_event, server: ServerDef) => {
+  if (server.type === 'sse') {
+    try {
+      const res = await fetch(server.url!);
+      if (res.ok) return { status: 'ok', message: 'Connection successful' };
+      return { status: 'error', message: `HTTP Status: ${res.status}` };
+    } catch (e: any) {
+      return { status: 'error', message: e.message };
+    }
+  } else {
+    return new Promise((resolve) => {
+      // Dry run via spawn
+      const child = spawn(server.command!, server.args || [], {
+        env: { ...process.env, ...server.env },
+        shell: process.platform === 'win32' // Use shell on Windows for compatibility
+      });
+      
+      let stderr = '';
+      let resolved = false;
+
+      child.stderr?.on('data', (d) => { stderr += d.toString() });
+      child.on('error', (err) => {
+        if (!resolved) { resolved = true; resolve({ status: 'error', message: err.message }); }
+      });
+
+      // If it stays alive for 2.5s, we consider it healthy
+      const timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          child.kill();
+          resolve({ status: 'ok', message: 'Process started healthy' });
+        }
+      }, 2500);
+
+      child.on('exit', (code) => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          resolve({ 
+            status: 'error', 
+            message: `Process exited early (Code ${code}). ${stderr.slice(0, 200)}` 
+          });
+        }
+      });
+    });
+  }
+});
+
+ipcMain.handle('env:check', async () => {
+  const tools = ['node', 'npx', 'docker', 'git', 'python3', 'uv'];
+  const results: Record<string, boolean> = {};
+  
+  for (const tool of tools) {
+    try {
+      const cmd = process.platform === 'win32' ? `where ${tool}` : `command -v ${tool}`;
+      await execAsync(cmd);
+      results[tool] = true;
+    } catch {
+      results[tool] = false;
+    }
+  }
+  return results;
 });
 
 // -------------------------------------------------------------------
