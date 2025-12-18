@@ -66,14 +66,23 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Store cleanup functions
+    const removers: Function[] = [];
+
     Object.keys(profiles).forEach(id => {
-      window.ipcRenderer.on(`log:${id}`, (_e: any, msg: string) => {
+      const removeListener = window.ipcRenderer.on(`log:${id}`, (_e: any, msg: string) => {
         setLogs(prev => ({
           ...prev,
           [id]: [...(prev[id] || []).slice(-99), msg]
         }));
       });
+      if (removeListener) removers.push(removeListener);
     });
+
+    // Cleanup all listeners when profiles change or component unmounts
+    return () => {
+      removers.forEach(remove => remove());
+    };
   }, [profiles]);
 
   const loadData = async () => {

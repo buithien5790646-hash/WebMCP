@@ -154,8 +154,11 @@ export default function Dashboard({ profiles, servers, statuses, logs, onStart, 
                                     <Monitor className="w-3 h-3" /> 
                                     Port: 
                                     <input 
-                                        className="bg-transparent w-12 border-b border-dotted focus:outline-none focus:border-primary text-foreground"
-                                        value={activeProfile.port}
+                                        className={cn(
+                                            "bg-transparent w-12 border-b border-dotted focus:outline-none focus:border-primary text-foreground",
+                                            isOnline && activeStatus?.port !== activeProfile.port && "text-amber-500 font-bold"
+                                        )}
+                                        value={isOnline ? activeStatus?.port : activeProfile.port}
                                         onChange={e => handlePortChange(e.target.value)}
                                         disabled={isOnline}
                                     />
