@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { LayoutDashboard, Library as LibraryIcon } from 'lucide-react'
+import { LayoutDashboard, Library as LibraryIcon, Settings } from 'lucide-react'
 import Library from './Library'
 import Dashboard from './Dashboard'
+import SettingsView from './SettingsView'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -49,7 +50,7 @@ export default function App() {
   const [logs, setLogs] = useState<Record<string, string[]>>({});
   const [envStatus, setEnvStatus] = useState<Record<string, boolean>>({});
   const [config, setConfig] = useState<any>({ browser: 'default', aiSites: [] });
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'library'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'library' | 'settings'>('dashboard');
   
   const [isCreating, setIsCreating] = useState(false);
   const [newProfile, setNewProfile] = useState<Partial<ServiceProfile>>({ name: '', port: 3000, serverIds: [] });
@@ -179,6 +180,13 @@ export default function App() {
             >
                 <LibraryIcon className="mr-2 h-4 w-4" /> Server Library
             </Button>
+            <Button 
+                variant={activeTab === 'settings' ? 'secondary' : 'ghost'} 
+                className="w-full justify-start"
+                onClick={() => setActiveTab('settings')}
+            >
+                <Settings className="mr-2 h-4 w-4" /> Settings
+            </Button>
         </nav>
       </aside>
 
@@ -196,10 +204,12 @@ export default function App() {
             onDelete={handleDeleteProfile}
             onSaveProfile={handleSaveProfile}
             onOpenBridge={handleOpenBridge}
-            onSaveConfig={handleSaveConfig}
+            onNavigateToSettings={() => setActiveTab('settings')}
           />
-        ) : (
+        ) : activeTab === 'library' ? (
           <Library servers={servers} envStatus={envStatus} onReload={loadData} />
+        ) : (
+          <SettingsView config={config} onSave={handleSaveConfig} />
         )}
       </main>
     </div>

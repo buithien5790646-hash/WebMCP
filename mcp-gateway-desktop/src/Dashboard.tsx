@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Play, Square, Trash2, Plus, ExternalLink, Monitor, Command, Settings as SettingsIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import SettingsDialog from './SettingsDialog';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -37,12 +36,11 @@ interface DashboardProps {
   onSaveProfile: (profile: ServiceProfile) => void;
   onOpenBridge: (url: string, port: number, token: string, browser?: string) => void;
   config: any;
-  onSaveConfig: (cfg: any) => void;
+  onNavigateToSettings: () => void;
 }
 
-export default function Dashboard({ profiles, servers, statuses, logs, config, onStart, onStop, onDelete, onSaveProfile, onOpenBridge, onSaveConfig }: DashboardProps) {
+export default function Dashboard({ profiles, servers, statuses, logs, config, onStart, onStop, onDelete, onSaveProfile, onOpenBridge, onNavigateToSettings }: DashboardProps) {
   const [selectedId, setSelectedId] = useState<string | null>(Object.keys(profiles)[0] || null);
-  const [showSettings, setShowSettings] = useState(false);
   
   // Launcher State
   const [targetSite, setTargetSite] = useState(config.aiSites?.[0]?.address || 'https://chatgpt.com');
@@ -195,18 +193,11 @@ export default function Dashboard({ profiles, servers, statuses, logs, config, o
                                 <Square className="w-4 h-4 mr-2 fill-current" /> Stop
                             </Button>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)}>
+                        <Button variant="ghost" size="icon" onClick={onNavigateToSettings} title="Configure Launch Settings">
                              <SettingsIcon className="w-5 h-5 text-muted-foreground" />
                         </Button>
                     </div>
                 </div>
-                
-                <SettingsDialog 
-                    open={showSettings} 
-                    onClose={() => setShowSettings(false)} 
-                    config={config} 
-                    onSave={onSaveConfig} 
-                />
 
                 {/* Body Tabs */}
                 <Tabs defaultValue="logs" className="flex-1 flex flex-col min-h-0">
