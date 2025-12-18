@@ -27,9 +27,21 @@ interface ProfileDef {
   color?: string;
 }
 
+interface AISiteConfig {
+  name: string;
+  address: string;
+  browser?: string;
+}
+
+interface AppConfig {
+  browser: string; // 'default', 'chrome', 'edge'
+  aiSites: AISiteConfig[];
+}
+
 interface StoreSchema {
   profiles: Record<string, ProfileDef>;
   servers: Record<string, ServerDef>;
+  config: AppConfig;
 }
 
 // ----------------------------------
@@ -41,7 +53,21 @@ process.env.VITE_PUBLIC = app.isPackaged
 
 let win: BrowserWindow | null
 
-const store = new Store<StoreSchema>()
+const store = new Store<StoreSchema>({
+  defaults: {
+    profiles: {},
+    servers: {},
+    config: {
+      browser: 'default',
+      aiSites: [
+        { name: "ChatGPT", address: "https://chatgpt.com" },
+        { name: "Claude", address: "https://claude.ai" },
+        { name: "Gemini", address: "https://gemini.google.com", browser: "edge" },
+        { name: "DeepSeek", address: "https://chat.deepseek.com" }
+      ]
+    }
+  }
+})
 
 // Manager Instances: profileId -> GatewayManager
 const managers = new Map<string, GatewayManager>();
@@ -146,9 +172,43 @@ ipcMain.handle('db:delete-server', (_event, id: string) => {
   return { success: true }
 })
 
-// Utils
-ipcMain.handle('open-url', (_event, url: string) => {
-    shell.openExternal(url);
+// Config Operations
+ipcMain.handle('config:get', () => store.get('config'))
+ipcMain.handle('config:save', (_event, config: AppConfig) => {
+  store.set('config', config);
+  return { success: true };
+})
+
+// Utils with Browser Support
+ipcMain.handle('open-url', (_event, url: string, browserMode: string = 'default') => {
+    const platform = process.platform;
+    let command = '';
+
+    if (browserMode === 'default') {
+        shell.openExternal(url);
+        return;
+    }
+
+    // Browser Launch Logic (Ported from VS Code Extension)
+    if (platform === 'win32') {
+        if (browserMode === 'chrome') command = `start chrome "${url}"`;
+        else if (browserMode === 'edge') command = `start msedge "${url}"`;
+    } else if (platform === 'darwin') {
+        if (browserMode === 'chrome') command = `open -a "Google Chrome" "${url}"`;
+        else if (browserMode === 'edge') command = `open -a "Microsoft Edge" "${url}"`;
+    } else {
+        if (browserMode === 'chrome') command = `google-chrome "${url}"`;
+        else if (browserMode === 'edge') command = `microsoft-edge "${url}"`;
+        else command = `xdg-open "${url}"`;
+    }
+
+    if (command) {
+        exec(command, (err) => {
+            if (err) console.error(`Failed to open browser: ${err.message}`);
+        });
+    } else {
+        shell.openExternal(url);
+    }
 });
 
 // Environment Check

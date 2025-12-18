@@ -48,6 +48,7 @@ export default function App() {
   const [statuses, setStatuses] = useState<Record<string, ProfileStatus>>({});
   const [logs, setLogs] = useState<Record<string, string[]>>({});
   const [envStatus, setEnvStatus] = useState<Record<string, boolean>>({});
+  const [config, setConfig] = useState<any>({ browser: 'default', aiSites: [] });
   const [activeTab, setActiveTab] = useState<'dashboard' | 'library'>('dashboard');
   
   const [isCreating, setIsCreating] = useState(false);
@@ -93,6 +94,9 @@ export default function App() {
         
         const envs = await window.ipcRenderer.invoke('env:check');
         setEnvStatus(envs);
+        
+        const cfg = await window.ipcRenderer.invoke('config:get');
+        setConfig(cfg);
     } catch (err) {
         console.error("Failed to load data:", err);
     }
@@ -117,11 +121,15 @@ export default function App() {
     setStatuses(prev => ({ ...prev, [id]: { ...prev[id], status: 'offline' } }));
   };
 
-  const handleOpenBridge = (url: string, port: number, token?: string) => {
+  const handleOpenBridge = (url: string, port: number, token?: string, browserMode: string = 'default') => {
      if (!token) return;
-     // Target URL needs to be encoded
      const bridgeUrl = `http://127.0.0.1:${port}/bridge?token=${token}&target=${encodeURIComponent(url)}`;
-     window.ipcRenderer.invoke('open-url', bridgeUrl);
+     window.ipcRenderer.invoke('open-url', bridgeUrl, browserMode);
+  };
+
+  const handleSaveConfig = async (newConfig: any) => {
+      await window.ipcRenderer.invoke('config:save', newConfig);
+      setConfig(newConfig);
   };
 
   const handleSaveProfile = async (profile: ServiceProfile) => {
@@ -182,11 +190,13 @@ export default function App() {
             servers={servers}
             statuses={statuses}
             logs={logs}
+            config={config}
             onStart={handleStart}
             onStop={handleStop}
             onDelete={handleDeleteProfile}
             onSaveProfile={handleSaveProfile}
             onOpenBridge={handleOpenBridge}
+            onSaveConfig={handleSaveConfig}
           />
         ) : (
           <Library servers={servers} envStatus={envStatus} onReload={loadData} />

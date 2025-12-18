@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Square, Trash2, Plus, ExternalLink, Monitor, Command } from 'lucide-react';
+import { Play, Square, Trash2, Plus, ExternalLink, Monitor, Command, Settings as SettingsIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import SettingsDialog from './SettingsDialog';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -34,14 +35,23 @@ interface DashboardProps {
   onStop: (id: string) => void;
   onDelete: (id: string) => void;
   onSaveProfile: (profile: ServiceProfile) => void;
-  onOpenBridge: (url: string, port: number, token: string) => void;
+  onOpenBridge: (url: string, port: number, token: string, browser?: string) => void;
+  config: any;
+  onSaveConfig: (cfg: any) => void;
 }
 
-export default function Dashboard({ profiles, servers, statuses, logs, onStart, onStop, onDelete, onSaveProfile, onOpenBridge }: DashboardProps) {
+export default function Dashboard({ profiles, servers, statuses, logs, config, onStart, onStop, onDelete, onSaveProfile, onOpenBridge, onSaveConfig }: DashboardProps) {
   const [selectedId, setSelectedId] = useState<string | null>(Object.keys(profiles)[0] || null);
+  const [showSettings, setShowSettings] = useState(false);
   
   // Launcher State
-  const [targetSite, setTargetSite] = useState('https://chatgpt.com');
+  const [targetSite, setTargetSite] = useState(config.aiSites?.[0]?.address || 'https://chatgpt.com');
+  
+  useEffect(() => {
+     if (config.aiSites && config.aiSites.length > 0 && !config.aiSites.find((s:any) => s.address === targetSite)) {
+         setTargetSite(config.aiSites[0].address);
+     }
+  }, [config]);
 
   // Auto-select first profile if none selected
   useEffect(() => {
@@ -90,7 +100,15 @@ export default function Dashboard({ profiles, servers, statuses, logs, onStart, 
 
   const handleLaunch = () => {
       if (!activeStatus?.port || !activeStatus?.token) return;
-      onOpenBridge(targetSite, activeStatus.port, activeStatus.token);
+      
+      // Determine Browser
+      const siteConfig = config.aiSites.find((s: any) => s.address === targetSite);
+      let browser = config.browser || 'default';
+      if (siteConfig && siteConfig.browser && siteConfig.browser !== 'default') {
+          browser = siteConfig.browser;
+      }
+
+      onOpenBridge(targetSite, activeStatus.port, activeStatus.token, browser);
   };
 
   // --- Render ---
@@ -177,8 +195,18 @@ export default function Dashboard({ profiles, servers, statuses, logs, onStart, 
                                 <Square className="w-4 h-4 mr-2 fill-current" /> Stop
                             </Button>
                         )}
+                        <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)}>
+                             <SettingsIcon className="w-5 h-5 text-muted-foreground" />
+                        </Button>
                     </div>
                 </div>
+                
+                <SettingsDialog 
+                    open={showSettings} 
+                    onClose={() => setShowSettings(false)} 
+                    config={config} 
+                    onSave={onSaveConfig} 
+                />
 
                 {/* Body Tabs */}
                 <Tabs defaultValue="logs" className="flex-1 flex flex-col min-h-0">
@@ -241,13 +269,20 @@ export default function Dashboard({ profiles, servers, statuses, logs, onStart, 
                     <div className="flex-1 flex items-center gap-3">
                         <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Launch AI Client:</span>
                         <Select value={targetSite} onValueChange={setTargetSite}>
-                            <SelectTrigger className="w-[200px] bg-background">
+                            <SelectTrigger className="w-[220px] bg-background">
                                 <SelectValue placeholder="Select AI Site" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="https://chatgpt.com">ChatGPT</SelectItem>
-                                <SelectItem value="https://claude.ai">Claude</SelectItem>
-                                <SelectItem value="http://localhost:3000">Localhost (Test)</SelectItem>
+                                {config.aiSites.map((site: any) => (
+                                    <SelectItem key={site.address} value={site.address}>
+                                        <div className="flex items-center gap-2">
+                                            <span>{site.name}</span>
+                                            {site.browser && site.browser !== 'default' && (
+                                                <span className="text-[10px] text-muted-foreground bg-muted px-1 rounded uppercase">{site.browser}</span>
+                                            )}
+                                        </div>
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                         <Button 
