@@ -4,7 +4,7 @@ import { exec, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 
 const execAsync = promisify(exec)
-import { McpGateway, IGatewayLogger, IGatewayStorage, IRuntimeContext, ServerConfig } from '@webmcp/core'
+import { GatewayManager, ServerConfig } from './gateway-manager'
 import Store from 'electron-store'
 
 // --- Interfaces for Type Safety ---
@@ -41,49 +41,10 @@ process.env.VITE_PUBLIC = app.isPackaged
 
 let win: BrowserWindow | null
 
-// -------------------------------------------------------------------
-// 1. 实现 Logger (适配 Core 接口: appendLine)
-// -------------------------------------------------------------------
-const logger: IGatewayLogger = {
-  info: (msg: string) => {
-    console.log('[INFO]', msg)
-    win?.webContents.send('log', { level: 'info', msg, timestamp: Date.now() })
-  },
-  error: (msg: string, error?: any) => {
-    console.error('[ERROR]', msg, error || '')
-    win?.webContents.send('log', { level: 'error', msg, error, timestamp: Date.now() })
-  },
-  appendLine: (msg: string) => {
-    // console.log('[STREAM]', msg) 
-    win?.webContents.send('log', { level: 'stream', msg, timestamp: Date.now() })
-  }
-}
-
-// -------------------------------------------------------------------
-// 2. 实现 Storage (适配 Core 接口: update)
-// -------------------------------------------------------------------
 const store = new Store<StoreSchema>()
 
-const storage: IGatewayStorage = {
-  get: (key: string) => Promise.resolve(store.get(key)),
-  update: (key: string, value: any) => { 
-    store.set(key, value);
-    return Promise.resolve();
-  }
-}
-
-// -------------------------------------------------------------------
-// 3. 实现 RuntimeContext
-// -------------------------------------------------------------------
-const context: IRuntimeContext = {
-  extensionPath: app.getAppPath(),
-  getWorkspaceRoot: () => null // Desktop App typically has no single workspace root
-}
-
-// -------------------------------------------------------------------
-// 4. 初始化 Core Gateway
-// -------------------------------------------------------------------
-const gateway = new McpGateway(logger, storage, context)
+// Manager Instances: profileId -> GatewayManager
+const managers = new Map<string, GatewayManager>();
 
 // -------------------------------------------------------------------
 // 5. IPC Handlers
@@ -92,6 +53,12 @@ const gateway = new McpGateway(logger, storage, context)
 // Gateway: Start
 ipcMain.handle('gateway:start', async (_event, profileId: string) => {
   try {
+    // 0. Check existing
+    if (managers.has(profileId)) {
+        await managers.get(profileId)?.stop();
+        managers.delete(profileId);
+    }
+
     // 1. Load Profile Config
     const profiles = (store.get('profiles') || {}) as Record<string, ProfileDef>
     const servers = (store.get('servers') || {}) as Record<string, ServerDef>
@@ -106,7 +73,6 @@ ipcMain.handle('gateway:start', async (_event, profileId: string) => {
       for (const srvId of profile.serverIds) {
         const srvDef = servers[srvId]
         if (srvDef) {
-          // Map Store definition to Core definition
           mcpServers[srvDef.name || srvId] = {
             command: srvDef.command,
             args: srvDef.args,
@@ -119,14 +85,20 @@ ipcMain.handle('gateway:start', async (_event, profileId: string) => {
       }
     }
 
-    const config = {
+    // 3. Create Manager with specific Logger
+    const manager = new GatewayManager((msg) => {
+        // Send logs specifically to this profile's channel
+        win?.webContents.send(`log:${profileId}`, msg);
+    });
+
+    managers.set(profileId, manager);
+
+    // 4. Start
+    const result = await manager.start({
         port: profile.port,
         mcpServers: mcpServers,
-        allowedOrigins: [] // Default allow none
-    }
-
-    // 3. Start & Get Result
-    const result = await gateway.start(config)
+        allowedOrigins: []
+    });
     
     return { status: 'success', port: result.port, token: result.token }
   } catch (err: any) {
@@ -135,8 +107,12 @@ ipcMain.handle('gateway:start', async (_event, profileId: string) => {
 })
 
 // Gateway: Stop
-ipcMain.handle('gateway:stop', async () => {
-  await gateway.stop()
+ipcMain.handle('gateway:stop', async (_event, profileId: string) => {
+  const manager = managers.get(profileId);
+  if (manager) {
+      await manager.stop();
+      managers.delete(profileId);
+  }
   return { status: 'stopped' }
 })
 

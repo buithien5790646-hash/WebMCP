@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { LayoutDashboard, Library as LibraryIcon, Plus, Play, Square, ExternalLink, Trash2, Server } from 'lucide-react'
+import { LayoutDashboard, Library as LibraryIcon } from 'lucide-react'
 import Library from './Library'
+import Dashboard from './Dashboard'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -107,9 +108,16 @@ export default function App() {
     setStatuses(prev => ({ ...prev, [id]: { ...prev[id], status: 'offline' } }));
   };
 
-  const handleOpenBridge = (port: number, token?: string) => {
+  const handleOpenBridge = (url: string, port: number, token?: string) => {
      if (!token) return;
-     window.ipcRenderer.invoke('open-url', `http://127.0.0.1:${port}/bridge?token=${token}`);
+     // Target URL needs to be encoded
+     const bridgeUrl = `http://127.0.0.1:${port}/bridge?token=${token}&target=${encodeURIComponent(url)}`;
+     window.ipcRenderer.invoke('open-url', bridgeUrl);
+  };
+
+  const handleSaveProfile = async (profile: ServiceProfile) => {
+     await window.ipcRenderer.invoke('db:save-profile', profile);
+     loadData();
   };
 
   const handleCreateProfile = async () => {
@@ -160,90 +168,17 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto p-8">
         {activeTab === 'dashboard' ? (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-                    <p className="text-muted-foreground">Manage your active MCP gateway instances.</p>
-                </div>
-                <Button onClick={() => setIsCreating(true)}><Plus className="mr-2 h-4 w-4"/> New Instance</Button>
-            </div>
-
-            {isCreating && (
-                <Card className="border-primary/20 bg-primary/5">
-                    <CardHeader>
-                        <CardTitle>Create New Instance</CardTitle>
-                        <CardDescription>Configure a new gateway instance to host your tools.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid grid-cols-4 gap-4">
-                            <div className="col-span-3 space-y-2">
-                                <label className="text-sm font-medium">Instance Name</label>
-                                <Input 
-                                    value={newProfile.name} 
-                                    onChange={e => setNewProfile({...newProfile, name: e.target.value})} 
-                                    placeholder="e.g. Python Workspace"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Port</label>
-                                <Input 
-                                    type="number" 
-                                    value={newProfile.port} 
-                                    onChange={e => setNewProfile({...newProfile, port: parseInt(e.target.value)})}
-                                />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Select Tools</label>
-                            <div className="flex flex-wrap gap-2">
-                                {Object.values(servers).map(srv => (
-                                    <div 
-                                        key={srv.id} 
-                                        onClick={() => {
-                                            const current = newProfile.serverIds || [];
-                                            const next = current.includes(srv.id) 
-                                                ? current.filter(id => id !== srv.id)
-                                                : [...current, srv.id];
-                                            setNewProfile({...newProfile, serverIds: next});
-                                        }}
-                                        className={cn(
-                                            "px-3 py-1 rounded-full text-xs cursor-pointer border transition-colors",
-                                            newProfile.serverIds?.includes(srv.id) 
-                                                ? "bg-primary text-primary-foreground border-primary"
-                                                : "bg-background hover:bg-muted"
-                                        )}
-                                    >
-                                        {srv.name}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </CardContent>
-                    <CardFooter className="justify-end gap-2">
-                        <Button variant="outline" onClick={() => setIsCreating(false)}>Cancel</Button>
-                        <Button onClick={handleCreateProfile}>Create Instance</Button>
-                    </CardFooter>
-                </Card>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {Object.values(profiles).map(profile => (
-                <ProfileCard 
-                  key={profile.id} 
-                  profile={profile} 
-                  status={statuses[profile.id]?.status || 'offline'} 
-                  actualPort={statuses[profile.id]?.port}
-                  token={statuses[profile.id]?.token}
-                  logs={logs[profile.id] || []}
-                  onStart={() => handleStart(profile.id)}
-                  onStop={() => handleStop(profile.id)}
-                  onDelete={() => handleDeleteProfile(profile.id)}
-                  onOpenBridge={(port: number, token: string) => handleOpenBridge(port, token)}
-                />
-              ))}
-            </div>
-          </div>
+          <Dashboard 
+            profiles={profiles}
+            servers={servers}
+            statuses={statuses}
+            logs={logs}
+            onStart={handleStart}
+            onStop={handleStop}
+            onDelete={handleDeleteProfile}
+            onSaveProfile={handleSaveProfile}
+            onOpenBridge={handleOpenBridge}
+          />
         ) : (
           <Library servers={servers} envStatus={envStatus} onReload={loadData} />
         )}
@@ -252,62 +187,3 @@ export default function App() {
   );
 }
 
-function ProfileCard({ profile, status, actualPort, token, logs, onStart, onStop, onDelete, onOpenBridge }: any) {
-  const isOnline = status === 'online';
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [logs]);
-
-  return (
-    <Card className="flex flex-col overflow-hidden transition-all hover:shadow-md">
-      <CardHeader className="pb-3 flex flex-row items-start justify-between space-y-0">
-        <div>
-            <CardTitle className="text-lg">{profile.name}</CardTitle>
-            <CardDescription>Port: {profile.port}</CardDescription>
-        </div>
-        <div className="flex gap-2">
-            <Badge variant={isOnline ? "success" : "secondary"}>
-                {isOnline ? 'ONLINE' : 'OFFLINE'}
-            </Badge>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={onDelete}>
-                <Trash2 className="h-4 w-4" />
-            </Button>
-        </div>
-      </CardHeader>
-      
-      <div className="flex-1 bg-zinc-950 p-4 mx-6 rounded-md overflow-hidden min-h-[160px] relative group">
-        <div 
-            ref={scrollRef}
-            className="h-full overflow-y-auto font-mono text-xs text-zinc-400 space-y-1 scrollbar-hide"
-            style={{ maxHeight: 160 }}
-        >
-            {logs.length === 0 && <span className="opacity-50 italic">Waiting for logs...</span>}
-            {logs.map((line: string, i: number) => (
-                <div key={i} className="break-all whitespace-pre-wrap">{line}</div>
-            ))}
-        </div>
-      </div>
-
-      <CardFooter className="pt-4 gap-2">
-        {!isOnline ? (
-            <Button className="w-full" onClick={onStart}>
-                <Play className="mr-2 h-4 w-4" /> Start Gateway
-            </Button>
-        ) : (
-            <>
-                <Button className="flex-1" variant="default" onClick={() => onOpenBridge(actualPort || profile.port, token)}>
-                   <ExternalLink className="mr-2 h-4 w-4" /> Open Bridge
-                </Button>
-                <Button variant="destructive" size="icon" onClick={onStop}>
-                    <Square className="h-4 w-4 fill-current" />
-                </Button>
-            </>
-        )}
-      </CardFooter>
-    </Card>
-  );
-}
