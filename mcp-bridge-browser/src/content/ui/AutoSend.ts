@@ -1,6 +1,7 @@
 import { i18n } from '@/services/i18n';
 const { t } = i18n;
 import { logger as Logger } from '@/services/LoggerService';
+import { browserService } from '@/services/BrowserService';
 
 /**
  * Auto Send Module
@@ -78,7 +79,7 @@ export function triggerAutoSend(
             autoSendTimer = setTimeout(trySend, 2000);
         } else {
             Logger.log(t('auto_send_timeout'), 'error');
-            chrome.runtime.sendMessage({
+            browserService.sendMessage({
                 type: 'SHOW_NOTIFICATION',
                 title: 'Auto-Send Failed',
                 message: 'Could not click send button.',

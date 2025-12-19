@@ -1,10 +1,12 @@
 import { Session, MessageRequest, HandshakeResponse } from '@/types';
 import { apiClient } from '@/services/api';
+import { getLocal, setLocal, getSync, setSync, removeLocal } from '@/services/storage';
+import { browserService } from '@/services/BrowserService';
 
 // === WebMCP Background Service (MV3 Persistent Edition) ===
 
 // 初始化：加载多语言资源文件
-chrome.runtime.onInstalled.addListener(async () => {
+browserService.onInstalled(async () => {
   const files: Record<string, string> = {
     prompt_en: "prompt.md",
     prompt_zh: "prompt_zh.md",
@@ -19,7 +21,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   // 使用 fetch 读取扩展内的 .md 文件
   for (const [key, file] of Object.entries(files)) {
     try {
-      const url = chrome.runtime.getURL(file);
+      const url = browserService.getURL(file);
       const response = await fetch(url);
       if (response.ok) {
         storageData[key] = await response.text();
@@ -32,28 +34,28 @@ chrome.runtime.onInstalled.addListener(async () => {
   }
 
   // 1. 初始化本地资源 (storage.local)
-  const existingLocal = await chrome.storage.local.get(Object.keys(storageData));
+  const existingLocal = await getLocal(Object.keys(storageData) as any);
   const localToSet: Record<string, string> = {};
   for (const [key, val] of Object.entries(storageData)) {
-    if (!existingLocal[key]) {
+    if (!(existingLocal as any)[key]) {
       localToSet[key] = val;
     }
   }
   if (Object.keys(localToSet).length > 0) {
-    await chrome.storage.local.set(localToSet);
+    await setLocal(localToSet as any);
     console.log("[WebMCP] Initialized local resources");
   }
 
   // 2. 初始化用户配置 (storage.sync)
-  const syncKeys = ["autoSend", "autoPromptEnabled", "customSelectors", "protected_tools"];
-  const existingSync = await chrome.storage.sync.get(syncKeys);
+  const syncKeys = ["autoSend", "autoPromptEnabled", "protected_tools"];
+  const existingSync = await getSync(syncKeys as any);
   const syncToSet: Record<string, any> = {};
 
   if (existingSync.autoSend === undefined) syncToSet.autoSend = true;
   if (existingSync.autoPromptEnabled === undefined) syncToSet.autoPromptEnabled = false;
 
   if (Object.keys(syncToSet).length > 0) {
-    await chrome.storage.sync.set(syncToSet);
+    await setSync(syncToSet as any);
     console.log("[WebMCP] Initialized user settings (Preserved existing)");
   }
 });
@@ -61,7 +63,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 // === 工具函数：检查 URL 是否在白名单 ===
 function isUrlAllowed(url: string | undefined): boolean {
   if (!url) return false;
-  const manifest = chrome.runtime.getManifest();
+  const manifest = browserService.getManifest();
 
   const hostPatterns = manifest.host_permissions || [];
   const scriptPatterns = (manifest.content_scripts || []).flatMap(
@@ -76,7 +78,7 @@ function isUrlAllowed(url: string | undefined): boolean {
 }
 
 // === 保持连接逻辑 & 安全熔断 ===
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+browserService.onTabsUpdated(async (tabId, changeInfo, tab) => {
   // 1. 如果 URL 发生变化，立即校验安全性
   if (changeInfo.url || (changeInfo.status === 'loading' && tab.url)) {
     const targetUrl = changeInfo.url || tab.url;
@@ -97,9 +99,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       if (isUrlAllowed(tab.url)) {
         updateBadge(tabId, true);
         // [Sync] Restore connection state
-        chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true }).catch(() => { });
+        browserService.sendMessage({ type: "STATUS_UPDATE", connected: true }, tabId).catch(() => { });
         if (session.showLog) {
-          chrome.tabs.sendMessage(tabId, { type: "TOGGLE_LOG", show: true }).catch(() => { });
+          browserService.sendMessage({ type: "TOGGLE_LOG", show: true }, tabId).catch(() => { });
         }
       } else {
         console.warn(`[WebMCP] Post-load security check failed for ${tab.url}. Removing session.`);
@@ -111,7 +113,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 });
 
 // === 消息处理中心 ===
-chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendResponse) => {
+browserService.onMessage((request: MessageRequest, sender, sendResponse) => {
   const currentTabId = sender.tab ? sender.tab.id : null;
 
   if (request.type === "HANDSHAKE") {
@@ -139,7 +141,7 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
     const show = request.show ?? false;
     if (targetTabId) {
       updateSessionLog(targetTabId, show).then(() => {
-        chrome.tabs.sendMessage(targetTabId, { type: "TOGGLE_LOG", show: show }).catch(() => { });
+        browserService.sendMessage({ type: "TOGGLE_LOG", show: show }, targetTabId).catch(() => { });
         sendResponse({ success: true });
       });
     }
@@ -151,7 +153,7 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
   }
 
   if (request.type === "SHOW_NOTIFICATION") {
-    chrome.notifications.create({
+    browserService.createNotification({
       type: "basic",
       iconUrl: "icons/icon128.png",
       title: request.title || "WebMCP Notification",
@@ -171,7 +173,7 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
       return true;
     }
 
-    chrome.storage.local.remove("session_null");
+    removeLocal("session_null" as any);
 
     if (request.port && request.token) {
       bindSession(targetTabId, request.port, request.token)
@@ -186,13 +188,13 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
 // === 数据层 ===
 async function getSession(tabId: number): Promise<Session | undefined> {
   const key = `session_${tabId}`;
-  const result = await chrome.storage.local.get([key]);
-  return result[key];
+  const result = await getLocal(key as any);
+  return (result as any)[key];
 }
 
 async function saveSession(tabId: number, data: Session) {
   const key = `session_${tabId}`;
-  await chrome.storage.local.set({ [key]: data });
+  await setLocal({ [key]: data } as any);
 }
 
 async function updateSessionLog(tabId: number, showLog: boolean) {
@@ -205,9 +207,9 @@ async function updateSessionLog(tabId: number, showLog: boolean) {
 
 async function removeSession(tabId: number) {
   const key = `session_${tabId}`;
-  await chrome.storage.local.remove(key);
+  await removeLocal(key);
   // [Sync] Notify Content Script
-  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: false }).catch(() => { });
+  browserService.sendMessage({ type: "STATUS_UPDATE", connected: false }, tabId).catch(() => { });
 }
 
 // === 逻辑实现 ===
@@ -217,13 +219,14 @@ async function handleHandshake(request: any, tabId: number | null | undefined): 
   if (!tabId) return { success: false, error: "No Tab ID" };
 
   if (!force) {
-    const all = await chrome.storage.local.get(null);
+    const all = await getLocal(null);
     const entries = Object.entries(all || {});
     let conflictTabId: string | null = null;
     for (const [key, val] of entries) {
+      const sessionData = val as any as Session;
       if (
         key.startsWith("session_") &&
-        (val as Session).port === port &&
+        sessionData.port === port &&
         key !== `session_${tabId}`
       ) {
         conflictTabId = key.replace("session_", "");
@@ -232,7 +235,7 @@ async function handleHandshake(request: any, tabId: number | null | undefined): 
     }
     if (conflictTabId) {
       try {
-        const tab = await chrome.tabs.get(parseInt(conflictTabId));
+        const tab = await browserService.getTab(parseInt(conflictTabId));
         if (tab) {
           return { success: false, error: "BUSY", conflictTabId };
         }
@@ -252,7 +255,7 @@ async function bindSession(tabId: number, port: number, token: string) {
   // Configure ApiClient
   apiClient.configure(port, token);
   // [Sync] Notify Content Script
-  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true }).catch(() => { });
+  browserService.sendMessage({ type: "STATUS_UPDATE", connected: true }, tabId).catch(() => { });
   await syncConfigFromGateway();
   prefetchToolList();
 }
@@ -263,9 +266,9 @@ async function pushConfigToGateway() {
     if (!apiClient.isConfigured()) return false;
 
     // Gather config
-    const syncData = await chrome.storage.sync.get(["customSelectors", "protected_tools", "autoSend", "autoPromptEnabled"]);
+    const syncData = await getSync(["protected_tools", "autoSend", "autoPromptEnabled"] as any);
     const localKeys = ["prompt_en", "prompt_zh", "train_en", "train_zh", "error_en", "error_zh", "user_rules"];
-    const localData = await chrome.storage.local.get(localKeys);
+    const localData = await getLocal(localKeys as any);
 
     const fullConfig = {
       version: 1,
@@ -301,8 +304,8 @@ async function prefetchToolList() {
     });
 
     // [HITL] Security: Auto-protect new tools logic
-    const localData = await chrome.storage.local.get(["cached_tool_list"]);
-    const syncData = await chrome.storage.sync.get(["protected_tools"]);
+    const localData = await getLocal(["cached_tool_list"] as any);
+    const syncData = await getSync(["protected_tools"] as any);
 
     const knownTools = new Set(localData.cached_tool_list || []);
     const protectedTools = new Set(syncData.protected_tools || []);
@@ -319,16 +322,16 @@ async function prefetchToolList() {
     });
 
     if (protectedDirty) {
-      await chrome.storage.sync.set({
+      await setSync({
         protected_tools: Array.from(protectedTools),
-      });
+      } as any);
       console.log("[WebMCP] New tools detected & protected during prefetch.");
     }
 
-    await chrome.storage.local.set({
+    await setLocal({
       cached_tool_list: newToolNames,
       cached_tool_groups: rawGroups
-    });
+    } as any);
     console.log("[WebMCP] Tool list cached.");
   } catch (e) {
     console.error("[WebMCP] Tool prefetch failed:", e);
@@ -347,7 +350,7 @@ async function syncConfigFromGateway() {
       const { sync, local } = config;
 
       if (sync) {
-        await chrome.storage.sync.set(sync);
+        await setSync(sync);
       }
       if (local) {
         // 仅恢复提示词等关键数据，不覆盖 Session
@@ -357,7 +360,7 @@ async function syncConfigFromGateway() {
           if (local[k]) safeLocal[k] = local[k];
         });
         if (Object.keys(safeLocal).length > 0) {
-          await chrome.storage.local.set(safeLocal);
+          await setLocal(safeLocal as any);
         }
       }
     } else {
@@ -370,10 +373,10 @@ async function syncConfigFromGateway() {
 
 function updateBadge(tabId: number, active: boolean) {
   if (active) {
-    chrome.action.setBadgeText({ tabId, text: "ON" });
-    chrome.action.setBadgeBackgroundColor({ tabId, color: "#4CAF50" });
+    browserService.setBadgeText("ON", tabId);
+    browserService.setBadgeBackgroundColor("#4CAF50", tabId);
   } else {
-    chrome.action.setBadgeText({ tabId, text: "" });
+    browserService.setBadgeText("", tabId);
   }
 }
 
@@ -403,6 +406,6 @@ async function executeTool(request: any, tabId: number | null | undefined) {
   }
 }
 
-chrome.tabs.onRemoved.addListener((tabId) => {
+browserService.onTabsRemoved((tabId) => {
   removeSession(tabId);
 });

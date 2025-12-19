@@ -3,6 +3,8 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { useStorage, useLocalStorage } from '@/hooks/useStorage';
 import { useI18n } from '@/hooks/useI18n';
+import { getLocal, setLocal } from '@/services/storage';
+import { browserService } from '@/services/BrowserService';
 import './App.css';
 
 export function App() {
@@ -23,7 +25,7 @@ export function App() {
 
     useEffect(() => {
         // Load cached tool list
-        chrome.storage.local.get(['cached_tool_list'], (items) => {
+        getLocal(['cached_tool_list']).then((items) => {
             if (items.cached_tool_list) {
                 setToolList(items.cached_tool_list);
             }
@@ -32,7 +34,7 @@ export function App() {
 
     const handleSave = () => {
         // Sync config to Gateway
-        chrome.runtime.sendMessage({ type: 'SYNC_CONFIG' }, (response) => {
+        browserService.sendMessage({ type: 'SYNC_CONFIG' }).then((response) => {
             if (response?.success) {
                 showStatus('Settings saved & synced to VS Code!');
             } else {
@@ -50,7 +52,7 @@ export function App() {
 
             const loadDefault = async (filename: string) => {
                 try {
-                    const url = chrome.runtime.getURL(filename);
+                    const url = browserService.getURL(filename);
                     const resp = await fetch(url);
                     return await resp.text();
                 } catch {
@@ -70,7 +72,7 @@ export function App() {
     const handleRefreshTools = async () => {
         try {
             // Find active session
-            const all = await chrome.storage.local.get(null);
+            const all = await getLocal(null);
             const entries = Object.entries(all || {});
             let port = null, token = null;
             for (const [key, val] of entries) {
@@ -95,7 +97,7 @@ export function App() {
                 if (g.hidden_tools) g.hidden_tools.forEach((n: string) => newToolNames.push(n));
             });
 
-            await chrome.storage.local.set({ cached_tool_list: newToolNames });
+            await setLocal({ cached_tool_list: newToolNames });
             setToolList(newToolNames);
             showStatus('Tool list updated!');
         } catch (e) {

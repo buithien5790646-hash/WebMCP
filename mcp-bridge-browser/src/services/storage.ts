@@ -29,7 +29,7 @@ type SyncStorageKeys = 'autoSend' | 'autoPromptEnabled' | 'customSelectors' | 'p
  * Get items from chrome.storage.local
  */
 export async function getLocal<K extends LocalStorageKeys>(
-    keys: K | K[]
+    keys: K | K[] | null = null
 ): Promise<Partial<Pick<StorageSchema, K>>> {
     return new Promise((resolve) => {
         chrome.storage.local.get(keys as any, (items) => {
@@ -52,10 +52,21 @@ export async function setLocal<K extends LocalStorageKeys>(
 }
 
 /**
+ * Remove items from chrome.storage.local
+ */
+export async function removeLocal(keys: string | string[]): Promise<void> {
+    return new Promise((resolve) => {
+        chrome.storage.local.remove(keys, () => {
+            resolve();
+        });
+    });
+}
+
+/**
  * Get items from chrome.storage.sync
  */
 export async function getSync<K extends SyncStorageKeys>(
-    keys: K | K[]
+    keys: K | K[] | null = null
 ): Promise<Partial<Pick<StorageSchema, K>>> {
     return new Promise((resolve) => {
         chrome.storage.sync.get(keys as any, (items) => {
@@ -78,10 +89,27 @@ export async function setSync<K extends SyncStorageKeys>(
 }
 
 /**
+ * Remove items from chrome.storage.sync
+ */
+export async function removeSync(keys: string | string[]): Promise<void> {
+    return new Promise((resolve) => {
+        chrome.storage.sync.remove(keys, () => {
+            resolve();
+        });
+    });
+}
+
+/**
  * Listen to storage changes
  */
 export function onStorageChanged(
     callback: (changes: { [key: string]: chrome.storage.StorageChange }, namespace: string) => void
 ) {
     chrome.storage.onChanged.addListener(callback);
+}
+
+export function removeStorageListener(
+    callback: (changes: { [key: string]: chrome.storage.StorageChange }, namespace: string) => void
+) {
+    chrome.storage.onChanged.removeListener(callback);
 }

@@ -3,6 +3,8 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { StatusDot } from '@/components/StatusDot';
 import { useStorage, useLocalStorage } from '@/hooks/useStorage';
+import { getLocal } from '@/services/storage';
+import { browserService } from '@/services/BrowserService';
 import './App.css';
 
 interface SessionStatus {
@@ -29,14 +31,15 @@ export function App() {
     const [userRules] = useLocalStorage('user_rules', '');
 
     useEffect(() => {
-        // Get current tab
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            const tabId = tabs[0]?.id;
+        // Get status and tab info when popup opens
+        browserService.getActiveTab().then((tab) => {
+            const tabId = tab?.id;
             if (!tabId) return;
             setCurrentTabId(tabId);
+            setActiveTabUrl(tab.url || '');
 
-            // Get status
-            chrome.runtime.sendMessage({ type: 'GET_STATUS', tabId }, (response) => {
+            // Get status from background
+            browserService.sendMessage({ type: 'GET_STATUS', tabId }).then((response) => {
                 if (response?.connected) {
                     setStatus({
                         connected: true,
@@ -45,7 +48,7 @@ export function App() {
                     });
                     setShowLog(response.showLog || false);
                 } else {
-                    // Scan for available gateways
+                    // Scan for available sessions
                     scanGateways();
                 }
             });
@@ -53,9 +56,9 @@ export function App() {
     }, []);
 
     const scanGateways = () => {
-        chrome.storage.local.get(null, (items) => {
+        getLocal(null).then((items) => {
             const uniqueGateways = new Map<number, string>();
-            for (const [key, val] of Object.entries(items)) {
+            for (const [key, val] of Object.entries(items || {})) {
                 if (key.startsWith('session_') && (val as any).port && (val as any).token) {
                     uniqueGateways.set((val as any).port, (val as any).token);
                 }
@@ -80,30 +83,27 @@ export function App() {
     };
 
     const handleOpenOptions = () => {
-        chrome.runtime.openOptionsPage();
+        browserService.openOptionsPage();
     };
 
     const handleConnectGateway = (gateway: Gateway) => {
         if (!currentTabId) return;
-        chrome.runtime.sendMessage(
-            {
-                type: 'CONNECT_EXISTING',
-                port: gateway.port,
-                token: gateway.token,
-                tabId: currentTabId,
-            },
-            (res) => {
-                if (res?.success) {
-                    window.close();
-                }
+        browserService.sendMessage({
+            type: 'CONNECT_EXISTING',
+            port: gateway.port,
+            token: gateway.token,
+            tabId: currentTabId,
+        }).then((res) => {
+            if (res?.success) {
+                window.close();
             }
-        );
+        });
     };
 
     const handleToggleLog = (checked: boolean) => {
         setShowLog(checked);
         if (currentTabId) {
-            chrome.runtime.sendMessage({
+            browserService.sendMessage({
                 type: 'SET_LOG_VISIBLE',
                 tabId: currentTabId,
                 show: checked,
@@ -111,41 +111,13 @@ export function App() {
         }
     };
 
+    const [activeTabUrl, setActiveTabUrl] = useState<string>('');
+
     const isSupportedSite = (url?: string) => {
         if (!url) return false;
         const supported = ['chatgpt.com', 'gemini.google.com', 'aistudio.google.com', 'chat.deepseek.com'];
         return supported.some(domain => url.includes(domain));
     };
-
-    const [activeTabUrl, setActiveTabUrl] = useState<string>('');
-
-    useEffect(() => {
-        // Get current tab
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            const tab = tabs[0];
-            const tabId = tab?.id;
-            if (!tabId) return;
-            setCurrentTabId(tabId);
-            setActiveTabUrl(tab.url || '');
-
-            // Get status
-            chrome.runtime.sendMessage({ type: 'GET_STATUS', tabId }, (response) => {
-                if (response?.connected) {
-                    setStatus({
-                        connected: true,
-                        port: response.port,
-                        showLog: response.showLog || false,
-                    });
-                    setShowLog(response.showLog || false);
-                } else {
-                    // Scan for available gateways
-                    scanGateways();
-                }
-            });
-        });
-    }, []);
-
-    // ... handle functions (handleCopyPrompt, handleOpenOptions, etc.) remain same
 
     const onSupportedSite = isSupportedSite(activeTabUrl);
 

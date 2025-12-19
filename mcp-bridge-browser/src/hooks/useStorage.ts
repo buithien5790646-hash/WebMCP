@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'preact/hooks';
+import { getSync, setSync, getLocal, setLocal, onStorageChanged, removeStorageListener } from '@/services/storage';
 
 /**
  * Hook for accessing chrome.storage.sync
@@ -8,9 +9,9 @@ export function useStorage<T>(key: string, defaultValue: T): [T, (value: T) => v
 
     useEffect(() => {
         // Load initial value
-        chrome.storage.sync.get([key], (items) => {
-            if (items[key] !== undefined) {
-                setValue(items[key]);
+        getSync(key as any).then((items) => {
+            if (items[key as keyof typeof items] !== undefined) {
+                setValue(items[key as keyof typeof items] as any);
             }
         });
 
@@ -21,15 +22,15 @@ export function useStorage<T>(key: string, defaultValue: T): [T, (value: T) => v
             }
         };
 
-        chrome.storage.onChanged.addListener(listener);
+        onStorageChanged(listener);
 
         return () => {
-            chrome.storage.onChanged.removeListener(listener);
+            removeStorageListener(listener);
         };
     }, [key]);
 
     const updateValue = (newValue: T) => {
-        chrome.storage.sync.set({ [key]: newValue }, () => {
+        setSync({ [key]: newValue } as any).then(() => {
             setValue(newValue);
         });
     };
@@ -45,9 +46,9 @@ export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T)
 
     useEffect(() => {
         // Load initial value
-        chrome.storage.local.get([key], (items) => {
-            if (items[key] !== undefined) {
-                setValue(items[key]);
+        getLocal(key as any).then((items) => {
+            if (items[key as keyof typeof items] !== undefined) {
+                setValue(items[key as keyof typeof items] as any);
             }
         });
 
@@ -58,15 +59,15 @@ export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T)
             }
         };
 
-        chrome.storage.onChanged.addListener(listener);
+        onStorageChanged(listener);
 
         return () => {
-            chrome.storage.onChanged.removeListener(listener);
+            removeStorageListener(listener);
         };
     }, [key]);
 
     const updateValue = (newValue: T) => {
-        chrome.storage.local.set({ [key]: newValue }, () => {
+        setLocal({ [key]: newValue } as any).then(() => {
             setValue(newValue);
         });
     };

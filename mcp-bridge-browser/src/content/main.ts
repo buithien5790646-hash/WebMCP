@@ -1,6 +1,8 @@
 import { i18n } from "@/services/i18n";
 const { t } = i18n;
 import { logger as Logger } from "@/services/LoggerService";
+import { browserService } from "@/services/BrowserService";
+import { getLocal, setLocal, getSync, setSync, onStorageChanged } from "@/services/storage";
 import { showConfirmationModal } from "@/components/ConfirmModal";
 import {
   markVisualProcessing,
@@ -41,21 +43,21 @@ const adapter = detectPlatform();
 // === Load I18n Resources ===
 function loadResources() {
   const lang = i18n.lang;
-  const promptKey = lang === "zh" ? "prompt_zh" : "prompt_en";
-  const trainKey = lang === "zh" ? "train_zh" : "train_en";
-  const errorKey = lang === "zh" ? "error_zh" : "error_en";
+  const promptKey = (lang === "zh" ? "prompt_zh" : "prompt_en") as any;
+  const trainKey = (lang === "zh" ? "train_zh" : "train_en") as any;
+  const errorKey = (lang === "zh" ? "error_zh" : "error_en") as any;
 
-  chrome.storage.local.get([promptKey, trainKey, errorKey, "user_rules"], (items) => {
-    i18n.resources.prompt = items[promptKey];
-    i18n.resources.train = items[trainKey];
-    i18n.resources.error = items[errorKey];
+  getLocal([promptKey, trainKey, errorKey, "user_rules"]).then((items) => {
+    i18n.resources.prompt = (items as any)[promptKey];
+    i18n.resources.train = (items as any)[trainKey];
+    i18n.resources.error = (items as any)[errorKey];
     userRules = items.user_rules || "";
     Logger.log(`[MCP] Loaded resources (${lang})`, "info");
   });
 }
 
 // === Message Handling ===
-chrome.runtime.onMessage.addListener((request) => {
+browserService.onMessage((request) => {
   if (request.type === "TOGGLE_LOG") {
     Logger.toggle(request.show);
   }
@@ -72,17 +74,13 @@ chrome.runtime.onMessage.addListener((request) => {
 });
 
 // === Storage Sync ===
-chrome.storage.sync.get(
-  ["autoSend", "autoPromptEnabled", "customSelectors", "protected_tools"],
-  (items) => {
-    CONFIG.autoSend = items.autoSend ?? true;
-    CONFIG.autoPromptEnabled = items.autoPromptEnabled ?? false;
-    if (items.protected_tools) protectedTools = new Set(items.protected_tools);
-    // Note: customSelectors logic would be handled by adapters if we keep moving in that direction
-  }
-);
+getSync(["autoSend", "autoPromptEnabled", "protected_tools"] as any).then((items) => {
+  CONFIG.autoSend = items.autoSend ?? true;
+  CONFIG.autoPromptEnabled = items.autoPromptEnabled ?? false;
+  if (items.protected_tools) protectedTools = new Set(items.protected_tools);
+});
 
-chrome.storage.onChanged.addListener((changes, namespace) => {
+onStorageChanged((changes, namespace) => {
   if (namespace === "sync") {
     if (changes.autoSend) CONFIG.autoSend = changes.autoSend.newValue;
     if (changes.autoPromptEnabled) CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;
@@ -176,7 +174,7 @@ function executeTool(payload: ToolExecutionPayload) {
 }
 
 function performExecution(payload: ToolExecutionPayload) {
-  chrome.runtime.sendMessage({ type: "EXECUTE_TOOL", payload }, (response) => {
+  browserService.sendMessage({ type: "EXECUTE_TOOL", payload }).then((response) => {
     workflow.markCompleted(payload.request_id);
     let outputContent = "";
     if (response && response.success) {
@@ -207,7 +205,7 @@ function handleListToolsResponse(data: string) {
       if (g.hidden_tools) g.hidden_tools.forEach((n: string) => toolNames.push(n));
     });
 
-    chrome.storage.local.get(["cached_tool_list"], (localData) => {
+    getLocal(["cached_tool_list"]).then((localData) => {
       const knownTools = new Set(localData.cached_tool_list || []);
       let protectedDirty = false;
       toolNames.forEach((tName) => {
@@ -217,10 +215,10 @@ function handleListToolsResponse(data: string) {
         }
       });
       if (protectedDirty) {
-        chrome.storage.sync.set({ protected_tools: Array.from(protectedTools) });
+        setSync({ protected_tools: Array.from(protectedTools) });
         Logger.log("🛡️ New tools detected & protected", "warn");
       }
-      chrome.storage.local.set({ cached_tool_list: toolNames });
+      setLocal({ cached_tool_list: toolNames });
     });
   } catch (e) {
     console.error("List tools processing error", e);
@@ -230,7 +228,7 @@ function handleListToolsResponse(data: string) {
 function finishVirtualTool(payload: ToolExecutionPayload) {
   const msg = (payload.arguments as any)?.message || "Task Completed";
   Logger.log(`🔔 Notification: ${msg}`, "action");
-  chrome.runtime.sendMessage({
+  browserService.sendMessage({
     type: "SHOW_NOTIFICATION",
     title: "WebMCP Task Finished",
     message: msg,
@@ -257,8 +255,8 @@ function processConfirmationQueue() {
 
       if (isAlways) {
         protectedTools.delete(payload.name);
-        chrome.storage.sync.set({ protected_tools: Array.from(protectedTools) }, () => {
-          chrome.runtime.sendMessage({ type: "SYNC_CONFIG" });
+        setSync({ protected_tools: Array.from(protectedTools) }).then(() => {
+          browserService.sendMessage({ type: "SYNC_CONFIG" });
         });
         Logger.log(`⚡ Tool '${payload.name}' set to Always Allow`, "action");
       }
@@ -288,7 +286,7 @@ if (adapter) {
   loadResources();
   observer.start();
 
-  chrome.runtime.sendMessage({ type: "GET_STATUS" }, (response) => {
+  browserService.sendMessage({ type: "GET_STATUS" }).then((response) => {
     isClientConnected = !!(response && response.connected);
     if (isClientConnected) {
       Logger.log(`WebMCP activated for ${adapter.name}`, "info");
