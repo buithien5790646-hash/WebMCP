@@ -32,7 +32,7 @@ export class ExecutionEngine {
     /**
      * Main entry point to process code blocks
      */
-    async processCodeBlocks(codeElements: Element[]) {
+    processCodeBlocks(codeElements: Element[]) {
         for (const codeEl of codeElements) {
             const { payload, isStableError } = this.parser.parseCodeBlock(codeEl);
 
@@ -43,10 +43,11 @@ export class ExecutionEngine {
 
                     if (this.protectedTools.has(payload.name)) {
                         Logger.log(`${t("hitl_intercept")}: ${payload.name}`, "warn");
+                        markVisualProcessing(codeEl as HTMLElement);
                         this.handleProtectedTool(payload, codeEl as HTMLElement);
                     } else {
                         Logger.log(`[Engine] Captured: ${payload.name}`, "info");
-                        await this.executeTool(payload, codeEl as HTMLElement);
+                        this.executeTool(payload, codeEl as HTMLElement);
                     }
                 } else if (this.workflow.isExecuting(payload.request_id)) {
                     markVisualProcessing(codeEl as HTMLElement);
