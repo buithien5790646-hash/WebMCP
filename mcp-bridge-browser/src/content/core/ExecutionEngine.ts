@@ -60,15 +60,14 @@ export class ExecutionEngine {
     }
 
     private handleProtectedTool(payload: ToolExecutionPayload, element: HTMLElement) {
-        this.modalManager.requestConfirmation(payload, async (confirmed, p, reason) => {
+        this.modalManager.requestConfirmation(payload, async (confirmed, isAlways, p, reason) => {
             if (confirmed) {
-                // Check if user chose "Always Allow" (this logic should probably stay here)
-                // The ModalManager currently emits a sync event but the engine needs to update its local set
-                // or wait for the next storage sync. For immediate effect:
-                // Note: The isAlways flag isn't currently passed back. 
-                // Let's adjust ModalManager to pass that if needed, 
-                // or just rely on main.ts storage sync.
-                // Actually, let's keep it simple: just execute if confirmed.
+                if (isAlways) {
+                    Logger.log(`⚡ Tool '${p.name}' set to Always Allow`, "action");
+                    this.protectedTools.delete(p.name);
+                    await setSync({ protected_tools: Array.from(this.protectedTools) });
+                    messageBroker.send({ type: "SYNC_CONFIG" });
+                }
                 await this.executeTool(p, element);
             } else {
                 this.workflow.markCompleted(payload.request_id);
