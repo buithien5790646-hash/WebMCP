@@ -2,7 +2,7 @@ import { render } from 'preact';
 import { useState } from 'preact/hooks';
 import { ToolExecutionPayload } from '@/types';
 import { useI18n } from '@/hooks/useI18n';
-import './ConfirmModal.css';
+import styles from './ConfirmModal.css?inline';
 
 interface ConfirmModalProps {
     payload: ToolExecutionPayload;
@@ -128,6 +128,12 @@ export function showConfirmationModal(
 
     // Attach Shadow DOM
     const shadow = host.attachShadow({ mode: 'open' });
+
+    // Inject styles
+    const styleTag = document.createElement('style');
+    styleTag.textContent = styles;
+    shadow.appendChild(styleTag);
+
     const container = document.createElement('div');
     shadow.appendChild(container);
 
