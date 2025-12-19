@@ -84,11 +84,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 port: portConfig,
                 preferredPort: lastUsedPort,
                 mcpServers,
+                enabledServices,
                 allowedOrigins
             });
-
-            // Re-connect with filtered services based on workspace enablement
-            await manager.connectToServers(mcpServers, enabledServices);
 
             currentPort = result.port;
             currentToken = result.token;

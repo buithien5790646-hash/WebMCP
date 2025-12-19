@@ -90,11 +90,11 @@ export function App() {
     };
 
     const handleOpenOptions = () => {
-        let url = 'options.html';
+        let path = 'src/pages/options/index.html';
         if (status.workspaceId) {
-            url += `?workspaceId=${status.workspaceId}`;
+            path += `?workspaceId=${status.workspaceId}`;
         }
-        chrome.tabs.create({ url });
+        chrome.tabs.create({ url: chrome.runtime.getURL(path) });
     };
     const handleConnectGateway = (gateway: Gateway) => {
         if (!currentTabId) return;

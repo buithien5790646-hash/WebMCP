@@ -62,9 +62,9 @@ interface Config {
     port: number;
     preferredPort?: number;
     mcpServers: Record<string, ServerConfig>;
+    enabledServices?: string[];
     allowedOrigins: string[]; // [Security] Whitelist for CORS
 }
-
 interface StartResult {
     port: number;
     token: string;
@@ -245,7 +245,7 @@ export class GatewayManager {
         if (this.server) {
             await this.stop();
         }
-        await this.connectToServers(config.mcpServers);
+        await this.connectToServers(config.mcpServers, config.enabledServices);
 
         // 1. 使用持久化 Token (仅首次生成)
         if (!this.authToken) this.authToken = crypto.randomUUID();
