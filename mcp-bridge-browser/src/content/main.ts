@@ -1,25 +1,20 @@
-import { i18n } from "@/services/i18n";
+import { i18n, logger as Logger, messageBroker, getLocal, getSync, setSync, onStorageChanged } from "@/services";
 const { t } = i18n;
-import { logger as Logger } from "@/services/LoggerService";
-import { browserService } from "@/services/BrowserService";
-import { getLocal, setLocal, getSync, setSync, onStorageChanged } from "@/services/storage";
 import { showConfirmationModal } from "@/components/ConfirmModal";
 import {
   markVisualProcessing,
   markVisualSuccess,
   markVisualError,
   writeToInputBox,
-  triggerAutoSend,
-  cancelAutoSend
 } from "./ui";
 import { detectPlatform } from "./adapters";
-import { DOMObserver, MessageParser, Workflow } from "./core";
+import { DOMObserver, MessageParser, Workflow, ExecutionEngine } from "./core";
 import { ToolExecutionPayload } from "@/types";
 
 let isClientConnected = false;
 let userRules = "";
 let protectedTools = new Set<string>();
-const confirmationQueue: ToolExecutionPayload[] = [];
+let confirmationQueue: ToolExecutionPayload[] = [];
 let isPopupOpen = false;
 
 // Config state
@@ -40,6 +35,10 @@ const workflow = new Workflow();
 const parser = new MessageParser();
 const adapter = detectPlatform();
 
+// Declare observer at top level so message handlers can see it
+let observer: DOMObserver | undefined;
+let engine: ExecutionEngine | undefined;
+
 // === Load I18n Resources ===
 function loadResources() {
   const lang = i18n.lang;
@@ -57,18 +56,17 @@ function loadResources() {
 }
 
 // === Message Handling ===
-browserService.onMessage((request) => {
-  if (request.type === "TOGGLE_LOG") {
-    Logger.toggle(request.show);
-  }
-  if (request.type === "STATUS_UPDATE") {
-    const wasConnected = isClientConnected;
-    isClientConnected = request.connected;
-    if (isClientConnected !== wasConnected) {
-      Logger.log(`[MCP] Connection: ${isClientConnected ? "Connected" : "Disconnected"}`, "info");
-      if (isClientConnected && observer) {
-        observer.trigger();
-      }
+messageBroker.on("TOGGLE_LOG", (request) => {
+  Logger.toggle(request.show);
+});
+
+messageBroker.on("STATUS_UPDATE", (request) => {
+  const wasConnected = isClientConnected;
+  isClientConnected = request.connected;
+  if (isClientConnected !== wasConnected) {
+    Logger.log(`[MCP] Connection: ${isClientConnected ? "Connected" : "Disconnected"}`, "info");
+    if (isClientConnected && observer) {
+      observer.trigger();
     }
   }
 });
@@ -92,7 +90,7 @@ onStorageChanged((changes, namespace) => {
 
 // === Main Execution Loop ===
 function runMainLoop() {
-  if (!adapter || !isClientConnected) return;
+  if (!adapter || !isClientConnected || !engine) return;
 
   const messages = adapter.getMessageBlocks();
   if (messages.length === 0) {
@@ -104,44 +102,45 @@ function runMainLoop() {
   const codeElements = adapter.getCodeBlocks(lastMessage);
   const currentTurnIds: string[] = [];
 
+  // Pass currentTurnIds for batch tracking
   codeElements.forEach((codeEl) => {
-    const { payload, isStableError } = parser.parseCodeBlock(codeEl);
-
+    const { payload } = parser.parseCodeBlock(codeEl);
     if (payload && payload.request_id) {
       currentTurnIds.push(payload.request_id);
+    }
+  });
 
+  // Delegate processing to engine
+  engine.updateConfig({
+    autoSend: CONFIG.autoSend,
+    protectedTools: protectedTools
+  });
+
+  // Handle HITL intercept
+  codeElements.forEach((codeEl) => {
+    const { payload, isStableError } = parser.parseCodeBlock(codeEl);
+    if (payload && payload.request_id) {
       if (!workflow.isProcessed(payload.request_id)) {
-        workflow.markDiscovered(payload.request_id);
-        cancelAutoSend();
-        markVisualProcessing(codeEl as HTMLElement);
-        Logger.log(`${t("captured")}: ${payload.name}`, "info");
-        executeTool(payload);
-      } else {
-        if (workflow.isExecuting(payload.request_id)) {
-          markVisualProcessing(codeEl as HTMLElement);
+        if (protectedTools.has(payload.name)) {
+          Logger.log(`${t("hitl_intercept")}: ${payload.name}`, "warn");
+          workflow.markDiscovered(payload.request_id);
+          confirmationQueue.push(payload);
+          processConfirmationQueue(codeEl as HTMLElement);
         } else {
-          markVisualSuccess(codeEl as HTMLElement);
+          engine!.processCodeBlocks([codeEl]);
         }
+      } else if (workflow.isExecuting(payload.request_id)) {
+        markVisualProcessing(codeEl as HTMLElement);
+      } else {
+        markVisualSuccess(codeEl as HTMLElement);
       }
     } else if (isStableError) {
       markVisualError(codeEl as HTMLElement);
     }
   });
 
-  // Batch Processing
-  if (workflow.isBatchComplete(currentTurnIds)) {
-    if (adapter.getStopButton()) {
-      // AI is still generating
-      return;
-    }
-
-    const results = workflow.flushBatch(currentTurnIds);
-    if (results.length > 0) {
-      Logger.log(`Batch finished: ${results.length} tools.`, "success");
-      writeToInputBox(results.join("\n\n"), adapter.inputArea);
-      triggerAutoSend(CONFIG, adapter);
-    }
-  }
+  // Flush Results via Engine
+  engine.flushResults(currentTurnIds);
 }
 
 function handleAutoPrompt() {
@@ -156,90 +155,9 @@ function handleAutoPrompt() {
   }
 }
 
-// === Tool Execution ===
-function executeTool(payload: ToolExecutionPayload) {
-  if (payload.name === "task_completion_notification") {
-    finishVirtualTool(payload);
-    return;
-  }
-
-  if (protectedTools.has(payload.name)) {
-    Logger.log(`${t("hitl_intercept")}: ${payload.name}`, "warn");
-    confirmationQueue.push(payload);
-    processConfirmationQueue();
-    return;
-  }
-
-  performExecution(payload);
-}
-
-function performExecution(payload: ToolExecutionPayload) {
-  browserService.sendMessage({ type: "EXECUTE_TOOL", payload }).then((response) => {
-    workflow.markCompleted(payload.request_id);
-    let outputContent = "";
-    if (response && response.success) {
-      Logger.log(`${t("exec_success")}: ${payload.name}`, "success");
-      outputContent = response.data;
-
-      // Handle tool list caching & projection if needed (list_tools special case)
-      if (payload.name === "list_tools") {
-        handleListToolsResponse(response.data);
-      }
-    } else {
-      const errMsg = response?.error || "Unknown error";
-      Logger.log(`${t("exec_fail")}: ${errMsg}`, "error");
-      outputContent = `❌ Error: ${errMsg}`;
-    }
-
-    workflow.saveResult(payload.request_id, outputContent, !response?.success);
-    setTimeout(runMainLoop, 50);
-  });
-}
-
-function handleListToolsResponse(data: string) {
-  try {
-    const groups = JSON.parse(data);
-    const toolNames: string[] = [];
-    groups.forEach((g: any) => {
-      if (g.tools) g.tools.forEach((t: any) => toolNames.push(t.name));
-      if (g.hidden_tools) g.hidden_tools.forEach((n: string) => toolNames.push(n));
-    });
-
-    getLocal(["cached_tool_list"]).then((localData) => {
-      const knownTools = new Set(localData.cached_tool_list || []);
-      let protectedDirty = false;
-      toolNames.forEach((tName) => {
-        if (!knownTools.has(tName) && !protectedTools.has(tName)) {
-          protectedTools.add(tName);
-          protectedDirty = true;
-        }
-      });
-      if (protectedDirty) {
-        setSync({ protected_tools: Array.from(protectedTools) });
-        Logger.log("🛡️ New tools detected & protected", "warn");
-      }
-      setLocal({ cached_tool_list: toolNames });
-    });
-  } catch (e) {
-    console.error("List tools processing error", e);
-  }
-}
-
-function finishVirtualTool(payload: ToolExecutionPayload) {
-  const msg = (payload.arguments as any)?.message || "Task Completed";
-  Logger.log(`🔔 Notification: ${msg}`, "action");
-  browserService.sendMessage({
-    type: "SHOW_NOTIFICATION",
-    title: "WebMCP Task Finished",
-    message: msg,
-  });
-  workflow.markCompleted(payload.request_id);
-  workflow.saveResult(payload.request_id, "", false);
-}
-
 // === Confirmation Queue ===
-function processConfirmationQueue() {
-  if (isPopupOpen || confirmationQueue.length === 0) return;
+function processConfirmationQueue(element?: HTMLElement) {
+  if (isPopupOpen || confirmationQueue.length === 0 || !engine) return;
   const payload = confirmationQueue[0];
   isPopupOpen = true;
 
@@ -256,12 +174,14 @@ function processConfirmationQueue() {
       if (isAlways) {
         protectedTools.delete(payload.name);
         setSync({ protected_tools: Array.from(protectedTools) }).then(() => {
-          browserService.sendMessage({ type: "SYNC_CONFIG" });
+          messageBroker.send({ type: "SYNC_CONFIG" });
         });
         Logger.log(`⚡ Tool '${payload.name}' set to Always Allow`, "action");
       }
 
-      performExecution(payload);
+      if (element) {
+        engine!.executeTool(payload, element);
+      }
       processConfirmationQueue();
     },
     (reason) => {
@@ -274,19 +194,21 @@ function processConfirmationQueue() {
         `User rejected execution. Reason: ${reason || "No reason provided."}`,
         true
       );
+      if (element) markVisualError(element);
       processConfirmationQueue();
     }
   );
 }
 
 // === Initialization ===
-const observer = new DOMObserver(runMainLoop, CONFIG.pollInterval);
-
 if (adapter) {
   loadResources();
+  observer = new DOMObserver(runMainLoop, CONFIG.pollInterval);
+  engine = new ExecutionEngine(parser, workflow, adapter);
+
   observer.start();
 
-  browserService.sendMessage({ type: "GET_STATUS" }).then((response) => {
+  messageBroker.send({ type: "GET_STATUS" }).then((response) => {
     isClientConnected = !!(response && response.connected);
     if (isClientConnected) {
       Logger.log(`WebMCP activated for ${adapter.name}`, "info");

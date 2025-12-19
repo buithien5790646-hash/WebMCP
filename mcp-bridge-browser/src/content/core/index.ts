@@ -1,3 +1,4 @@
-export { DOMObserver } from './Observer';
-export { MessageParser } from './MessageParser';
-export { Workflow } from './Workflow';
+export * from './DOMObserver';
+export * from './MessageParser';
+export * from './Workflow';
+export * from './ExecutionEngine';

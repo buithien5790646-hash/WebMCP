@@ -1,32 +1,19 @@
+import { z } from 'zod';
+import { SessionSchema, ToolExecutionSchema, MessageRequestSchema } from './types/schemas';
+
 // === Shared Types ===
 
-export interface Session {
-  port: number;
-  token: string;
-  showLog?: boolean;
-}
+export type Session = z.infer<typeof SessionSchema>;
 
-export interface ToolExecutionPayload {
-  mcp_action: 'call';
-  request_id: string;
-  name: string;
-  arguments?: Record<string, any>;
+export type ToolExecutionPayload = z.infer<typeof ToolExecutionSchema> & {
+  request_id: string; // Mandatory for workflow tracking
+  mcp_action?: 'call';
   purpose?: string;
-}
+};
 
 // === Extension-Internal Types ===
 
-export interface MessageRequest {
-  type: string;
-  tabId?: number;
-  port?: number;
-  token?: string;
-  force?: boolean;
-  show?: boolean;
-  title?: string;
-  message?: string;
-  payload?: ToolExecutionPayload;
-}
+export type MessageRequest = z.infer<typeof MessageRequestSchema>;
 
 export interface HandshakeResponse {
   success: boolean;
