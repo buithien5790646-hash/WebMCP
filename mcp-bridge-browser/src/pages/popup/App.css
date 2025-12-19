@@ -1,11 +1,18 @@
 @import '../../styles/variables.css';
 
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
 .popup-container {
     width: 260px;
     font-family: var(--font-family);
-    background: var(--bg-dark);
-    color: var(--text-primary);
+    background: var(--bg-app);
+    color: var(--text-app);
     padding: 15px;
+    box-sizing: border-box;
 }
 
 h2 {

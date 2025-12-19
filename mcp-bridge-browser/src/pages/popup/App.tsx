@@ -111,6 +111,44 @@ export function App() {
         }
     };
 
+    const isSupportedSite = (url?: string) => {
+        if (!url) return false;
+        const supported = ['chatgpt.com', 'gemini.google.com', 'aistudio.google.com', 'chat.deepseek.com'];
+        return supported.some(domain => url.includes(domain));
+    };
+
+    const [activeTabUrl, setActiveTabUrl] = useState<string>('');
+
+    useEffect(() => {
+        // Get current tab
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const tab = tabs[0];
+            const tabId = tab?.id;
+            if (!tabId) return;
+            setCurrentTabId(tabId);
+            setActiveTabUrl(tab.url || '');
+
+            // Get status
+            chrome.runtime.sendMessage({ type: 'GET_STATUS', tabId }, (response) => {
+                if (response?.connected) {
+                    setStatus({
+                        connected: true,
+                        port: response.port,
+                        showLog: response.showLog || false,
+                    });
+                    setShowLog(response.showLog || false);
+                } else {
+                    // Scan for available gateways
+                    scanGateways();
+                }
+            });
+        });
+    }, []);
+
+    // ... handle functions (handleCopyPrompt, handleOpenOptions, etc.) remain same
+
+    const onSupportedSite = isSupportedSite(activeTabUrl);
+
     return (
         <div className="popup-container">
             <h2>
@@ -121,13 +159,13 @@ export function App() {
             {status.connected ? (
                 <div>
                     <Card>
-                        <p style={{ marginBottom: '8px' }}>✅ Connected to VS Code</p>
+                        <p style={{ marginBottom: '8px', color: 'var(--color-success)' }}>✅ Connected to VS Code</p>
                         <p style={{ fontSize: '11px', opacity: 0.7 }}>
                             Port: <span>{status.port || '-'}</span>
                         </p>
                     </Card>
                     <Button onClick={handleCopyPrompt}>Copy System Prompt</Button>
-                    <Button variant="secondary" onClick={handleOpenOptions}>
+                    <Button variant="secondary" onClick={handleOpenOptions} style={{ marginTop: '8px' }}>
                         Open Settings
                     </Button>
                     <Card style={{ marginTop: '10px' }}>
@@ -149,10 +187,10 @@ export function App() {
                         </label>
                     </Card>
                 </div>
-            ) : gateways.length > 0 ? (
+            ) : onSupportedSite && gateways.length > 0 ? (
                 <div>
-                    <Card style={{ border: '1px solid #3498db' }}>
-                        <h3 style={{ color: '#3498db', margin: '0 0 10px 0', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Card style={{ border: '1px solid var(--color-primary)' }}>
+                        <h3 style={{ color: 'var(--color-primary)', margin: '0 0 10px 0', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <span>⚡</span> Available Gateways
                         </h3>
                         <div>
@@ -167,35 +205,45 @@ export function App() {
                             ))}
                         </div>
                     </Card>
+                    <Button variant="secondary" onClick={handleOpenOptions}>
+                        Open Settings
+                    </Button>
                 </div>
             ) : (
                 <div>
                     <Card style={{ padding: '15px 10px', border: '1px solid #555' }}>
-                        <h3 style={{ color: '#e74c3c', margin: '0 0 10px 0', fontSize: '14px', textAlign: 'center' }}>
-                            🔴 Disconnected
+                        <h3 style={{ color: 'var(--color-error)', margin: '0 0 10px 0', fontSize: '14px', textAlign: 'center' }}>
+                            {onSupportedSite ? '🔴 Disconnected' : '💡 Instructions'}
                         </h3>
                         <div style={{ marginBottom: '15px', borderBottom: '1px solid #444', paddingBottom: '10px' }}>
                             <p style={{ fontSize: '12px', color: '#fff', fontWeight: 'bold', marginBottom: '5px' }}>
-                                👉 Already Installed?
+                                👉 {isZh ? '如何启动？' : 'Already Installed?'}
                             </p>
                             <p style={{ fontSize: '11px', color: '#ccc', lineHeight: 1.4 }}>
-                                Click <span style={{ color: '#3498db', fontWeight: 'bold' }}>WebMCP</span> in VS Code Status Bar (bottom right) and follow the steps to launch.
+                                {isZh ? (
+                                    <>点击 VS Code 状态栏（右下角）的 <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>WebMCP</span> 并按照步骤启动。</>
+                                ) : (
+                                    <>Click <span style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>WebMCP</span> in VS Code Status Bar (bottom right) and follow the steps to launch.</>
+                                )}
                             </p>
                         </div>
                         <div>
                             <p style={{ fontSize: '12px', color: '#fff', fontWeight: 'bold', marginBottom: '5px' }}>
-                                👉 Not Installed?
+                                👉 {isZh ? '尚未安装？' : 'Not Installed?'}
                             </p>
                             <div style={{ background: '#333', padding: '8px', borderRadius: '4px', margin: '5px 0' }}>
                                 <p style={{ fontSize: '10px', color: '#888', marginBottom: '2px' }}>
-                                    Search in VS Code Marketplace:
+                                    {isZh ? '在 VS Code 插件市场搜索：' : 'Search in VS Code Marketplace:'}
                                 </p>
-                                <p style={{ fontWeight: 'bold', color: '#4caf50', fontSize: '12px' }}>
+                                <p style={{ fontWeight: 'bold', color: 'var(--color-success)', fontSize: '12px' }}>
                                     WebMCP Gateway
                                 </p>
                             </div>
                         </div>
                     </Card>
+                    <Button variant="secondary" onClick={handleOpenOptions}>
+                        Open Settings
+                    </Button>
                 </div>
             )}
         </div>

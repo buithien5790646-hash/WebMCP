@@ -77,30 +77,35 @@ function isUrlAllowed(url: string | undefined): boolean {
 
 // === 保持连接逻辑 & 安全熔断 ===
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.url) {
-    if (!isUrlAllowed(changeInfo.url)) {
+  // 1. 如果 URL 发生变化，立即校验安全性
+  if (changeInfo.url || (changeInfo.status === 'loading' && tab.url)) {
+    const targetUrl = changeInfo.url || tab.url;
+    if (targetUrl && !isUrlAllowed(targetUrl)) {
       const session = await getSession(tabId);
       if (session) {
-        console.log(`[WebMCP] Security Fuse: Url changed to ${changeInfo.url}, revoking session.`);
+        console.warn(`[WebMCP] Security Fuse: Navigation to unauthorized URL ${targetUrl}. Revoking session.`);
         await removeSession(tabId);
         updateBadge(tabId, false);
-        return;
       }
     }
   }
 
+  // 2. 加载完成后的同步逻辑
   if (changeInfo.status === "complete") {
     const session = await getSession(tabId);
-    if (session && isUrlAllowed(tab.url)) {
-      updateBadge(tabId, true);
-      // [Sync] Restore connection state in Content Script after reload
-      chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true }).catch(() => { });
-      if (session.showLog) {
-        chrome.tabs.sendMessage(tabId, { type: "TOGGLE_LOG", show: true }).catch(() => { });
+    if (session) {
+      if (isUrlAllowed(tab.url)) {
+        updateBadge(tabId, true);
+        // [Sync] Restore connection state
+        chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true }).catch(() => { });
+        if (session.showLog) {
+          chrome.tabs.sendMessage(tabId, { type: "TOGGLE_LOG", show: true }).catch(() => { });
+        }
+      } else {
+        console.warn(`[WebMCP] Post-load security check failed for ${tab.url}. Removing session.`);
+        await removeSession(tabId);
+        updateBadge(tabId, false);
       }
-    } else if (session && !isUrlAllowed(tab.url)) {
-      await removeSession(tabId);
-      updateBadge(tabId, false);
     }
   }
 });

@@ -22,12 +22,13 @@
 }
 
 .btn-secondary {
-    background: #444;
-    margin-top: 8px;
+    background: var(--bg-hover, #444);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background: #555;
+    background: var(--bg-card);
 }
 
 .btn:disabled {
