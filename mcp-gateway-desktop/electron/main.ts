@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, globalShortcut } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, globalShortcut, Menu } from 'electron'
 import path from 'node:path'
 import { exec, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -316,6 +316,7 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null)
   createWindow()
   
   // Register F12 to open DevTools
