@@ -1,7 +1,7 @@
-import { i18n } from "../services/i18n";
+import { i18n } from "@/services/i18n";
 const { t } = i18n;
-import { logger as Logger } from "../services/LoggerService";
-import { showConfirmationModal } from "../components/ConfirmModal";
+import { logger as Logger } from "@/services/LoggerService";
+import { showConfirmationModal } from "@/components/ConfirmModal";
 import {
   markVisualProcessing,
   markVisualSuccess,
@@ -12,7 +12,7 @@ import {
 } from "./ui";
 import { detectPlatform } from "./adapters";
 import { DOMObserver, MessageParser, Workflow } from "./core";
-import { ToolExecutionPayload } from "../types";
+import { ToolExecutionPayload } from "@/types";
 
 let isClientConnected = false;
 let userRules = "";

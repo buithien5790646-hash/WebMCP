@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'preact/hooks';
-import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
-import { StatusDot } from '../../components/StatusDot';
-import { useStorage, useLocalStorage } from '../../hooks/useStorage';
+import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
+import { StatusDot } from '@/components/StatusDot';
+import { useStorage, useLocalStorage } from '@/hooks/useStorage';
 import './App.css';
 
 interface SessionStatus {

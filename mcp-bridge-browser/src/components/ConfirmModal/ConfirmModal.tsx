@@ -1,7 +1,7 @@
 import { render } from 'preact';
 import { useState } from 'preact/hooks';
-import { ToolExecutionPayload } from '../../types';
-import { useI18n } from '../../hooks/useI18n';
+import { ToolExecutionPayload } from '@/types';
+import { useI18n } from '@/hooks/useI18n';
 import './ConfirmModal.css';
 
 interface ConfirmModalProps {

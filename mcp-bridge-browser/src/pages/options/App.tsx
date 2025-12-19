@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'preact/hooks';
-import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
-import { useStorage, useLocalStorage } from '../../hooks/useStorage';
-import { useI18n } from '../../hooks/useI18n';
+import { Button } from '@/components/Button';
+import { Card } from '@/components/Card';
+import { useStorage, useLocalStorage } from '@/hooks/useStorage';
+import { useI18n } from '@/hooks/useI18n';
 import './App.css';
 
 export function App() {

@@ -1,4 +1,4 @@
-import { i18n } from '../services/i18n';
+import { i18n } from '@/services/i18n';
 
 /**
  * Hook for accessing i18n translations

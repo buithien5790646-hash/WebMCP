@@ -1,5 +1,5 @@
-import { Session, MessageRequest, HandshakeResponse } from '../types';
-import { apiClient } from '../services/api';
+import { Session, MessageRequest, HandshakeResponse } from '@/types';
+import { apiClient } from '@/services/api';
 
 // === WebMCP Background Service (MV3 Persistent Edition) ===
 

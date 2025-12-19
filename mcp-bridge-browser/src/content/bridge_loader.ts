@@ -1,4 +1,4 @@
-import { HandshakeResponse } from '../types';
+import { HandshakeResponse } from '@/types';
 
 (function () {
   // === 核心修复：等待 DOM 加载完成 ===
@@ -40,11 +40,11 @@ import { HandshakeResponse } from '../types';
         (response: HandshakeResponse) => {
           if (chrome.runtime.lastError) {
             if (statusText && loader) {
-                statusText.innerHTML = `
+              statusText.innerHTML = `
                             <span style="color:#ff6b6b">❌ Extension Not Detected</span><br>
                             <span style="font-size:0.8em; opacity:0.8">Please ensure 'WebMCP Bridge' extension is installed and enabled.</span>
                         `;
-                loader.style.display = "none";
+              loader.style.display = "none";
             }
             return;
           }
@@ -80,9 +80,8 @@ import { HandshakeResponse } from '../types';
             };
             card.appendChild(btn);
           } else {
-            statusText.innerText = `Connection Failed: ${
-              response ? response.error : "Unknown Error"
-            }`;
+            statusText.innerText = `Connection Failed: ${response ? response.error : "Unknown Error"
+              }`;
             statusText.style.color = "#ff6b6b";
           }
         }

@@ -1,6 +1,6 @@
-import { i18n } from '../../services/i18n';
+import { i18n } from '@/services/i18n';
 const { t } = i18n;
-import { logger as Logger } from '../../services/LoggerService';
+import { logger as Logger } from '@/services/LoggerService';
 
 /**
  * Auto Send Module

@@ -1,4 +1,4 @@
-import { ToolExecutionPayload } from '../../types';
+import { ToolExecutionPayload } from '@/types';
 
 /**
  * Message Parser
