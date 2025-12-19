@@ -2,11 +2,11 @@ import { BasePlatformAdapter } from './base';
 
 export class AIStudioAdapter extends BasePlatformAdapter {
     name = 'aistudio';
-    messageBlocks = '.model-response-text';
+    messageBlocks = "div[data-turn-role='Model']";
     codeBlocks = 'pre code';
-    inputArea = 'rich-textarea .ql-editor';
-    sendButton = 'button[aria-label*="Send"]';
-    stopButton = undefined;
+    inputArea = 'textarea';
+    sendButton = 'ms-run-button button';
+    stopButton = 'ms-run-button button:has(.spin)';
 
     matches(hostname: string): boolean {
         return hostname.includes('aistudio');

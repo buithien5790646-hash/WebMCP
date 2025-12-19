@@ -2,11 +2,11 @@ import { BasePlatformAdapter } from './base';
 
 export class DeepseekAdapter extends BasePlatformAdapter {
     name = 'deepseek';
-    messageBlocks = 'div[class*="MessageItem"]';
-    codeBlocks = 'pre code, .code-block code';
-    inputArea = 'div[contenteditable="true"]';
-    sendButton = 'button[aria-label*="Send"], button[type="submit"]';
-    stopButton = 'button[aria-label*="Stop"]';
+    messageBlocks = '.ds-message';
+    codeBlocks = 'pre';
+    inputArea = 'textarea.ds-scroll-area';
+    sendButton = "div[role='button']:has(path[d^='M8.3125'])";
+    stopButton = "div[role='button']:has(path[d^='M2 4.88'])";
 
     matches(hostname: string): boolean {
         return hostname.includes('deepseek');
