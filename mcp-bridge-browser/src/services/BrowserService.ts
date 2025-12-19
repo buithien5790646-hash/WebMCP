@@ -8,14 +8,41 @@ class BrowserService {
      */
     async sendMessage(message: any, tabId?: number): Promise<any> {
         return new Promise((resolve) => {
-            if (tabId !== undefined) {
-                chrome.tabs.sendMessage(tabId, message, (response) => {
-                    resolve(response);
-                });
-            } else {
-                chrome.runtime.sendMessage(message, (response) => {
-                    resolve(response);
-                });
+            try {
+                const callback = (response: any) => {
+                    if (chrome.runtime.lastError) {
+                        const errorMsg = chrome.runtime.lastError.message || "";
+                        // Log common extension errors as info/debug instead of letting them bubble up as Uncaught
+                        if (
+                            errorMsg.includes("Receiving end does not exist") ||
+                            errorMsg.includes("Extension context invalidated") ||
+                            errorMsg.includes("No tab with id") ||
+                            errorMsg.includes("message port closed")
+                        ) {
+                            // Suppress these expected errors during dev/reloads
+                            resolve(undefined);
+                        } else {
+                            console.warn(`[BrowserService] Message error: ${errorMsg}`, message);
+                            resolve(undefined);
+                        }
+                    } else {
+                        resolve(response);
+                    }
+                };
+
+                if (tabId !== undefined) {
+                    chrome.tabs.sendMessage(tabId, message, callback);
+                } else {
+                    chrome.runtime.sendMessage(message, callback);
+                }
+            } catch (err: any) {
+                // This catch handles "Extension context invalidated" which can happen synchronously
+                if (err.message?.includes("context invalidated")) {
+                    resolve(undefined);
+                } else {
+                    console.error("[BrowserService] Critical error sending message:", err);
+                    resolve(undefined);
+                }
             }
         });
     }
