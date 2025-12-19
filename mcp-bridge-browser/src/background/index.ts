@@ -24,6 +24,7 @@ messageBroker.on("GET_STATUS", (req, sender, sendResponse) => {
       sendResponse({
         connected: !!session,
         port: session?.port,
+        workspaceId: session?.workspaceId,
         showLog: session?.showLog || false,
       });
     });
@@ -115,7 +116,7 @@ browserService.onTabsUpdated(async (tabId, changeInfo, tab) => {
 
 // === 逻辑实现 (协调层) ===
 async function handleHandshake(request: any, tabId: number | null | undefined): Promise<HandshakeResponse> {
-  const { port, token, force } = request;
+  const { port, token, workspaceId, force } = request;
   if (!tabId) return { success: false, error: "No Tab ID" };
 
   if (!force) {
@@ -131,22 +132,28 @@ async function handleHandshake(request: any, tabId: number | null | undefined): 
       }
     }
   }
-  await bindSession(tabId, port, token);
+  await bindSession(tabId, port, token, workspaceId);
   return { success: true };
 }
 
-async function bindSession(tabId: number, port: number, token: string) {
-  await sessionManager.saveSession(tabId, { port, token, showLog: false });
+async function bindSession(tabId: number, port: number, token: string, workspaceId?: string) {
+  await sessionManager.saveSession(tabId, { port, token, workspaceId, showLog: false });
   console.log(`[WebMCP] Tab ${tabId} bound to Port ${port}`);
   sessionManager.updateBadge(tabId, true);
 
-  // Configure ApiClient
+  // Configure ApiClient before fetching config
   apiClient.configure(port, token);
 
-  // [Sync] Notify Content Script
-  browserService.sendMessage({ type: "STATUS_UPDATE", connected: true }, tabId).catch(() => { });
+  // Fetch workspace-specific config
+  const config = await apiClient.pullConfig(workspaceId);
 
-  await configManager.syncConfigFromGateway();
+  // [Sync] Notify Content Script including fresh config
+  browserService.sendMessage({
+    type: "STATUS_UPDATE",
+    connected: true,
+    config: config
+  }, tabId).catch(() => { });
+
   await toolManager.prefetchToolList();
 }
 

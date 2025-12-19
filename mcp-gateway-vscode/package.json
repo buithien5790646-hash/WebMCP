@@ -9,7 +9,7 @@
   },
   "license": "MIT",
   "icon": "images/icon.png",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "engines": {
     "vscode": "^1.106.1"
   },
@@ -32,14 +32,32 @@
     },
     "commands": [
       {
-        "command": "mcp-gateway-vscode.restart",
-        "title": "MCP: Restart Gateway Server"
-      },
-      {
         "command": "mcp-gateway.copyContext",
         "title": "WebMCP: Copy Context"
+      },
+      {
+        "command": "mcp-gateway.toggleService",
+        "title": "Toggle MCP Service"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mcp-gateway-explorer",
+          "title": "WebMCP",
+          "icon": "images/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "mcp-gateway-explorer": [
+        {
+          "id": "mcp-servers",
+          "name": "MCP Servers",
+          "icon": "images/icon.png"
+        }
+      ]
+    },
     "configuration": {
       "title": "MCP Gateway",
       "properties": {
@@ -155,11 +173,6 @@
                   "type": "string"
                 },
                 "description": "Environment variables"
-              },
-              "disabled": {
-                "type": "boolean",
-                "default": false,
-                "description": "Disable this server. If true, the server will not be started."
               }
             }
           },
@@ -178,8 +191,7 @@
                 "${extensionPath}/dist/commandServer.js",
                 "--project-root",
                 "."
-              ],
-              "disabled": true
+              ]
             }
           },
           "description": "Configuration for MCP Servers."

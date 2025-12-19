@@ -6,6 +6,7 @@ import { z } from 'zod';
 export const SessionSchema = z.object({
     port: z.number(),
     token: z.string(),
+    workspaceId: z.string().optional(),
     showLog: z.boolean().default(false),
 });
 

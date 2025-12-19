@@ -6,42 +6,7 @@ export class ConfigManager {
      * Initialize extension storage on first install or update
      */
     async initializeStorage() {
-        const files: Record<string, string> = {
-            prompt_en: "prompt.md",
-            prompt_zh: "prompt_zh.md",
-            train_en: "train.md",
-            train_zh: "train_zh.md",
-            error_en: "error_hint.md",
-            error_zh: "error_hint_zh.md",
-        };
-
-        const storageData: Record<string, string> = {};
-
-        for (const [key, file] of Object.entries(files)) {
-            try {
-                const url = browserService.getURL(file);
-                const response = await fetch(url);
-                if (response.ok) {
-                    storageData[key] = await response.text();
-                }
-            } catch (err) {
-                console.error(`Error loading ${file}`, err);
-            }
-        }
-
-        // 1. Initialize local resources
-        const existingLocal = await getLocal(Object.keys(storageData) as any);
-        const localToSet: Record<string, string> = {};
-        for (const [key, val] of Object.entries(storageData)) {
-            if (!(existingLocal as any)[key]) {
-                localToSet[key] = val;
-            }
-        }
-        if (Object.keys(localToSet).length > 0) {
-            await setLocal(localToSet as any);
-        }
-
-        // 2. Initialize user settings
+        // 1. Initialize user settings
         const syncKeys = ["autoSend", "autoPromptEnabled", "protected_tools"];
         const existingSync = await getSync(syncKeys as any);
         const syncToSet: Record<string, any> = {};

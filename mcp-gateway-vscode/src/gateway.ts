@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { ToolExecutionPayload } from '@webmcp/shared';
+import { ConfigManager, WebMCPConfig } from './config';
 
 const RUN_IN_TERMINAL_TOOL = {
     name: "run_in_terminal",
@@ -41,9 +42,9 @@ const GET_TOOL_DEFINITIONS_TOOL = {
 
 // Tools that always show full schema (Hot Tools)
 const BASIC_TOOLS = [
-    'read_file', 'read_text_file', 'write_file', 'edit_file', 
-    'list_directory', 'list_directory_with_sizes', 
-    'run_in_terminal', 'execute_command', 
+    'read_file', 'read_text_file', 'write_file', 'edit_file',
+    'list_directory', 'list_directory_with_sizes',
+    'run_in_terminal', 'execute_command',
     'search_files', 'get_tool_definitions', 'list_tools'
 ];
 
@@ -55,7 +56,6 @@ interface ServerConfig {
     url?: string;
     headers?: Record<string, string>;
     env?: Record<string, string>;
-    disabled?: boolean;
 }
 
 interface Config {
@@ -80,7 +80,7 @@ export class GatewayManager {
     private _generateGroupedTools() {
         // 1. Gather all tools with their server association
         const allTools = Array.from(this.toolRouter.values()).map(t => ({ ...t.definition, _server: t.serverId }));
-        
+
         // 2. Inject Internal Tools
         allTools.push({ ...RUN_IN_TERMINAL_TOOL, _server: 'internal' });
         allTools.push({ ...GET_TOOL_DEFINITIONS_TOOL, _server: 'internal' });
@@ -151,7 +151,7 @@ export class GatewayManager {
         this.outputChannel.appendLine(`[${time}] ❌ ${message} ${err ? (err.message || JSON.stringify(err)) : ''}`);
     }
 
-    async connectToServers(servers: Record<string, ServerConfig>) {
+    async connectToServers(servers: Record<string, ServerConfig>, enabledServices?: string[]) {
         this.connectedClients.forEach(c => {
             try {
                 c.client.close();
@@ -163,8 +163,8 @@ export class GatewayManager {
         this.log('🔌 Connecting to MCP servers...');
 
         for (const [serverId, config] of Object.entries(servers)) {
-            if (config.disabled === true) {
-                this.log(`   -> Skipping [${serverId}] (Disabled)`);
+            if (enabledServices && !enabledServices.includes(serverId)) {
+                this.log(`   -> Skipping [${serverId}] (Not enabled for this workspace)`);
                 continue;
             }
 
@@ -174,18 +174,18 @@ export class GatewayManager {
                 if (config.type === 'http') {
                     if (!config.url) throw new Error("Missing 'url' for HTTP config");
                     this.log(`   -> Connecting [${serverId}] via HTTP (Standard): ${config.url}`);
-                    
+
                     // 标准 HTTP 传输 (新版)
                     const transport = new StreamableHTTPClientTransport(new URL(config.url), {
                         requestInit: { headers: config.headers },
                     });
                     client = new Client({ name: "mcp-gateway-vscode", version: "1.0.0" }, { capabilities: {} });
                     await client.connect(transport);
-                
+
                 } else if (config.type === 'sse') {
                     if (!config.url) throw new Error("Missing 'url' for SSE config");
                     this.log(`   -> Connecting [${serverId}] via SSE (Legacy): ${config.url}`);
-                    
+
                     // SSE 传输 (旧版，向后兼容)
                     const transport = new SSEClientTransport(new URL(config.url), {
                         requestInit: { headers: config.headers } as any, // 强制类型转换以应对弃用API的严格类型
@@ -194,7 +194,7 @@ export class GatewayManager {
                     });
                     client = new Client({ name: "mcp-gateway-vscode", version: "1.0.0" }, { capabilities: {} });
                     await client.connect(transport);
-                
+
                 } else {
                     // Default to Stdio
                     // [Fix] Resolve variable substitution for ${extensionPath}
@@ -315,22 +315,39 @@ export class GatewayManager {
             next();
         });
 
-        // 4.1 配置同步接口 (Config Sync)
-        this.app.get('/v1/config', (req, res) => {
-            this.log('📥 Config Sync: Pull requested');
-            const savedConfig = this.context.globalState.get('mcp.browserConfig') || null;
-            res.json({ config: savedConfig });
+        // 4.1 Hierarchical Config Sync
+        this.app.get('/v1/config', async (req, res) => {
+            const workspaceId = req.query.workspaceId as string;
+            if (!workspaceId) return res.status(400).json({ error: "Missing workspaceId" });
+
+            this.log(`📥 Config Sync: Pull for workspace ${workspaceId}`);
+            const mergedConfig = await ConfigManager.getMergedConfig(this.context, workspaceId);
+            res.json({ config: mergedConfig });
         });
 
-        this.app.post('/v1/config', (req, res) => {
-            const newConfig = req.body.config;
-            if (newConfig) {
-                this.context.globalState.update('mcp.browserConfig', newConfig);
-                this.log('📤 Config Sync: Push received & saved');
-                res.json({ success: true });
-            } else {
-                res.status(400).json({ error: "Missing config data" });
+        this.app.post('/v1/config', async (req, res) => {
+            const workspaceId = req.query.workspaceId as string;
+            const scope = (req.query.scope as 'global' | 'workspace') || 'workspace';
+            const updates = req.body.config as Partial<WebMCPConfig>;
+
+            if (!workspaceId || !updates) {
+                return res.status(400).json({ error: "Missing workspaceId or config data" });
             }
+
+            await ConfigManager.saveConfig(this.context, workspaceId, scope, updates);
+            this.log(`📤 Config Sync: Saved to ${scope} for workspace ${workspaceId}`);
+            res.json({ success: true });
+        });
+
+        this.app.delete('/v1/config', async (req, res) => {
+            const workspaceId = req.query.workspaceId as string;
+            const scope = (req.query.scope as 'global' | 'workspace') || 'workspace';
+
+            if (!workspaceId) return res.status(400).json({ error: "Missing workspaceId" });
+
+            await ConfigManager.resetConfig(this.context, workspaceId, scope);
+            this.log(`🗑️ Config Sync: Reset ${scope} for workspace ${workspaceId}`);
+            res.json({ success: true });
         });
 
         // 5. 桥接页面 (Bridge Page)
@@ -464,7 +481,7 @@ export class GatewayManager {
                     terminal.show();
                 }
                 terminal.sendText(args.command);
-                
+
                 this.log(`   ✅ Finished: run_in_terminal (Async dispatch)`);
                 return res.json({
                     content: [{ type: 'text', text: `Command sent to terminal '${termName}': ${args.command}` }],
@@ -475,7 +492,7 @@ export class GatewayManager {
             if (name === 'get_tool_definitions') {
                 const requestedNames = args.tool_names as string[] || [];
                 this.log(`   🚀 Executing: get_tool_definitions for [${requestedNames.join(', ')}]`);
-                
+
                 const definitions = [];
                 // 1. Check Tool Router
                 for (const tName of requestedNames) {

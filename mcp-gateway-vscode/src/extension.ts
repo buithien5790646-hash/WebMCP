@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { GatewayManager } from './gateway';
 import { exec } from 'child_process';
 import * as os from 'os';
+import { WorkspaceManager } from './workspace';
+import { MCPServiceProvider } from './serviceProvider';
 
 // 定义配置文件的 AI 站点结构
 interface AISiteConfig {
@@ -40,6 +42,15 @@ export async function activate(context: vscode.ExtensionContext) {
         outputChannel.appendLine("💤 Auto-shutdown triggered due to inactivity.");
     });
 
+    // Initialize Service Provider for Sidebar
+    const serviceProvider = new MCPServiceProvider(context);
+    vscode.window.registerTreeDataProvider('mcp-servers', serviceProvider);
+
+    // Register Toggle Command
+    context.subscriptions.push(vscode.commands.registerCommand('mcp-gateway.toggleService', (id: string) => {
+        serviceProvider.toggleService(id);
+    }));
+
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     statusBarItem.command = 'mcp-gateway.connect';
     context.subscriptions.push(statusBarItem);
@@ -53,6 +64,10 @@ export async function activate(context: vscode.ExtensionContext) {
         const portConfig = config.get<number>('port') || 34567;
         const mcpServers = config.get<any>('servers') || {};
         const lastUsedPort = context.workspaceState.get<number>('mcp.lastPort');
+
+        // [Multi-Workspace] Get Workspace Context
+        const workspaceId = WorkspaceManager.getWorkspaceId(context);
+        const enabledServices = context.workspaceState.get<string[]>('mcp.enabledServices') || [];
 
         // [Security] Extract Allowed Origins from AI Sites config
         const aiSites = config.get<AISiteConfig[]>('aiSites') || [];
@@ -71,6 +86,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 mcpServers,
                 allowedOrigins
             });
+
+            // Re-connect with filtered services based on workspace enablement
+            await manager.connectToServers(mcpServers, enabledServices);
 
             currentPort = result.port;
             currentToken = result.token;
@@ -116,7 +134,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // Get relative path (e.g., "src/extension.ts")
         const filePath = vscode.workspace.asRelativePath(editor.document.uri);
-        
+
         // Format the clipboard content
         const contentWithContext = `File: ${filePath}\n\n${text}`;
 
@@ -138,14 +156,14 @@ export async function activate(context: vscode.ExtensionContext) {
                 { label: '$(output) View Logs', description: 'Show output panel', action: 'showLogs' },
                 { label: '$(settings-gear) Configure', description: 'Open settings', action: 'settings' }
             ];
-            
+
             const selection = await vscode.window.showQuickPick(items, {
                 placeHolder: 'WebMCP is Offline',
                 title: 'WebMCP Manager'
             });
-            
+
             if (!selection) return;
-            
+
             if (selection.action === 'start') {
                 await startService();
             } else if (selection.action === 'showLogs') {
@@ -245,13 +263,13 @@ export async function activate(context: vscode.ExtensionContext) {
             });
             if (!browserSelection) { return; }
 
-            launchBridge(aiSelection.target!, browserSelection.value!);
+            launchBridge(aiSelection.target!, browserSelection.value!, context);
             return;
         }
 
         // 4. 默认启动 (智能匹配配置)
         if (selection.target) {
-            launchBridge(selection.target, 'auto');
+            launchBridge(selection.target, 'auto', context);
         }
     }));
 
@@ -269,8 +287,9 @@ export async function activate(context: vscode.ExtensionContext) {
     // Do not auto-start
 }
 
-function launchBridge(targetUrl: string, browserMode: string) {
-    const bridgeUrl = `http://127.0.0.1:${currentPort}/bridge?token=${currentToken}&target=${encodeURIComponent(targetUrl)}`;
+function launchBridge(targetUrl: string, browserMode: string, context: vscode.ExtensionContext) {
+    const workspaceId = WorkspaceManager.getWorkspaceId(context);
+    const bridgeUrl = `http://127.0.0.1:${currentPort}/bridge?token=${currentToken}&workspaceId=${workspaceId}&target=${encodeURIComponent(targetUrl)}`;
 
     const config = vscode.workspace.getConfiguration('mcpGateway');
     let finalBrowser = 'default';

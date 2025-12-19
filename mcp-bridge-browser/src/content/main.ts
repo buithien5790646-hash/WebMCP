@@ -56,6 +56,19 @@ messageBroker.on("TOGGLE_LOG", (request) => {
 messageBroker.on("STATUS_UPDATE", (request) => {
   const wasConnected = isClientConnected;
   isClientConnected = request.connected;
+
+  if (request.config) {
+    const config = request.config;
+    i18n.resources.prompt = config.prompt;
+    i18n.resources.train = config.train;
+    i18n.resources.error = config.error_hint;
+    userRules = config.rules || "";
+    if (config.protected_tools) {
+      protectedTools = new Set(config.protected_tools);
+    }
+    Logger.log("[MCP] Workspace config applied", "info");
+  }
+
   if (isClientConnected !== wasConnected) {
     Logger.log(`[MCP] Connection: ${isClientConnected ? "Connected" : "Disconnected"}`, "info");
     if (isClientConnected && observer) {

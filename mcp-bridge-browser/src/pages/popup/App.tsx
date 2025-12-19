@@ -12,6 +12,7 @@ import './App.css';
 interface SessionStatus {
     connected: boolean;
     port?: number;
+    workspaceId?: string;
     showLog?: boolean;
 }
 
@@ -46,6 +47,7 @@ export function App() {
                     setStatus({
                         connected: true,
                         port: response.port,
+                        workspaceId: response.workspaceId,
                         showLog: response.showLog || false,
                     });
                     setShowLog(response.showLog || false);
@@ -88,9 +90,12 @@ export function App() {
     };
 
     const handleOpenOptions = () => {
-        browserService.openOptionsPage();
+        let url = 'options.html';
+        if (status.workspaceId) {
+            url += `?workspaceId=${status.workspaceId}`;
+        }
+        chrome.tabs.create({ url });
     };
-
     const handleConnectGateway = (gateway: Gateway) => {
         if (!currentTabId) return;
         browserService.sendMessage({

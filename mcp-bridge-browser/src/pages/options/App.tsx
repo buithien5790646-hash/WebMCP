@@ -1,109 +1,131 @@
 import { useState, useEffect } from 'preact/hooks';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { useStorage, useLocalStorage } from '@/hooks/useStorage';
 import { useI18n } from '@/hooks/useI18n';
-import { getLocal, setLocal } from '@/services/storage';
-import { browserService } from '@/services/BrowserService';
+import { getLocal } from '@/services/storage';
 import { i18n } from '@/services/i18n';
 const { t } = i18n;
 import './App.css';
 
 export function App() {
     const { lang } = useI18n();
-    const [protectedTools, setProtectedTools] = useStorage<string[]>('protected_tools', []);
-
-    const promptKey = lang === 'zh' ? 'prompt_zh' : 'prompt_en';
-    const trainKey = lang === 'zh' ? 'train_zh' : 'train_en';
-    const errorKey = lang === 'zh' ? 'error_zh' : 'error_en';
-
-    const [initPrompt, setInitPrompt] = useLocalStorage(promptKey, '');
-    const [trainPrompt, setTrainPrompt] = useLocalStorage(trainKey, '');
-    const [errorPrompt, setErrorPrompt] = useLocalStorage(errorKey, '');
-    const [userRules, setUserRules] = useLocalStorage('user_rules', '');
-
+    const [config, setConfig] = useState<any>({
+        prompt: '',
+        train: '',
+        error_hint: '',
+        rules: '',
+        protected_tools: [],
+    });
+    const [workspaceId, setWorkspaceId] = useState<string | null>(null);
     const [toolList, setToolList] = useState<string[]>([]);
     const [status, setStatus] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [activeGateway, setActiveGateway] = useState<{ port: number, token: string } | null>(null);
 
     useEffect(() => {
-        // Load cached tool list
-        getLocal(['cached_tool_list']).then((items) => {
-            if (items.cached_tool_list) {
-                setToolList(items.cached_tool_list);
+        // 1. Get workspaceId from URL
+        const params = new URLSearchParams(window.location.search);
+        let id = params.get('workspaceId');
+
+        // 2. Find active session to get port/token
+        getLocal(null).then(async (all) => {
+            const sessions = Object.entries(all || {})
+                .filter(([k]) => k.startsWith('session_'))
+                .map(([_, v]) => v as any);
+
+            let session = null;
+            if (id) {
+                session = sessions.find(s => s.workspaceId === id);
+            }
+            if (!session && sessions.length > 0) {
+                session = sessions[0];
+                id = session.workspaceId;
+            }
+
+            if (session) {
+                setWorkspaceId(id);
+                setActiveGateway({ port: session.port, token: session.token });
+                loadConfig(session.port, session.token, id);
+                refreshTools(session.port, session.token);
+            } else {
+                showStatus(t('status_gateway_failed'));
             }
         });
     }, []);
 
-    const handleSave = () => {
-        // Sync config to Gateway
-        browserService.sendMessage({ type: 'SYNC_CONFIG' }).then((response) => {
-            if (response?.success) {
-                showStatus(t('status_saved_synced'));
-            } else {
-                showStatus(t('status_saved_local'));
+    const loadConfig = async (port: number, token: string, wId: string | null) => {
+        try {
+            const resp = await fetch(`http://127.0.0.1:${port}/v1/config?workspaceId=${wId || ''}`, {
+                headers: { 'X-WebMCP-Token': token }
+            });
+            const data = await resp.json();
+            if (data.config) {
+                setConfig(data.config);
             }
-        });
-    };
-
-    const handleReset = async () => {
-        if (confirm(t('confirm_reset'))) {
-            // Load default prompts
-            const promptFile = lang === 'zh' ? 'prompt_zh.md' : 'prompt.md';
-            const trainFile = lang === 'zh' ? 'train_zh.md' : 'train.md';
-            const errorFile = lang === 'zh' ? 'error_hint_zh.md' : 'error_hint.md';
-
-            const loadDefault = async (filename: string) => {
-                try {
-                    const url = browserService.getURL(filename);
-                    const resp = await fetch(url);
-                    return await resp.text();
-                } catch {
-                    return '';
-                }
-            };
-
-            setInitPrompt(await loadDefault(promptFile));
-            setTrainPrompt(await loadDefault(trainFile));
-            setErrorPrompt(await loadDefault(errorFile));
-            setUserRules('');
-
-            showStatus(t('status_reset_done'));
+        } catch (e) {
+            console.error("Failed to load config", e);
         }
     };
 
-    const handleRefreshTools = async () => {
+    const refreshTools = async (port: number, token: string) => {
         try {
-            // Find active session
-            const all = await getLocal(null);
-            const entries = Object.entries(all || {});
-            let port = null, token = null;
-            for (const [key, val] of entries) {
-                if (key.startsWith('session_') && (val as any).port && (val as any).token) {
-                    port = (val as any).port;
-                    token = (val as any).token;
-                    break;
-                }
-            }
-            if (!port || !token) throw new Error('No active session');
-
             const resp = await fetch(`http://127.0.0.1:${port}/v1/tools`, {
-                headers: { 'X-WebMCP-Token': token },
+                headers: { 'X-WebMCP-Token': token }
             });
-            if (!resp.ok) throw new Error('Gateway rejected request');
-
             const json = await resp.json();
-            const rawGroups = json.groups || [];
-            const newToolNames: string[] = [];
-            rawGroups.forEach((g: any) => {
-                if (g.tools) g.tools.forEach((t: any) => newToolNames.push(t.name));
-                if (g.hidden_tools) g.hidden_tools.forEach((n: string) => newToolNames.push(n));
+            const names: string[] = [];
+            (json.groups || []).forEach((g: any) => {
+                if (g.tools) g.tools.forEach((t: any) => names.push(t.name));
+                if (g.hidden_tools) g.hidden_tools.forEach((n: string) => names.push(n));
             });
+            setToolList(names);
+        } catch (e) { }
+    };
 
-            await setLocal({ cached_tool_list: newToolNames });
-            setToolList(newToolNames);
-            showStatus(t('status_tools_updated'));
+    const handleSave = async () => {
+        if (!activeGateway || !workspaceId) return;
+        setSaving(true);
+        try {
+            const resp = await fetch(`http://127.0.0.1:${activeGateway.port}/v1/config?workspaceId=${workspaceId}&scope=workspace`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WebMCP-Token': activeGateway.token
+                },
+                body: JSON.stringify({ config })
+            });
+            if (resp.ok) {
+                showStatus(t('status_saved_synced'));
+            } else {
+                showStatus('Save Failed');
+            }
         } catch (e) {
-            showStatus(t('status_gateway_failed'));
+            showStatus('Network Error');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleReset = async () => {
+        if (!activeGateway || !workspaceId) return;
+        if (confirm(t('confirm_reset'))) {
+            try {
+                await fetch(`http://127.0.0.1:${activeGateway.port}/v1/config?workspaceId=${workspaceId}&scope=workspace`, {
+                    method: 'DELETE',
+                    headers: { 'X-WebMCP-Token': activeGateway.token }
+                });
+                await loadConfig(activeGateway.port, activeGateway.token, workspaceId);
+                showStatus(t('status_reset_done'));
+            } catch (e) {
+                showStatus('Reset Failed');
+            }
+        }
+    };
+
+    const handleRefreshTools = () => {
+        if (activeGateway) {
+            refreshTools(activeGateway.port, activeGateway.token);
+            showStatus(t('status_tools_updated'));
         }
     };
 
@@ -113,11 +135,12 @@ export function App() {
     };
 
     const handleToolToggle = (toolName: string, checked: boolean) => {
-        if (checked) {
-            setProtectedTools([...protectedTools, toolName]);
-        } else {
-            setProtectedTools(protectedTools.filter(t => t !== toolName));
-        }
+        const current = config.protected_tools || [];
+        const next = checked
+            ? [...current, toolName]
+            : current.filter((t: string) => t !== toolName);
+
+        setConfig({ ...config, protected_tools: next });
     };
 
     return (
@@ -149,7 +172,7 @@ export function App() {
                             <label key={toolName} className="checkbox-row">
                                 <input
                                     type="checkbox"
-                                    checked={protectedTools.includes(toolName)}
+                                    checked={(config.protected_tools || []).includes(toolName)}
                                     onChange={(e) => handleToolToggle(toolName, (e.target as HTMLInputElement).checked)}
                                 />
                                 {toolName}
@@ -161,14 +184,15 @@ export function App() {
 
             <Card>
                 <h2>{t('opt_prompts_title')}</h2>
+                {workspaceId && <div className="workspace-badge">Project: {workspaceId.slice(0, 8)}...</div>}
 
                 <label>{t('opt_init_label')}</label>
                 <div className="description">
                     {t('opt_init_desc')}
                 </div>
                 <textarea
-                    value={initPrompt}
-                    onChange={(e) => setInitPrompt((e.target as HTMLTextAreaElement).value)}
+                    value={config.prompt}
+                    onInput={(e) => setConfig({ ...config, prompt: (e.target as HTMLTextAreaElement).value })}
                     style={{ height: '180px' }}
                 />
 
@@ -179,8 +203,8 @@ export function App() {
                     {t('opt_rules_desc')}
                 </div>
                 <textarea
-                    value={userRules}
-                    onChange={(e) => setUserRules((e.target as HTMLTextAreaElement).value)}
+                    value={config.rules}
+                    onInput={(e) => setConfig({ ...config, rules: (e.target as HTMLTextAreaElement).value })}
                     style={{ height: '80px', borderColor: '#b8daff', background: '#f0f8ff' }}
                 />
 
@@ -191,8 +215,8 @@ export function App() {
                     {t('opt_train_desc')}
                 </div>
                 <textarea
-                    value={trainPrompt}
-                    onChange={(e) => setTrainPrompt((e.target as HTMLTextAreaElement).value)}
+                    value={config.train}
+                    onInput={(e) => setConfig({ ...config, train: (e.target as HTMLTextAreaElement).value })}
                     style={{ height: '60px' }}
                 />
 
@@ -203,8 +227,8 @@ export function App() {
                     {t('opt_error_desc')}
                 </div>
                 <textarea
-                    value={errorPrompt}
-                    onChange={(e) => setErrorPrompt((e.target as HTMLTextAreaElement).value)}
+                    value={config.error_hint}
+                    onInput={(e) => setConfig({ ...config, error_hint: (e.target as HTMLTextAreaElement).value })}
                     style={{ height: '100px' }}
                 />
             </Card>
@@ -215,8 +239,8 @@ export function App() {
                         {status}
                     </div>
                     <div className="footer-actions">
-                        <Button variant="secondary" onClick={handleReset}>{t('btn_reset')}</Button>
-                        <Button onClick={handleSave}>{t('btn_save')}</Button>
+                        <Button variant="secondary" onClick={handleReset} disabled={saving}>{t('btn_reset')}</Button>
+                        <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : t('btn_save')}</Button>
                     </div>
                 </div>
             </div>

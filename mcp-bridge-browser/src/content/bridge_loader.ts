@@ -12,10 +12,10 @@ const init = () => {
       document.documentElement.setAttribute("data-extension-installed", "true");
     }
 
-    // 1. 从 URL 获取参数
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
     const target = params.get("target");
+    const workspaceId = params.get("workspaceId");
     const portStr = window.location.port;
 
     const loader = document.getElementById("loader") as HTMLElement | null;
@@ -37,6 +37,7 @@ const init = () => {
         type: "HANDSHAKE",
         port: port,
         token: token,
+        workspaceId: workspaceId,
         force: force,
       }).then((response: HandshakeResponse) => {
         if (!response) {

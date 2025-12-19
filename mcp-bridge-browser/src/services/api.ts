@@ -98,8 +98,11 @@ export class ApiClient {
     /**
      * Push configuration to the Gateway
      */
-    async pushConfig(config: any): Promise<void> {
-        const response = await fetch(`${this.getBaseUrl()}/v1/config`, {
+    async pushConfig(config: any, workspaceId?: string): Promise<void> {
+        let url = `${this.getBaseUrl()}/v1/config`;
+        if (workspaceId) url += `?workspaceId=${workspaceId}`;
+
+        const response = await fetch(url, {
             method: 'POST',
             headers: this.getHeaders(),
             body: JSON.stringify({ config }),
@@ -113,8 +116,11 @@ export class ApiClient {
     /**
      * Pull configuration from the Gateway
      */
-    async pullConfig(): Promise<any> {
-        const response = await fetch(`${this.getBaseUrl()}/v1/config`, {
+    async pullConfig(workspaceId?: string): Promise<any> {
+        let url = `${this.getBaseUrl()}/v1/config`;
+        if (workspaceId) url += `?workspaceId=${workspaceId}`;
+
+        const response = await fetch(url, {
             headers: this.getHeaders(),
         });
 
