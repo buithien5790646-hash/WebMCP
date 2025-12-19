@@ -1,4 +1,6 @@
-import { Logger, i18n, t } from "../modules/utils";
+import { i18n } from "../services/i18n";
+const { t } = i18n;
+import { logger as Logger } from "../services/LoggerService";
 import { showConfirmationModal } from "../components/ConfirmModal";
 import {
   markVisualProcessing,

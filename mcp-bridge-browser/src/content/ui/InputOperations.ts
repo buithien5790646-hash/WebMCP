@@ -1,4 +1,6 @@
-import { Logger, t } from '../../modules/utils';
+import { i18n } from '../../services/i18n';
+const { t } = i18n;
+import { logger as Logger } from '../../services/LoggerService';
 
 /**
  * Input Operations Module

@@ -3,12 +3,10 @@ import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
 import { useStorage, useLocalStorage } from '../../hooks/useStorage';
 import { useI18n } from '../../hooks/useI18n';
-import { DEFAULT_SELECTORS } from '../../modules/config';
 import './App.css';
 
 export function App() {
     const { lang } = useI18n();
-    const [customSelectors, setCustomSelectors] = useStorage('customSelectors', DEFAULT_SELECTORS);
     const [protectedTools, setProtectedTools] = useStorage<string[]>('protected_tools', []);
 
     const promptKey = lang === 'zh' ? 'prompt_zh' : 'prompt_en';
@@ -20,13 +18,8 @@ export function App() {
     const [errorPrompt, setErrorPrompt] = useLocalStorage(errorKey, '');
     const [userRules, setUserRules] = useLocalStorage('user_rules', '');
 
-    const [selectorsJson, setSelectorsJson] = useState('');
     const [toolList, setToolList] = useState<string[]>([]);
     const [status, setStatus] = useState('');
-
-    useEffect(() => {
-        setSelectorsJson(JSON.stringify(customSelectors, null, 2));
-    }, [customSelectors]);
 
     useEffect(() => {
         // Load cached tool list
@@ -38,30 +31,18 @@ export function App() {
     }, []);
 
     const handleSave = () => {
-        try {
-            const config = JSON.parse(selectorsJson);
-            if (!config.deepseek || !config.chatgpt || !config.gemini || !config.aistudio) {
-                throw new Error('Missing required platform keys');
+        // Sync config to Gateway
+        chrome.runtime.sendMessage({ type: 'SYNC_CONFIG' }, (response) => {
+            if (response?.success) {
+                showStatus('Settings saved & synced to VS Code!');
+            } else {
+                showStatus('Saved locally (VS Code disconnected).');
             }
-            setCustomSelectors(config);
-
-            // Sync config to Gateway
-            chrome.runtime.sendMessage({ type: 'SYNC_CONFIG' }, (response) => {
-                if (response?.success) {
-                    showStatus('Settings saved & synced to VS Code!');
-                } else {
-                    showStatus('Saved locally (VS Code disconnected).');
-                }
-            });
-        } catch (e: any) {
-            showStatus('Error: Invalid JSON format. ' + e.message);
-        }
+        });
     };
 
     const handleReset = async () => {
         if (confirm('Are you sure you want to reset ALL settings to defaults?')) {
-            setSelectorsJson(JSON.stringify(DEFAULT_SELECTORS, null, 2));
-
             // Load default prompts
             const promptFile = lang === 'zh' ? 'prompt_zh.md' : 'prompt.md';
             const trainFile = lang === 'zh' ? 'train_zh.md' : 'train.md';
@@ -80,6 +61,7 @@ export function App() {
             setInitPrompt(await loadDefault(promptFile));
             setTrainPrompt(await loadDefault(trainFile));
             setErrorPrompt(await loadDefault(errorFile));
+            setUserRules('');
 
             showStatus('Restored defaults from files.');
         }
@@ -140,18 +122,6 @@ export function App() {
                 <span>WebMCP Settings</span>
                 <span className="lang-badge">{lang.toUpperCase()}</span>
             </h1>
-
-            <Card>
-                <h2>Site Selectors</h2>
-                <div className="description">
-                    Customize DOM selectors. Only modify if the extension stops working.
-                </div>
-                <textarea
-                    value={selectorsJson}
-                    onChange={(e) => setSelectorsJson((e.target as HTMLTextAreaElement).value)}
-                    style={{ height: '150px' }}
-                />
-            </Card>
 
             <Card>
                 <h2>Human-in-the-Loop (Approval)</h2>

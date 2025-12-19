@@ -42,8 +42,10 @@ class I18nService {
         const translations: Record<string, { en: string; zh: string }> = {
             auto_filled: { en: 'Auto-filled initial Prompt', zh: '已自动填充初始 Prompt' },
             captured: { en: 'Captured Call', zh: '捕获调用' },
+            args: { en: 'Args', zh: '参数' },
             exec_success: { en: 'Execution Success', zh: '执行成功' },
             exec_fail: { en: 'Execution Failed', zh: '执行失败' },
+            training_hint: { en: 'Added periodic training note', zh: '已附加定期复训提示' },
             input_not_found: { en: 'Input box not found!', zh: '找不到输入框!' },
             result_written: { en: 'Result written back to input', zh: '结果已回填至输入框' },
             send_success_cleared: { en: 'Send success (Input cleared)', zh: '发送成功 (输入框已清空)' },
