@@ -1,13 +1,16 @@
 import { HandshakeResponse } from '@/types';
 import { browserService } from '@/services/BrowserService';
 
-(function () {
-  // === 核心修复：等待 DOM 加载完成 ===
-  // 标记插件已安装，供页面检测
-  document.documentElement.setAttribute("data-extension-installed", "true");
+const init = () => {
+  console.log("[WebMCP] Bridge Script Loaded, state:", document.readyState);
 
-  window.addEventListener("DOMContentLoaded", () => {
+  const startHandshake = () => {
     console.log("[WebMCP] Bridge DOM Loaded, starting handshake...");
+
+    // 标记插件已安装，供页面检测
+    if (document.documentElement) {
+      document.documentElement.setAttribute("data-extension-installed", "true");
+    }
 
     // 1. 从 URL 获取参数
     const params = new URLSearchParams(window.location.search);
@@ -87,5 +90,13 @@ import { browserService } from '@/services/BrowserService';
 
     // 启动握手
     attemptHandshake();
-  });
-})();
+  };
+
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    startHandshake();
+  } else {
+    window.addEventListener("DOMContentLoaded", startHandshake);
+  }
+};
+
+init();
