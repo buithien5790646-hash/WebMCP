@@ -1,21 +1,14 @@
-import { i18n, logger as Logger, messageBroker, getLocal, getSync, setSync, onStorageChanged } from "@/services";
-const { t } = i18n;
-import { showConfirmationModal } from "@/components/ConfirmModal";
+import { i18n, logger as Logger, messageBroker, getLocal, getSync, onStorageChanged } from "@/services";
 import {
-  markVisualProcessing,
-  markVisualSuccess,
-  markVisualError,
   writeToInputBox,
+  ModalManager
 } from "./ui";
 import { detectPlatform } from "./adapters";
 import { DOMObserver, MessageParser, Workflow, ExecutionEngine } from "./core";
-import { ToolExecutionPayload } from "@/types";
 
 let isClientConnected = false;
 let userRules = "";
 let protectedTools = new Set<string>();
-let confirmationQueue: ToolExecutionPayload[] = [];
-let isPopupOpen = false;
 
 // Config state
 interface ConfigState {
@@ -103,7 +96,7 @@ function runMainLoop() {
   const currentTurnIds: string[] = [];
 
   // Pass currentTurnIds for batch tracking
-  codeElements.forEach((codeEl) => {
+  Array.from(codeElements).forEach((codeEl) => {
     const { payload } = parser.parseCodeBlock(codeEl);
     if (payload && payload.request_id) {
       currentTurnIds.push(payload.request_id);
@@ -116,28 +109,7 @@ function runMainLoop() {
     protectedTools: protectedTools
   });
 
-  // Handle HITL intercept
-  codeElements.forEach((codeEl) => {
-    const { payload, isStableError } = parser.parseCodeBlock(codeEl);
-    if (payload && payload.request_id) {
-      if (!workflow.isProcessed(payload.request_id)) {
-        if (protectedTools.has(payload.name)) {
-          Logger.log(`${t("hitl_intercept")}: ${payload.name}`, "warn");
-          workflow.markDiscovered(payload.request_id);
-          confirmationQueue.push(payload);
-          processConfirmationQueue(codeEl as HTMLElement);
-        } else {
-          engine!.processCodeBlocks([codeEl]);
-        }
-      } else if (workflow.isExecuting(payload.request_id)) {
-        markVisualProcessing(codeEl as HTMLElement);
-      } else {
-        markVisualSuccess(codeEl as HTMLElement);
-      }
-    } else if (isStableError) {
-      markVisualError(codeEl as HTMLElement);
-    }
-  });
+  engine.processCodeBlocks(Array.from(codeElements));
 
   // Flush Results via Engine
   engine.flushResults(currentTurnIds);
@@ -150,61 +122,17 @@ function handleAutoPrompt() {
       let finalPrompt = i18n.resources.prompt;
       if (userRules) finalPrompt += `\n\n=== User Rules ===\n${userRules}`;
       writeToInputBox(finalPrompt, adapter!.inputArea);
-      Logger.log(t("auto_filled"), "action");
+      Logger.log(i18n.lang === "zh" ? "已自动填充提示词" : "Auto-filled prompt", "action");
     }
   }
-}
-
-// === Confirmation Queue ===
-function processConfirmationQueue(element?: HTMLElement) {
-  if (isPopupOpen || confirmationQueue.length === 0 || !engine) return;
-  const payload = confirmationQueue[0];
-  isPopupOpen = true;
-
-  showConfirmationModal(
-    payload,
-    (isAlways) => {
-      confirmationQueue.shift();
-      isPopupOpen = false;
-      if (adapter) {
-        const inputEl = adapter.getInputElement();
-        if (inputEl) inputEl.focus();
-      }
-
-      if (isAlways) {
-        protectedTools.delete(payload.name);
-        setSync({ protected_tools: Array.from(protectedTools) }).then(() => {
-          messageBroker.send({ type: "SYNC_CONFIG" });
-        });
-        Logger.log(`⚡ Tool '${payload.name}' set to Always Allow`, "action");
-      }
-
-      if (element) {
-        engine!.executeTool(payload, element);
-      }
-      processConfirmationQueue();
-    },
-    (reason) => {
-      confirmationQueue.shift();
-      isPopupOpen = false;
-      workflow.markCompleted(payload.request_id);
-      Logger.log(`${t("hitl_rejected")}: ${payload.name}`, "error");
-      workflow.saveResult(
-        payload.request_id,
-        `User rejected execution. Reason: ${reason || "No reason provided."}`,
-        true
-      );
-      if (element) markVisualError(element);
-      processConfirmationQueue();
-    }
-  );
 }
 
 // === Initialization ===
 if (adapter) {
   loadResources();
+  const modalManager = new ModalManager();
   observer = new DOMObserver(runMainLoop, CONFIG.pollInterval);
-  engine = new ExecutionEngine(parser, workflow, adapter);
+  engine = new ExecutionEngine(parser, workflow, adapter, modalManager);
 
   observer.start();
 

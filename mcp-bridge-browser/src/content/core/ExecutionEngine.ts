@@ -1,4 +1,5 @@
 import { messageBroker, i18n, logger as Logger, getLocal, setLocal, setSync, ErrorHandler } from "@/services";
+const { t } = i18n;
 import { ToolExecutionPayload } from "@/types";
 import {
     markVisualProcessing,
@@ -6,7 +7,8 @@ import {
     markVisualError,
     writeToInputBox,
     triggerAutoSend,
-    cancelAutoSend
+    cancelAutoSend,
+    ModalManager
 } from "../ui";
 import { MessageParser } from "./MessageParser";
 import { Workflow } from "./Workflow";
@@ -18,7 +20,8 @@ export class ExecutionEngine {
     constructor(
         private parser: MessageParser,
         private workflow: Workflow,
-        private adapter: any // Platform adapter
+        private adapter: any, // Platform adapter
+        private modalManager: ModalManager
     ) { }
 
     updateConfig(config: { autoSend: boolean; protectedTools: Set<string> }) {
@@ -37,8 +40,14 @@ export class ExecutionEngine {
                 if (!this.workflow.isProcessed(payload.request_id)) {
                     this.workflow.markDiscovered(payload.request_id);
                     cancelAutoSend();
-                    Logger.log(`[Engine] Captured: ${payload.name}`, "info");
-                    await this.handleToolCall(payload, codeEl as HTMLElement);
+
+                    if (this.protectedTools.has(payload.name)) {
+                        Logger.log(`${t("hitl_intercept")}: ${payload.name}`, "warn");
+                        this.handleProtectedTool(payload, codeEl as HTMLElement);
+                    } else {
+                        Logger.log(`[Engine] Captured: ${payload.name}`, "info");
+                        await this.executeTool(payload, codeEl as HTMLElement);
+                    }
                 } else if (this.workflow.isExecuting(payload.request_id)) {
                     markVisualProcessing(codeEl as HTMLElement);
                 } else {
@@ -50,16 +59,27 @@ export class ExecutionEngine {
         }
     }
 
-    private async handleToolCall(payload: ToolExecutionPayload, element: HTMLElement) {
-        // Check if protected
-        const isProtected = this.protectedTools.has(payload.name);
-
-        if (isProtected) {
-            Logger.log(`[Engine] Protected tool detected: ${payload.name}. HITL required.`, "warn");
-            return;
-        }
-
-        await this.executeTool(payload, element);
+    private handleProtectedTool(payload: ToolExecutionPayload, element: HTMLElement) {
+        this.modalManager.requestConfirmation(payload, async (confirmed, p, reason) => {
+            if (confirmed) {
+                // Check if user chose "Always Allow" (this logic should probably stay here)
+                // The ModalManager currently emits a sync event but the engine needs to update its local set
+                // or wait for the next storage sync. For immediate effect:
+                // Note: The isAlways flag isn't currently passed back. 
+                // Let's adjust ModalManager to pass that if needed, 
+                // or just rely on main.ts storage sync.
+                // Actually, let's keep it simple: just execute if confirmed.
+                await this.executeTool(p, element);
+            } else {
+                this.workflow.markCompleted(payload.request_id);
+                this.workflow.saveResult(
+                    payload.request_id,
+                    `User rejected execution. Reason: ${reason || "No reason provided."}`,
+                    true
+                );
+                markVisualError(element);
+            }
+        });
     }
 
     async executeTool(payload: ToolExecutionPayload, element: HTMLElement) {
