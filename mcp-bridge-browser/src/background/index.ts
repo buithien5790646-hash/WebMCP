@@ -1,4 +1,5 @@
-import { Session, MessageRequest, HandshakeResponse, ToolExecutionPayload } from '../types';
+import { Session, MessageRequest, HandshakeResponse } from '../types';
+import { apiClient } from '../services/api';
 
 // === WebMCP Background Service (MV3 Persistent Edition) ===
 
@@ -47,13 +48,13 @@ chrome.runtime.onInstalled.addListener(async () => {
   const syncKeys = ["autoSend", "autoPromptEnabled", "customSelectors", "protected_tools"];
   const existingSync = await chrome.storage.sync.get(syncKeys);
   const syncToSet: Record<string, any> = {};
-  
+
   if (existingSync.autoSend === undefined) syncToSet.autoSend = true;
   if (existingSync.autoPromptEnabled === undefined) syncToSet.autoPromptEnabled = false;
-  
+
   if (Object.keys(syncToSet).length > 0) {
-      await chrome.storage.sync.set(syncToSet);
-      console.log("[WebMCP] Initialized user settings (Preserved existing)");
+    await chrome.storage.sync.set(syncToSet);
+    console.log("[WebMCP] Initialized user settings (Preserved existing)");
   }
 });
 
@@ -93,9 +94,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (session && isUrlAllowed(tab.url)) {
       updateBadge(tabId, true);
       // [Sync] Restore connection state in Content Script after reload
-      chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true }).catch(() => {});
+      chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true }).catch(() => { });
       if (session.showLog) {
-        chrome.tabs.sendMessage(tabId, { type: "TOGGLE_LOG", show: true }).catch(() => {});
+        chrome.tabs.sendMessage(tabId, { type: "TOGGLE_LOG", show: true }).catch(() => { });
       }
     } else if (session && !isUrlAllowed(tab.url)) {
       await removeSession(tabId);
@@ -116,15 +117,15 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
     // Support both external (Popup) and internal (Content Script) status checks
     const targetTabId = request.tabId || (sender.tab ? sender.tab.id : null);
     if (targetTabId) {
-        getSession(targetTabId).then((session) => {
-          sendResponse({
-            connected: !!session,
-            port: session?.port,
-            showLog: session?.showLog || false,
-          });
+      getSession(targetTabId).then((session) => {
+        sendResponse({
+          connected: !!session,
+          port: session?.port,
+          showLog: session?.showLog || false,
         });
+      });
     } else {
-        sendResponse({ connected: false, error: "Unknown Tab ID" });
+      sendResponse({ connected: false, error: "Unknown Tab ID" });
     }
     return true;
   }
@@ -132,10 +133,10 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
     const targetTabId = request.tabId;
     const show = request.show ?? false;
     if (targetTabId) {
-        updateSessionLog(targetTabId, show).then(() => {
-        chrome.tabs.sendMessage(targetTabId, { type: "TOGGLE_LOG", show: show }).catch(() => {});
+      updateSessionLog(targetTabId, show).then(() => {
+        chrome.tabs.sendMessage(targetTabId, { type: "TOGGLE_LOG", show: show }).catch(() => { });
         sendResponse({ success: true });
-        });
+      });
     }
     return true;
   }
@@ -168,7 +169,7 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
     chrome.storage.local.remove("session_null");
 
     if (request.port && request.token) {
-        bindSession(targetTabId, request.port, request.token)
+      bindSession(targetTabId, request.port, request.token)
         .then(() => sendResponse({ success: true }))
         .catch((err) => sendResponse({ success: false, error: err.message }));
     }
@@ -201,19 +202,20 @@ async function removeSession(tabId: number) {
   const key = `session_${tabId}`;
   await chrome.storage.local.remove(key);
   // [Sync] Notify Content Script
-  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: false }).catch(() => {});
+  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: false }).catch(() => { });
 }
 
 // === 逻辑实现 ===
 async function handleHandshake(request: any, tabId: number | null | undefined): Promise<HandshakeResponse> {
   const { port, token, force } = request;
-  
+
   if (!tabId) return { success: false, error: "No Tab ID" };
 
   if (!force) {
     const all = await chrome.storage.local.get(null);
+    const entries = Object.entries(all || {});
     let conflictTabId: string | null = null;
-    for (const [key, val] of Object.entries(all)) {
+    for (const [key, val] of entries) {
       if (
         key.startsWith("session_") &&
         (val as Session).port === port &&
@@ -242,32 +244,24 @@ async function bindSession(tabId: number, port: number, token: string) {
   await saveSession(tabId, { port, token, showLog: false });
   console.log(`[WebMCP] Tab ${tabId} bound to Port ${port}`);
   updateBadge(tabId, true);
+  // Configure ApiClient
+  apiClient.configure(port, token);
   // [Sync] Notify Content Script
-  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true }).catch(() => {});
-  await syncConfigFromGateway(port, token);
-  prefetchToolList(port, token);
+  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true }).catch(() => { });
+  await syncConfigFromGateway();
+  prefetchToolList();
 }
 
 // === 配置同步 (Host Sync) ===
 async function pushConfigToGateway() {
   try {
-    // 1. Find active session
-    const all = await chrome.storage.local.get(null);
-    let port = null, token = null;
-    for (const [key, val] of Object.entries(all)) {
-      if (key.startsWith("session_") && (val as any).port && (val as any).token) {
-        port = (val as any).port;
-        token = (val as any).token;
-        break;
-      }
-    }
-    if (!port || !token) return false;
+    if (!apiClient.isConfigured()) return false;
 
-    // 2. Gather config
+    // Gather config
     const syncData = await chrome.storage.sync.get(["customSelectors", "protected_tools", "autoSend", "autoPromptEnabled"]);
     const localKeys = ["prompt_en", "prompt_zh", "train_en", "train_zh", "error_en", "error_zh", "user_rules"];
     const localData = await chrome.storage.local.get(localKeys);
-    
+
     const fullConfig = {
       version: 1,
       timestamp: new Date().toISOString(),
@@ -275,15 +269,8 @@ async function pushConfigToGateway() {
       local: localData
     };
 
-    // 3. Push
-    await fetch(`http://127.0.0.1:${port}/v1/config`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-WebMCP-Token': token
-      },
-      body: JSON.stringify({ config: fullConfig })
-    });
+    // Push using ApiClient
+    await apiClient.pushConfig(fullConfig);
     console.log("[WebMCP] Config pushed to Gateway (Auto-Save)");
     return true;
   } catch (e) {
@@ -292,22 +279,20 @@ async function pushConfigToGateway() {
   }
 }
 
-async function prefetchToolList(port: number, token: string) {
+async function prefetchToolList() {
   try {
+    if (!apiClient.isConfigured()) return;
+
     console.log("[WebMCP] Prefetching tool list...");
-    const resp = await fetch(`http://127.0.0.1:${port}/v1/tools`, {
-      headers: { "X-WebMCP-Token": token },
-    });
-    if (!resp.ok) return;
-    const json = await resp.json();
-    
+    const json = await apiClient.getTools();
+
     // Parse Grouped Data
     const rawGroups = json.groups || [];
     const newToolNames: string[] = [];
-    
+
     rawGroups.forEach((g: any) => {
-        if (g.tools) g.tools.forEach((t: any) => newToolNames.push(t.name));
-        if (g.hidden_tools) g.hidden_tools.forEach((n: string) => newToolNames.push(n));
+      if (g.tools) g.tools.forEach((t: any) => newToolNames.push(t.name));
+      if (g.hidden_tools) g.hidden_tools.forEach((n: string) => newToolNames.push(n));
     });
 
     // [HITL] Security: Auto-protect new tools logic
@@ -335,9 +320,9 @@ async function prefetchToolList(port: number, token: string) {
       console.log("[WebMCP] New tools detected & protected during prefetch.");
     }
 
-    await chrome.storage.local.set({ 
-        cached_tool_list: newToolNames, 
-        cached_tool_groups: rawGroups 
+    await chrome.storage.local.set({
+      cached_tool_list: newToolNames,
+      cached_tool_groups: rawGroups
     });
     console.log("[WebMCP] Tool list cached.");
   } catch (e) {
@@ -345,19 +330,17 @@ async function prefetchToolList(port: number, token: string) {
   }
 }
 
-async function syncConfigFromGateway(port: number, token: string) {
+async function syncConfigFromGateway() {
   try {
+    if (!apiClient.isConfigured()) return;
+
     console.log("[WebMCP] Syncing config from Gateway...");
-    const resp = await fetch(`http://127.0.0.1:${port}/v1/config`, {
-      headers: { "X-WebMCP-Token": token },
-    });
-    if (!resp.ok) return;
-    const data = await resp.json();
-    
-    if (data.config) {
+    const config = await apiClient.pullConfig();
+
+    if (config) {
       console.log("[WebMCP] Remote config found. Overwriting local settings.");
-      const { sync, local } = data.config;
-      
+      const { sync, local } = config;
+
       if (sync) {
         await chrome.storage.sync.set(sync);
       }
@@ -398,38 +381,20 @@ async function executeTool(request: any, tabId: number | null | undefined) {
       error: "Session Lost. Please reconnect from VS Code.",
     };
   }
-  const { port, token } = session;
-  const apiEndpoint = `http://127.0.0.1:${port}/v1/tools/call`;
+
+  // Configure ApiClient if not already configured
+  if (!apiClient.isConfigured()) {
+    apiClient.configure(session.port, session.token);
+  }
+
   try {
-    const response = await fetch(apiEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-WebMCP-Token": token,
-      },
-      body: JSON.stringify({
-        name: request.payload.name,
-        arguments: request.payload.arguments || {},
-      }),
-    });
-    if (response.ok) {
-      const resJson = await response.json();
-      const textContent = resJson.content
-        ? resJson.content.map((c: any) => c.text).join("\n")
-        : JSON.stringify(resJson);
-      return { success: true, data: textContent };
-    } else {
-      if (response.status === 403) {
-        return { success: false, error: "Session Expired/Invalid Token." };
-      } else {
-        return {
-          success: false,
-          error: `${response.status} - ${response.statusText}`,
-        };
-      }
-    }
+    const textContent = await apiClient.executeTool(
+      request.payload.name,
+      request.payload.arguments || {}
+    );
+    return { success: true, data: textContent };
   } catch (err: any) {
-    return { success: false, error: `Connection Failed: ${err.message}` };
+    return { success: false, error: err.message };
   }
 }
 

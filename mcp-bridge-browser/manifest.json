@@ -9,7 +9,10 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage", "notifications"],
+  "permissions": [
+    "storage",
+    "notifications"
+  ],
   "host_permissions": [
     "http://127.0.0.1/*",
     "http://localhost/*",
@@ -19,7 +22,7 @@
     "https://chat.deepseek.com/*"
   ],
   "action": {
-    "default_popup": "index.html",
+    "default_popup": "src/pages/popup/index.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -28,7 +31,7 @@
     }
   },
   "options_ui": {
-    "page": "options.html",
+    "page": "src/pages/options/index.html",
     "open_in_tab": true
   },
   "background": {
@@ -45,7 +48,9 @@
         "error_hint.md",
         "error_hint_zh.md"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "content_scripts": [
@@ -72,7 +77,9 @@
         "http://localhost:34575/*",
         "http://localhost:34576/*"
       ],
-      "js": ["src/content/bridge_loader.ts"],
+      "js": [
+        "src/content/bridge_loader.ts"
+      ],
       "run_at": "document_start"
     },
     {
@@ -82,7 +89,9 @@
         "https://aistudio.google.com/*",
         "https://chat.deepseek.com/*"
       ],
-      "js": ["src/content/main.ts"]
+      "js": [
+        "src/content/main.ts"
+      ]
     }
   ]
 }

@@ -1,7 +1,18 @@
-import { Session, ToolExecutionPayload } from '@webmcp/shared';
+// === Shared Types ===
 
-// Re-export shared types for convenience
-export type { Session, ToolExecutionPayload };
+export interface Session {
+  port: number;
+  token: string;
+  showLog?: boolean;
+}
+
+export interface ToolExecutionPayload {
+  mcp_action: 'call';
+  request_id: string;
+  name: string;
+  arguments?: Record<string, any>;
+  purpose?: string;
+}
 
 // === Extension-Internal Types ===
 

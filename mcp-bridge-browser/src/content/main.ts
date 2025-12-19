@@ -1,5 +1,6 @@
 import { Logger, i18n, t } from "../modules/utils";
-import * as UI from "../modules/ui";
+import { showConfirmationModal } from "../components/ConfirmModal";
+import { markVisualProcessing, markVisualSuccess, markVisualError, writeToInputBox, triggerAutoSend, cancelAutoSend } from "./ui";
 import { DEFAULT_SELECTORS, SiteSelectors } from "../modules/config";
 import { ToolExecutionPayload } from "../types";
 
@@ -64,12 +65,12 @@ const host = location.host;
 const currentPlatform = host.includes("deepseek")
   ? "deepseek"
   : host.includes("gemini")
-  ? "gemini"
-  : host.includes("aistudio")
-  ? "aistudio"
-  : (host.includes("chatgpt") || host.includes("openai"))
-  ? "chatgpt"
-  : null;
+    ? "gemini"
+    : host.includes("aistudio")
+      ? "aistudio"
+      : (host.includes("chatgpt") || host.includes("openai"))
+        ? "chatgpt"
+        : null;
 
 function updateDOMConfig() {
   if (currentPlatform && activeSelectors && activeSelectors[currentPlatform])
@@ -180,10 +181,10 @@ function runMainLoop() {
           activeExecutions.add(payload.request_id);
 
           // [Fix 2] 发现新任务，立即中断任何正在进行的自动发送尝试
-          UI.cancelAutoSend();
+          cancelAutoSend();
 
           // 立即标记为处理中 (Blue)
-          UI.markVisualProcessing(codeEl as HTMLElement);
+          markVisualProcessing(codeEl as HTMLElement);
 
           Logger.log(`${t("captured")}: ${payload.name}`, "info");
           executeTool(payload);
@@ -191,10 +192,10 @@ function runMainLoop() {
           // === Case 2: 已知任务，更新视觉状态 ===
           if (isProcessing) {
             // 仍在执行或等待审批 -> 蓝色
-            UI.markVisualProcessing(codeEl as HTMLElement);
+            markVisualProcessing(codeEl as HTMLElement);
           } else {
             // 已从 activeExecutions 移除 (执行完成/失败/被拒) -> 绿色
-            UI.markVisualSuccess(codeEl as HTMLElement);
+            markVisualSuccess(codeEl as HTMLElement);
           }
         }
       }
@@ -216,7 +217,7 @@ function runMainLoop() {
       } else {
         if (now - state.time > STABILIZATION_TIMEOUT && !state.errorNotified) {
           Logger.log("JSON Parse Error (Stable): " + e.message, "error");
-          UI.markVisualError(codeEl as HTMLElement);
+          markVisualError(codeEl as HTMLElement);
           chrome.runtime.sendMessage({
             type: "SHOW_NOTIFICATION",
             title: "WebMCP Error",
@@ -263,12 +264,12 @@ function runMainLoop() {
           `Batch finished: ${orderedResults.length} tools. Writing...`,
           "success"
         );
-        UI.writeToInputBox(orderedResults.join("\n\n"), DOM.inputArea);
+        writeToInputBox(orderedResults.join("\n\n"), DOM.inputArea);
         actionableIds.forEach((id) => {
           resultBuffer.delete(id);
           flushedRequests.add(id);
         });
-        UI.triggerAutoSend(CONFIG, DOM);
+        triggerAutoSend(CONFIG, DOM);
       } else {
         // 纯虚拟工具（无输出）
         const anyVirtual = actionableIds.some((id) => resultBuffer.has(id));
@@ -296,9 +297,9 @@ function runMainLoop() {
 }
 
 // 初始化观察者
-const observer = new MutationObserver((mutations) => {
+const observer = new MutationObserver((_mutations) => {
   if (!isClientConnected) return;
-  
+
   // 简单节流：如果已经计划了下一次检查，就不重复计划
   // 这样保证在高频刷新（AI打字）时，最多每 CONFIG.pollInterval 执行一次
   if (!isCheckScheduled) {
@@ -366,8 +367,8 @@ function performExecution(payload: any) {
             // 1. Inject Virtual Client Tools
             let clientGroup = groups.find((g: any) => g.server === "client");
             if (!clientGroup) {
-               clientGroup = { server: "client", tools: [], hidden_tools: [] };
-               groups.push(clientGroup);
+              clientGroup = { server: "client", tools: [], hidden_tools: [] };
+              groups.push(clientGroup);
             }
             clientGroup.tools.push({
               name: "task_completion_notification",
@@ -382,8 +383,8 @@ function performExecution(payload: any) {
 
             // 2. Extract Names for Security Check
             groups.forEach((g: any) => {
-                if (g.tools) g.tools.forEach((t: any) => toolNames.push(t.name));
-                if (g.hidden_tools) g.hidden_tools.forEach((n: string) => toolNames.push(n));
+              if (g.tools) g.tools.forEach((t: any) => toolNames.push(t.name));
+              if (g.hidden_tools) g.hidden_tools.forEach((n: string) => toolNames.push(n));
             });
 
             // 3. Update Output
@@ -419,7 +420,7 @@ function performExecution(payload: any) {
         outputContent = `❌ Error: ${response.error}`;
       }
       saveToBuffer(payload.request_id, outputContent);
-      
+
       // [Fix 5] Manual check required: Tool completion doesn't trigger MutationObserver.
       setTimeout(runMainLoop, 50);
     }
@@ -476,7 +477,7 @@ function processConfirmationQueue() {
     message: `Tool: ${payload.name}`,
   });
 
-  UI.showConfirmationModal(
+  showConfirmationModal(
     payload,
     (isAlways) => {
       confirmationQueue.shift();

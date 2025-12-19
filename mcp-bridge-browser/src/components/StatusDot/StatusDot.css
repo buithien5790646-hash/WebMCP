@@ -1,0 +1,11 @@
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #666;
+}
+
+.status-dot.online {
+    background: var(--color-success, #4caf50);
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
+}
