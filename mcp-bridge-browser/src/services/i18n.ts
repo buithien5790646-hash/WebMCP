@@ -21,6 +21,7 @@ class I18nService {
 
     constructor() {
         this._lang = navigator.language.startsWith('zh') ? 'zh' : 'en';
+        this.t = this.t.bind(this);
     }
 
     get lang(): Language {
