@@ -13,7 +13,7 @@
     background-color: var(--bg-app);
     color: var(--text-app);
     padding: 20px;
-    padding-bottom: 80px;
+    padding-bottom: 90px;
     max-width: 800px;
     margin: 0 auto;
     min-height: 100vh;
@@ -93,8 +93,8 @@ textarea {
     right: 0;
     background: white;
     border-top: 1px solid #e0e0e0;
-    padding: 15px 20px;
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+    padding: 12px 20px;
+    box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.08);
     z-index: 1000;
 }
 
@@ -103,15 +103,29 @@ textarea {
     width: 100%;
     margin: 0 auto;
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
     align-items: center;
-    gap: 10px;
+    gap: 20px;
 }
 
 .status {
-    font-weight: bold;
-    margin-right: auto;
+    font-weight: 500;
     font-size: 14px;
+    opacity: 0;
+    transform: translateY(5px);
+    transition: all 0.3s ease;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: transparent;
+}
+
+.status-success,
+.status-error {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .status-success {
@@ -120,4 +134,17 @@ textarea {
 
 .status-error {
     color: #dc3545;
+}
+
+.footer-actions {
+    display: flex;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.footer-actions .btn {
+    width: auto;
+    min-width: 120px;
+    white-space: nowrap;
+    padding: 8px 20px;
 }

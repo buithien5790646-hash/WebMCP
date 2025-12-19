@@ -5,6 +5,8 @@ import { useStorage, useLocalStorage } from '@/hooks/useStorage';
 import { useI18n } from '@/hooks/useI18n';
 import { getLocal, setLocal } from '@/services/storage';
 import { browserService } from '@/services/BrowserService';
+import { i18n } from '@/services/i18n';
+const { t } = i18n;
 import './App.css';
 
 export function App() {
@@ -36,15 +38,15 @@ export function App() {
         // Sync config to Gateway
         browserService.sendMessage({ type: 'SYNC_CONFIG' }).then((response) => {
             if (response?.success) {
-                showStatus('Settings saved & synced to VS Code!');
+                showStatus(t('status_saved_synced'));
             } else {
-                showStatus('Saved locally (VS Code disconnected).');
+                showStatus(t('status_saved_local'));
             }
         });
     };
 
     const handleReset = async () => {
-        if (confirm('Are you sure you want to reset ALL settings to defaults?')) {
+        if (confirm(t('confirm_reset'))) {
             // Load default prompts
             const promptFile = lang === 'zh' ? 'prompt_zh.md' : 'prompt.md';
             const trainFile = lang === 'zh' ? 'train_zh.md' : 'train.md';
@@ -65,7 +67,7 @@ export function App() {
             setErrorPrompt(await loadDefault(errorFile));
             setUserRules('');
 
-            showStatus('Restored defaults from files.');
+            showStatus(t('status_reset_done'));
         }
     };
 
@@ -99,9 +101,9 @@ export function App() {
 
             await setLocal({ cached_tool_list: newToolNames });
             setToolList(newToolNames);
-            showStatus('Tool list updated!');
+            showStatus(t('status_tools_updated'));
         } catch (e) {
-            showStatus('Failed to connect to Gateway.');
+            showStatus(t('status_gateway_failed'));
         }
     };
 
@@ -121,26 +123,26 @@ export function App() {
     return (
         <div className="options-container">
             <h1>
-                <span>WebMCP Settings</span>
+                <span>{t('opt_title')}</span>
                 <span className="lang-badge">{lang.toUpperCase()}</span>
             </h1>
 
             <Card>
-                <h2>Human-in-the-Loop (Approval)</h2>
+                <h2>{t('opt_hitl_title')}</h2>
                 <div className="description">
-                    Select tools that require manual approval before execution.
+                    {t('opt_hitl_desc')}
                     <Button
                         variant="secondary"
                         onClick={handleRefreshTools}
                         style={{ padding: '2px 8px', fontSize: '11px', marginLeft: '10px', display: 'inline-block', width: 'auto' }}
                     >
-                        🔄 Refresh List
+                        {t('btn_refresh_list')}
                     </Button>
                 </div>
                 <div className="tool-list">
                     {toolList.length === 0 ? (
                         <div style={{ color: '#999', fontStyle: 'italic', padding: '10px', textAlign: 'center' }}>
-                            No tools detected yet. Please use the extension once.
+                            {t('opt_no_tools')}
                         </div>
                     ) : (
                         toolList.map((toolName) => (
@@ -158,11 +160,11 @@ export function App() {
             </Card>
 
             <Card>
-                <h2>System Prompts</h2>
+                <h2>{t('opt_prompts_title')}</h2>
 
-                <label>Initial System Prompt</label>
+                <label>{t('opt_init_label')}</label>
                 <div className="description">
-                    Sent to AI when you start a new conversation. (Supports Markdown)
+                    {t('opt_init_desc')}
                 </div>
                 <textarea
                     value={initPrompt}
@@ -172,9 +174,9 @@ export function App() {
 
                 <br /><br />
 
-                <label style={{ color: '#007bff' }}>User Rules (Custom Preferences)</label>
+                <label style={{ color: '#007bff' }}>{t('opt_rules_label')}</label>
                 <div className="description">
-                    Your personal requirements (e.g., "Always ask before coding"). Appended to System & Training prompts.
+                    {t('opt_rules_desc')}
                 </div>
                 <textarea
                     value={userRules}
@@ -184,9 +186,9 @@ export function App() {
 
                 <br /><br />
 
-                <label>Training Hint (Periodic)</label>
+                <label>{t('opt_train_label')}</label>
                 <div className="description">
-                    Inserted periodically (every 5 tool calls) to remind AI of the protocol.
+                    {t('opt_train_desc')}
                 </div>
                 <textarea
                     value={trainPrompt}
@@ -196,9 +198,9 @@ export function App() {
 
                 <br /><br />
 
-                <label>Format Error Hint</label>
+                <label>{t('opt_error_label')}</label>
                 <div className="description">
-                    Sent to AI when it generates invalid JSON or fails to follow protocol.
+                    {t('opt_error_desc')}
                 </div>
                 <textarea
                     value={errorPrompt}
@@ -209,11 +211,13 @@ export function App() {
 
             <div className="sticky-footer">
                 <div className="footer-content">
-                    <div className={`status ${status ? (status.includes('success') || status.includes('synced') ? 'status-success' : 'status-error') : ''}`}>
+                    <div className={`status ${status ? (status.includes('success') || status.includes('synced') || status.includes('更新') || status.includes('成功') || status.includes('恢复') ? 'status-success' : 'status-error') : ''}`}>
                         {status}
                     </div>
-                    <Button variant="secondary" onClick={handleReset}>Reset to Defaults</Button>
-                    <Button onClick={handleSave}>Save Settings</Button>
+                    <div className="footer-actions">
+                        <Button variant="secondary" onClick={handleReset}>{t('btn_reset')}</Button>
+                        <Button onClick={handleSave}>{t('btn_save')}</Button>
+                    </div>
                 </div>
             </div>
         </div>
