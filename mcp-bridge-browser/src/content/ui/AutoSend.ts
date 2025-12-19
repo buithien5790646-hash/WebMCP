@@ -9,6 +9,7 @@ import { browserService } from '@/services/BrowserService';
  */
 
 let autoSendTimer: NodeJS.Timeout | null = null;
+let isRetryActive = false;
 
 /**
  * Cancel any pending auto-send
@@ -17,7 +18,10 @@ export function cancelAutoSend() {
     if (autoSendTimer) {
         clearTimeout(autoSendTimer);
         autoSendTimer = null;
-        Logger.log('🚫 Auto-send cancelled (New activity detected)', 'warn');
+    }
+    if (isRetryActive) {
+        isRetryActive = false;
+        Logger.log('🚫 Auto-send cancelled/reset (New activity detected)', 'warn');
     }
 }
 
@@ -30,12 +34,12 @@ export function triggerAutoSend(
 ) {
     if (!config.autoSend) return;
 
-    // Cancel any existing timer
-    if (autoSendTimer) {
-        clearTimeout(autoSendTimer);
-        autoSendTimer = null;
+    if (isRetryActive) {
+        Logger.log('⏳ Auto-send already in progress, skipping duplicate trigger', 'info');
+        return;
     }
 
+    isRetryActive = true;
     let retryCount = 0;
     const maxRetries = 5;
 
@@ -53,6 +57,7 @@ export function triggerAutoSend(
 
         if (currentVal.trim().length === 0) {
             Logger.log(t('send_success_cleared'), 'success');
+            isRetryActive = false;
             return;
         }
 
@@ -78,6 +83,7 @@ export function triggerAutoSend(
         if (retryCount < maxRetries) {
             autoSendTimer = setTimeout(trySend, 2000);
         } else {
+            isRetryActive = false;
             Logger.log(t('auto_send_timeout'), 'error');
             browserService.sendMessage({
                 type: 'SHOW_NOTIFICATION',

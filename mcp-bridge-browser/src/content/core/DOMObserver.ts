@@ -35,7 +35,6 @@ export class DOMObserver {
         this.observer.observe(document.body, {
             childList: true,
             subtree: true,
-            characterData: true,
         });
     }
 
