@@ -13,12 +13,12 @@ export class MessageParser {
     /**
      * Parse a code block and extract tool execution payload
      */
-    parseCodeBlock(codeElement: Element): ToolExecutionPayload | null {
+    parseCodeBlock(codeElement: Element): { payload: ToolExecutionPayload | null; error?: string; isStableError?: boolean } {
         const textContent = (codeElement.textContent || '').trim();
 
         // Quick check: must contain mcp_action
         if (!textContent.includes('"mcp_action": "call"')) {
-            return null;
+            return { payload: null };
         }
 
         // Clean non-standard whitespace characters
@@ -34,14 +34,18 @@ export class MessageParser {
 
             // Validate payload structure
             if (payload.mcp_action === 'call' && payload.request_id) {
-                return payload as ToolExecutionPayload;
+                return { payload: payload as ToolExecutionPayload };
             }
 
-            return null;
+            return { payload: null };
         } catch (e) {
             // JSON parse error - implement stabilization logic
-            this.handleParseError(codeElement, textContent, e as Error);
-            return null;
+            const errorInfo = this.handleParseError(codeElement, textContent, e as Error);
+            return {
+                payload: null,
+                error: (e as Error).message,
+                isStableError: !!errorInfo?.isStableError
+            };
         }
     }
 

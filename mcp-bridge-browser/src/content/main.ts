@@ -1,10 +1,24 @@
 import { Logger, i18n, t } from "../modules/utils";
 import { showConfirmationModal } from "../components/ConfirmModal";
-import { markVisualProcessing, markVisualSuccess, markVisualError, writeToInputBox, triggerAutoSend, cancelAutoSend } from "./ui";
-import { DEFAULT_SELECTORS, SiteSelectors } from "../modules/config";
+import {
+  markVisualProcessing,
+  markVisualSuccess,
+  markVisualError,
+  writeToInputBox,
+  triggerAutoSend,
+  cancelAutoSend
+} from "./ui";
+import { detectPlatform } from "./adapters";
+import { DOMObserver, MessageParser, Workflow } from "./core";
 import { ToolExecutionPayload } from "../types";
 
-// === 配置与状态 ===
+let isClientConnected = false;
+let userRules = "";
+let protectedTools = new Set<string>();
+const confirmationQueue: ToolExecutionPayload[] = [];
+let isPopupOpen = false;
+
+// Config state
 interface ConfigState {
   pollInterval: number;
   autoSend: boolean;
@@ -17,323 +31,133 @@ let CONFIG: ConfigState = {
   autoPromptEnabled: false,
 };
 
-// [State] Connection Guard
-let isClientConnected = false;
+// === Module Initialization ===
+const workflow = new Workflow();
+const parser = new MessageParser();
+const adapter = detectPlatform();
 
-let userRules = ""; // [User Rules]
-let protectedTools = new Set<string>();
-const confirmationQueue: ToolExecutionPayload[] = [];
-let isPopupOpen = false;
+// === Load I18n Resources ===
+function loadResources() {
+  const lang = i18n.lang;
+  const promptKey = lang === "zh" ? "prompt_zh" : "prompt_en";
+  const trainKey = lang === "zh" ? "train_zh" : "train_en";
+  const errorKey = lang === "zh" ? "error_zh" : "error_en";
 
-// === 加载资源 (Prompt/Hints) ===
-const lang = i18n.lang;
-const promptKey = lang === "zh" ? "prompt_zh" : "prompt_en";
-const trainKey = lang === "zh" ? "train_zh" : "train_en";
-const errorKey = lang === "zh" ? "error_zh" : "error_en";
+  chrome.storage.local.get([promptKey, trainKey, errorKey, "user_rules"], (items) => {
+    i18n.resources.prompt = items[promptKey];
+    i18n.resources.train = items[trainKey];
+    i18n.resources.error = items[errorKey];
+    userRules = items.user_rules || "";
+    Logger.log(`[MCP] Loaded resources (${lang})`, "info");
+  });
+}
 
-chrome.storage.local.get([promptKey, trainKey, errorKey, "user_rules"], (items) => {
-  i18n.resources.prompt = items[promptKey];
-  i18n.resources.train = items[trainKey];
-  i18n.resources.error = items[errorKey];
-  userRules = items.user_rules || "";
-  console.log(`[MCP] Loaded i18n resources (${lang}) & User Rules`);
-});
-
-// 监听消息 (日志开关 & 状态同步)
+// === Message Handling ===
 chrome.runtime.onMessage.addListener((request) => {
   if (request.type === "TOGGLE_LOG") {
     Logger.toggle(request.show);
-    Logger.log("Logger Visible: " + request.show, "info");
   }
   if (request.type === "STATUS_UPDATE") {
     const wasConnected = isClientConnected;
     isClientConnected = request.connected;
     if (isClientConnected !== wasConnected) {
-      Logger.log(`[MCP] Connection Status: ${isClientConnected ? "Connected" : "Disconnected"}`, "info");
-      if (isClientConnected) {
-        // Re-activate immediately
-        runMainLoop();
+      Logger.log(`[MCP] Connection: ${isClientConnected ? "Connected" : "Disconnected"}`, "info");
+      if (isClientConnected && observer) {
+        observer.trigger();
       }
     }
   }
 });
 
-// === DOM 选择器与配置 ===
-let activeSelectors = DEFAULT_SELECTORS;
-let DOM: SiteSelectors | null = null;
-const host = location.host;
-const currentPlatform = host.includes("deepseek")
-  ? "deepseek"
-  : host.includes("gemini")
-    ? "gemini"
-    : host.includes("aistudio")
-      ? "aistudio"
-      : (host.includes("chatgpt") || host.includes("openai"))
-        ? "chatgpt"
-        : null;
-
-function updateDOMConfig() {
-  if (currentPlatform && activeSelectors && activeSelectors[currentPlatform])
-    DOM = activeSelectors[currentPlatform];
-}
-
+// === Storage Sync ===
 chrome.storage.sync.get(
   ["autoSend", "autoPromptEnabled", "customSelectors", "protected_tools"],
   (items) => {
     CONFIG.autoSend = items.autoSend ?? true;
     CONFIG.autoPromptEnabled = items.autoPromptEnabled ?? false;
-    if (items.customSelectors) activeSelectors = items.customSelectors;
     if (items.protected_tools) protectedTools = new Set(items.protected_tools);
-    updateDOMConfig();
+    // Note: customSelectors logic would be handled by adapters if we keep moving in that direction
   }
 );
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === "sync") {
     if (changes.autoSend) CONFIG.autoSend = changes.autoSend.newValue;
-    if (changes.autoPromptEnabled)
-      CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;
-    if (changes.customSelectors) {
-      activeSelectors = changes.customSelectors.newValue;
-      updateDOMConfig();
-      Logger.log(t("config_updated"), "action");
-    }
+    if (changes.autoPromptEnabled) CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;
     if (changes.protected_tools) {
       protectedTools = new Set(changes.protected_tools.newValue);
-      Logger.log("Protected tools updated", "action");
     }
   }
 });
 
-// === 主循环逻辑 ===
-
-// 正则表达式匹配常见的非标准空白字符，包括不间断空格 (\u00a0)
-const nonStandardSpaces = /[\u00a0\uFEFF\u200B]/g;
-const processedRequests = new Set<string>();
-const flushedRequests = new Set<string>();
-const blockStates = new WeakMap<
-  Element,
-  { text: string; time: number; errorNotified: boolean }
->();
-const resultBuffer = new Map<string, string>();
-const activeExecutions = new Set<string>();
-const STABILIZATION_TIMEOUT = 3000;
-let toolCallCount = 0;
-let lastProgressLogTime = 0;
-let lastProgressStatus = "";
-
-// === 性能优化: MutationObserver 取代 setInterval ===
-let isCheckScheduled = false;
-
+// === Main Execution Loop ===
 function runMainLoop() {
-  isCheckScheduled = false;
-  if (!DOM || !isClientConnected) return;
-  const messages = document.querySelectorAll(DOM.messageBlocks);
+  if (!adapter || !isClientConnected) return;
+
+  const messages = adapter.getMessageBlocks();
   if (messages.length === 0) {
-    // Auto Prompt
-    const inputEl = document.querySelector(DOM.inputArea) as HTMLElement;
-    if (
-      inputEl &&
-      CONFIG.autoPromptEnabled &&
-      (inputEl.textContent || "").trim() === ""
-    ) {
-      if (i18n.resources.prompt) {
-        let finalPrompt = i18n.resources.prompt;
-        if (userRules) finalPrompt += `\n\n=== User Rules ===\n${userRules}`;
-        inputEl.innerText = finalPrompt;
-        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-        Logger.log(t("auto_filled"), "action");
-      }
-    }
+    handleAutoPrompt();
     return;
   }
 
   const lastMessage = messages[messages.length - 1];
-  const codeElements = lastMessage.querySelectorAll(DOM.codeBlocks);
+  const codeElements = adapter.getCodeBlocks(lastMessage);
   const currentTurnIds: string[] = [];
 
   codeElements.forEach((codeEl) => {
-    const textContent = (codeEl.textContent || "").trim();
-    if (!textContent.includes('"mcp_action": "call"')) return;
+    const { payload, isStableError } = parser.parseCodeBlock(codeEl);
 
-    // 核心修复: 清理非标准空白字符 (如不间断空格 \u00a0)，以防止 JSON.parse 失败。
-    const cleanedText = textContent.replace(nonStandardSpaces, ' ');
+    if (payload && payload.request_id) {
+      currentTurnIds.push(payload.request_id);
 
-    try {
-      const payload = JSON.parse(cleanedText);
-      if (blockStates.has(codeEl)) blockStates.delete(codeEl);
-
-      // 成功解析 JSON，尝试清除旧的错误样式（如果存在）
-      if ((codeEl as HTMLElement).dataset.mcpState === "error") {
-        (codeEl as HTMLElement).style.border = "none";
-        delete (codeEl as HTMLElement).dataset.mcpState;
-      }
-
-      if (payload.mcp_action === "call" && payload.request_id) {
-        currentTurnIds.push(payload.request_id);
-
-        const isProcessing = activeExecutions.has(payload.request_id);
-        const isKnown = processedRequests.has(payload.request_id);
-
-        if (!isKnown) {
-          // === Case 1: 新发现的任务 ===
-          processedRequests.add(payload.request_id);
-          activeExecutions.add(payload.request_id);
-
-          // [Fix 2] 发现新任务，立即中断任何正在进行的自动发送尝试
-          cancelAutoSend();
-
-          // 立即标记为处理中 (Blue)
+      if (!workflow.isProcessed(payload.request_id)) {
+        workflow.markDiscovered(payload.request_id);
+        cancelAutoSend();
+        markVisualProcessing(codeEl as HTMLElement);
+        Logger.log(`${t("captured")}: ${payload.name}`, "info");
+        executeTool(payload);
+      } else {
+        if (workflow.isExecuting(payload.request_id)) {
           markVisualProcessing(codeEl as HTMLElement);
-
-          Logger.log(`${t("captured")}: ${payload.name}`, "info");
-          executeTool(payload);
         } else {
-          // === Case 2: 已知任务，更新视觉状态 ===
-          if (isProcessing) {
-            // 仍在执行或等待审批 -> 蓝色
-            markVisualProcessing(codeEl as HTMLElement);
-          } else {
-            // 已从 activeExecutions 移除 (执行完成/失败/被拒) -> 绿色
-            markVisualSuccess(codeEl as HTMLElement);
-          }
+          markVisualSuccess(codeEl as HTMLElement);
         }
       }
-    } catch (e: any) {
-      // JSON Stabilization Logic
-      const now = Date.now();
-      let state = blockStates.get(codeEl);
-      if (!state || state.text !== textContent) {
-        blockStates.set(codeEl, {
-          text: textContent,
-          time: now,
-          errorNotified: false,
-        });
-        if ((codeEl as HTMLElement).dataset.mcpState === "error") {
-          (codeEl as HTMLElement).style.border = "none";
-          delete (codeEl as HTMLElement).dataset.mcpState;
-          delete (codeEl as HTMLElement).dataset.mcpVisual;
-        }
-      } else {
-        if (now - state.time > STABILIZATION_TIMEOUT && !state.errorNotified) {
-          Logger.log("JSON Parse Error (Stable): " + e.message, "error");
-          markVisualError(codeEl as HTMLElement);
-          chrome.runtime.sendMessage({
-            type: "SHOW_NOTIFICATION",
-            title: "WebMCP Error",
-            message: "Invalid JSON format (Stuck).",
-          });
-          state.errorNotified = true;
-          blockStates.set(codeEl, state);
-        }
-      }
+    } else if (isStableError) {
+      markVisualError(codeEl as HTMLElement);
     }
   });
 
-  // 批处理队列
-  const actionableIds = currentTurnIds.filter((id) => !flushedRequests.has(id));
-  if (actionableIds.length > 0) {
-    const completedCount = actionableIds.filter(
-      (id) => !activeExecutions.has(id) && resultBuffer.has(id)
-    ).length;
-    const totalCount = actionableIds.length;
+  // Batch Processing
+  if (workflow.isBatchComplete(currentTurnIds)) {
+    if (adapter.getStopButton()) {
+      // AI is still generating
+      return;
+    }
 
-    // [Fix 3] 只要所有已知工具完成（且通过下方的 Stop 按钮检查），即可尝试发送
-    if (completedCount === totalCount) {
-      // [Fix 4] Double Check: 页面上是否有 Stop 按钮？
-      const stopBtn = DOM.stopButton
-        ? document.querySelector(DOM.stopButton)
-        : null;
-      if (stopBtn) {
-        // AI 还在忙，推迟发送
-        return;
-      }
-
-      const orderedResults: string[] = [];
-      let hasUnflushedContent = false;
-      actionableIds.forEach((id) => {
-        const res = resultBuffer.get(id);
-        if (res) {
-          orderedResults.push(res);
-          hasUnflushedContent = true;
-        }
-      });
-
-      if (hasUnflushedContent && DOM) {
-        Logger.log(
-          `Batch finished: ${orderedResults.length} tools. Writing...`,
-          "success"
-        );
-        writeToInputBox(orderedResults.join("\n\n"), DOM.inputArea);
-        actionableIds.forEach((id) => {
-          resultBuffer.delete(id);
-          flushedRequests.add(id);
-        });
-        triggerAutoSend(CONFIG, DOM);
-      } else {
-        // 纯虚拟工具（无输出）
-        const anyVirtual = actionableIds.some((id) => resultBuffer.has(id));
-        if (anyVirtual)
-          actionableIds.forEach((id) => {
-            resultBuffer.delete(id);
-            flushedRequests.add(id);
-          });
-      }
-      lastProgressStatus = "";
-    } else {
-      // 等待中...
-      const statusStr = `${completedCount}/${totalCount}`;
-      const now = Date.now();
-      if (
-        statusStr !== lastProgressStatus ||
-        now - lastProgressLogTime > 3000
-      ) {
-        Logger.log(`${t("waiting_tools")} (${statusStr})`, "warn");
-        lastProgressStatus = statusStr;
-        lastProgressLogTime = now;
-      }
+    const results = workflow.flushBatch(currentTurnIds);
+    if (results.length > 0) {
+      Logger.log(`Batch finished: ${results.length} tools.`, "success");
+      writeToInputBox(results.join("\n\n"), adapter.inputArea);
+      triggerAutoSend(CONFIG, adapter);
     }
   }
 }
 
-// 初始化观察者
-const observer = new MutationObserver((_mutations) => {
-  if (!isClientConnected) return;
-
-  // 简单节流：如果已经计划了下一次检查，就不重复计划
-  // 这样保证在高频刷新（AI打字）时，最多每 CONFIG.pollInterval 执行一次
-  if (!isCheckScheduled) {
-    isCheckScheduled = true;
-    setTimeout(runMainLoop, CONFIG.pollInterval);
-  }
-});
-
-if (currentPlatform) {
-  // 1. Start observing immediately (but logic inside is guarded by isClientConnected)
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    characterData: true
-  });
-
-  // 2. Check initial status
-  chrome.runtime.sendMessage({ type: "GET_STATUS" }, (response) => {
-    if (response && response.connected) {
-      isClientConnected = true;
-      Logger.log(`WebMCP activated for ${currentPlatform} (Connected)`, "info");
-      runMainLoop();
-    } else {
-      isClientConnected = false;
-      console.log(`WebMCP loaded for ${currentPlatform} (Disconnected - Idle)`);
+function handleAutoPrompt() {
+  const inputEl = adapter?.getInputElement();
+  if (inputEl && CONFIG.autoPromptEnabled && (inputEl.textContent || "").trim() === "") {
+    if (i18n.resources.prompt) {
+      let finalPrompt = i18n.resources.prompt;
+      if (userRules) finalPrompt += `\n\n=== User Rules ===\n${userRules}`;
+      writeToInputBox(finalPrompt, adapter!.inputArea);
+      Logger.log(t("auto_filled"), "action");
     }
-  });
-} else {
-  console.log("WebMCP: Platform not supported, staying idle.");
+  }
 }
 
-// === 执行工具 ===
+// === Tool Execution ===
 function executeTool(payload: ToolExecutionPayload) {
-  // 虚拟工具：任务完成通知
   if (payload.name === "task_completion_notification") {
     finishVirtualTool(payload);
     return;
@@ -341,7 +165,6 @@ function executeTool(payload: ToolExecutionPayload) {
 
   if (protectedTools.has(payload.name)) {
     Logger.log(`${t("hitl_intercept")}: ${payload.name}`, "warn");
-    (payload as any).request_id = (payload as any).request_id || "unknown_id";
     confirmationQueue.push(payload);
     processConfirmationQueue();
     return;
@@ -350,149 +173,89 @@ function executeTool(payload: ToolExecutionPayload) {
   performExecution(payload);
 }
 
-function performExecution(payload: any) {
-  chrome.runtime.sendMessage(
-    { type: "EXECUTE_TOOL", payload: payload },
-    (response) => {
-      activeExecutions.delete(payload.request_id);
-      let outputContent = "";
-      if (response && response.success) {
-        Logger.log(`${t("exec_success")}: ${payload.name}`, "success");
-        let finalData = response.data;
-        if (payload.name === "list_tools") {
-          try {
-            const groups = JSON.parse(finalData);
-            const toolNames: string[] = [];
+function performExecution(payload: ToolExecutionPayload) {
+  chrome.runtime.sendMessage({ type: "EXECUTE_TOOL", payload }, (response) => {
+    workflow.markCompleted(payload.request_id);
+    let outputContent = "";
+    if (response && response.success) {
+      Logger.log(`${t("exec_success")}: ${payload.name}`, "success");
+      outputContent = response.data;
 
-            // 1. Inject Virtual Client Tools
-            let clientGroup = groups.find((g: any) => g.server === "client");
-            if (!clientGroup) {
-              clientGroup = { server: "client", tools: [], hidden_tools: [] };
-              groups.push(clientGroup);
-            }
-            clientGroup.tools.push({
-              name: "task_completion_notification",
-              description:
-                "Notify the user that a long-running task or a series of complex operations is complete. Use this when you need the user's attention to review your work or provide new instructions. Calling this will trigger a system notification on the user's device.",
-              inputSchema: {
-                type: "object",
-                properties: { message: { type: "string" } },
-                required: ["message"],
-              },
-            });
-
-            // 2. Extract Names for Security Check
-            groups.forEach((g: any) => {
-              if (g.tools) g.tools.forEach((t: any) => toolNames.push(t.name));
-              if (g.hidden_tools) g.hidden_tools.forEach((n: string) => toolNames.push(n));
-            });
-
-            // 3. Update Output
-            finalData = JSON.stringify(groups, null, 2);
-
-            // [HITL] Security: Auto-protect new tools
-            chrome.storage.local.get(["cached_tool_list"], (localData) => {
-              const knownTools = new Set(localData.cached_tool_list || []);
-              let protectedDirty = false;
-              toolNames.forEach((tName: string) => {
-                if (!knownTools.has(tName)) {
-                  if (!protectedTools.has(tName)) {
-                    protectedTools.add(tName);
-                    protectedDirty = true;
-                  }
-                }
-              });
-              if (protectedDirty) {
-                chrome.storage.sync.set({
-                  protected_tools: Array.from(protectedTools),
-                });
-                Logger.log("🛡️ New tools detected & protected", "warn");
-              }
-              chrome.storage.local.set({ cached_tool_list: toolNames });
-            });
-          } catch (e) {
-            console.error("Tool list processing error", e);
-          }
-        }
-        outputContent = finalData;
-      } else {
-        Logger.log(`${t("exec_fail")}: ${response.error}`, "error");
-        outputContent = `❌ Error: ${response.error}`;
+      // Handle tool list caching & projection if needed (list_tools special case)
+      if (payload.name === "list_tools") {
+        handleListToolsResponse(response.data);
       }
-      saveToBuffer(payload.request_id, outputContent);
-
-      // [Fix 5] Manual check required: Tool completion doesn't trigger MutationObserver.
-      setTimeout(runMainLoop, 50);
+    } else {
+      const errMsg = response?.error || "Unknown error";
+      Logger.log(`${t("exec_fail")}: ${errMsg}`, "error");
+      outputContent = `❌ Error: ${errMsg}`;
     }
-  );
+
+    workflow.saveResult(payload.request_id, outputContent, !response?.success);
+    setTimeout(runMainLoop, 50);
+  });
 }
 
-function finishVirtualTool(payload: any) {
-  const msg = payload.arguments?.message || "Task Completed";
+function handleListToolsResponse(data: string) {
+  try {
+    const groups = JSON.parse(data);
+    const toolNames: string[] = [];
+    groups.forEach((g: any) => {
+      if (g.tools) g.tools.forEach((t: any) => toolNames.push(t.name));
+      if (g.hidden_tools) g.hidden_tools.forEach((n: string) => toolNames.push(n));
+    });
+
+    chrome.storage.local.get(["cached_tool_list"], (localData) => {
+      const knownTools = new Set(localData.cached_tool_list || []);
+      let protectedDirty = false;
+      toolNames.forEach((tName) => {
+        if (!knownTools.has(tName) && !protectedTools.has(tName)) {
+          protectedTools.add(tName);
+          protectedDirty = true;
+        }
+      });
+      if (protectedDirty) {
+        chrome.storage.sync.set({ protected_tools: Array.from(protectedTools) });
+        Logger.log("🛡️ New tools detected & protected", "warn");
+      }
+      chrome.storage.local.set({ cached_tool_list: toolNames });
+    });
+  } catch (e) {
+    console.error("List tools processing error", e);
+  }
+}
+
+function finishVirtualTool(payload: ToolExecutionPayload) {
+  const msg = (payload.arguments as any)?.message || "Task Completed";
   Logger.log(`🔔 Notification: ${msg}`, "action");
   chrome.runtime.sendMessage({
     type: "SHOW_NOTIFICATION",
     title: "WebMCP Task Finished",
     message: msg,
   });
-  activeExecutions.delete(payload.request_id);
-  resultBuffer.set(payload.request_id, "");
+  workflow.markCompleted(payload.request_id);
+  workflow.saveResult(payload.request_id, "", false);
 }
 
-function saveToBuffer(requestId: string, content: string, isError = false) {
-  const responseJson: any = {
-    mcp_action: "result",
-    request_id: requestId,
-    status: isError ? "error" : "success",
-  };
-  if (isError) {
-    responseJson.error = content;
-  } else {
-    responseJson.output = content;
-  }
-
-  toolCallCount++;
-  if (toolCallCount > 0 && toolCallCount % 5 === 0) {
-    let note = i18n.resources.train || `[System] Reminder: Tool calls MUST use this JSON format: {"mcp_action":"call", "name": "tool_name", "arguments": {...}}.`;
-    if (userRules) note += `\n(User Rules: ${userRules})`;
-    responseJson.system_note = note;
-  }
-
-  const jsonString = `\`\`\`json\n${JSON.stringify(
-    responseJson,
-    null,
-    2
-  )}\n\`\`\``;
-  resultBuffer.set(requestId, jsonString);
-}
-
-// === 审批队列处理 ===
+// === Confirmation Queue ===
 function processConfirmationQueue() {
   if (isPopupOpen || confirmationQueue.length === 0) return;
-  const payload = confirmationQueue[0] as any;
+  const payload = confirmationQueue[0];
   isPopupOpen = true;
-  chrome.runtime.sendMessage({
-    type: "SHOW_NOTIFICATION",
-    title: "Approval Required",
-    message: `Tool: ${payload.name}`,
-  });
 
   showConfirmationModal(
     payload,
     (isAlways) => {
       confirmationQueue.shift();
       isPopupOpen = false;
-      if (DOM) {
-        const inputEl = document.querySelector(DOM.inputArea) as HTMLElement;
+      if (adapter) {
+        const inputEl = adapter.getInputElement();
         if (inputEl) inputEl.focus();
       }
 
       if (isAlways) {
         protectedTools.delete(payload.name);
-        chrome.storage.sync.set({
-          protected_tools: Array.from(protectedTools),
-        }, () => {
-          // [Host Sync] Notify background to push new config to Gateway
+        chrome.storage.sync.set({ protected_tools: Array.from(protectedTools) }, () => {
           chrome.runtime.sendMessage({ type: "SYNC_CONFIG" });
         });
         Logger.log(`⚡ Tool '${payload.name}' set to Always Allow`, "action");
@@ -504,13 +267,9 @@ function processConfirmationQueue() {
     (reason) => {
       confirmationQueue.shift();
       isPopupOpen = false;
-      activeExecutions.delete(payload.request_id);
-      if (DOM) {
-        const inputEl = document.querySelector(DOM.inputArea) as HTMLElement;
-        if (inputEl) inputEl.focus();
-      }
+      workflow.markCompleted(payload.request_id);
       Logger.log(`${t("hitl_rejected")}: ${payload.name}`, "error");
-      saveToBuffer(
+      workflow.saveResult(
         payload.request_id,
         `User rejected execution. Reason: ${reason || "No reason provided."}`,
         true
@@ -518,4 +277,22 @@ function processConfirmationQueue() {
       processConfirmationQueue();
     }
   );
+}
+
+// === Initialization ===
+const observer = new DOMObserver(runMainLoop, CONFIG.pollInterval);
+
+if (adapter) {
+  loadResources();
+  observer.start();
+
+  chrome.runtime.sendMessage({ type: "GET_STATUS" }, (response) => {
+    isClientConnected = !!(response && response.connected);
+    if (isClientConnected) {
+      Logger.log(`WebMCP activated for ${adapter.name}`, "info");
+      runMainLoop();
+    }
+  });
+} else {
+  console.log("WebMCP: Platform not supported.");
 }
