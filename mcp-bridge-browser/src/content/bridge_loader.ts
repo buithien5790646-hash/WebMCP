@@ -1,12 +1,16 @@
-import { HandshakeResponse } from '../types';
+import { HandshakeResponse } from '@/types';
+import { browserService } from '@/services/BrowserService';
 
-(function () {
-  // === 核心修复：等待 DOM 加载完成 ===
-  // 标记插件已安装，供页面检测
-  document.documentElement.setAttribute("data-extension-installed", "true");
+const init = () => {
+  console.log("[WebMCP] Bridge Script Loaded, state:", document.readyState);
 
-  window.addEventListener("DOMContentLoaded", () => {
+  const startHandshake = () => {
     console.log("[WebMCP] Bridge DOM Loaded, starting handshake...");
+
+    // 标记插件已安装，供页面检测
+    if (document.documentElement) {
+      document.documentElement.setAttribute("data-extension-installed", "true");
+    }
 
     // 1. 从 URL 获取参数
     const params = new URLSearchParams(window.location.search);
@@ -29,67 +33,70 @@ import { HandshakeResponse } from '../types';
     const port = parseInt(portStr);
 
     function attemptHandshake(force = false) {
-      // 发送握手请求给 Background
-      chrome.runtime.sendMessage(
-        {
-          type: "HANDSHAKE",
-          port: port,
-          token: token,
-          force: force,
-        },
-        (response: HandshakeResponse) => {
-          if (chrome.runtime.lastError) {
-            if (statusText && loader) {
-                statusText.innerHTML = `
-                            <span style="color:#ff6b6b">❌ Extension Not Detected</span><br>
-                            <span style="font-size:0.8em; opacity:0.8">Please ensure 'WebMCP Bridge' extension is installed and enabled.</span>
-                        `;
-                loader.style.display = "none";
-            }
-            return;
-          }
-
-          if (!statusText || !loader || !card) return;
-
-          if (response && response.success) {
-            statusText.innerText = "✅ Connected! Redirecting...";
-            statusText.style.color = "#4CAF50";
-            setTimeout(() => {
-              window.location.href = target as string;
-            }, 500);
-          } else if (response && response.error === "BUSY") {
-            // === 冲突处理 UI ===
-            loader.style.display = "none";
+      browserService.sendMessage({
+        type: "HANDSHAKE",
+        port: port,
+        token: token,
+        force: force,
+      }).then((response: HandshakeResponse) => {
+        if (!response) {
+          if (statusText && loader) {
             statusText.innerHTML = `
+                          <span style="color:#ff6b6b">❌ Extension Not Detected</span><br>
+                          <span style="font-size:0.8em; opacity:0.8">Please ensure 'WebMCP Bridge' extension is installed and enabled.</span>
+                      `;
+            loader.style.display = "none";
+          }
+          return;
+        }
+
+        if (!statusText || !loader || !card) return;
+
+        if (response && response.success) {
+          statusText.innerText = "✅ Connected! Redirecting...";
+          statusText.style.color = "#4CAF50";
+          setTimeout(() => {
+            window.location.href = target as string;
+          }, 500);
+        } else if (response && response.error === "BUSY") {
+          // === 冲突处理 UI ===
+          loader.style.display = "none";
+          statusText.innerHTML = `
                         <span style="color:#f39c12; font-weight:bold">⚠️ Connection Conflict</span><br><br>
                         VS Code (Port ${port}) is already connected to another tab.<br>
                         Do you want to switch the connection here?
                     `;
 
-            const oldBtn = card.querySelector("button");
-            if (oldBtn) oldBtn.remove();
+          const oldBtn = card.querySelector("button");
+          if (oldBtn) oldBtn.remove();
 
-            const btn = document.createElement("button");
-            btn.innerText = "Yes, Connect Here";
-            btn.style.marginTop = "20px";
-            btn.onclick = () => {
-              statusText.innerText = "Switching connection...";
-              loader.style.display = "block";
-              btn.remove();
-              attemptHandshake(true);
-            };
-            card.appendChild(btn);
-          } else {
-            statusText.innerText = `Connection Failed: ${
-              response ? response.error : "Unknown Error"
+          const btn = document.createElement("button");
+          btn.innerText = "Yes, Connect Here";
+          btn.style.marginTop = "20px";
+          btn.onclick = () => {
+            statusText.innerText = "Switching connection...";
+            loader.style.display = "block";
+            btn.remove();
+            attemptHandshake(true);
+          };
+          card.appendChild(btn);
+        } else {
+          statusText.innerText = `Connection Failed: ${response ? response.error : "Unknown Error"
             }`;
-            statusText.style.color = "#ff6b6b";
-          }
+          statusText.style.color = "#ff6b6b";
         }
-      );
+      });
     }
 
     // 启动握手
     attemptHandshake();
-  });
-})();
+  };
+
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    startHandshake();
+  } else {
+    window.addEventListener("DOMContentLoaded", startHandshake);
+  }
+};
+
+init();
