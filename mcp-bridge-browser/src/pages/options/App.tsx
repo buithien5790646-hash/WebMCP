@@ -174,7 +174,11 @@ export function App() {
                                             onChange={(e) => handleToolToggle(tool.name, (e.target as HTMLInputElement).checked)}
                                         />
                                         <span className="tool-name">{tool.name}</span>
-                                        {tool.description && <span className="tool-desc">- {tool.description}</span>}
+                                        {tool.description && (
+                                            <div className="tool-desc-container">
+                                                <div className="tool-desc">{tool.description}</div>
+                                            </div>
+                                        )}
                                     </label>
                                 ))}
                             </div>
