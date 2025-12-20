@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, Library as LibraryIcon, Settings } from 'lucide-react'
+import { LayoutDashboard, Library as LibraryIcon, Settings, ChevronLeft, ChevronRight, Menu } from 'lucide-react'
 import Library from './Library'
 import Dashboard from './Dashboard'
 import SettingsView from './SettingsView'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 // Types
 interface ServiceProfile {
@@ -47,6 +48,7 @@ export default function App() {
   const [envStatus, setEnvStatus] = useState<Record<string, boolean>>({});
   const [config, setConfig] = useState<any>({ browser: 'default', aiSites: [] });
   const [activeTab, setActiveTab] = useState<'dashboard' | 'library' | 'settings'>('dashboard');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Effects
   useEffect(() => {
@@ -57,7 +59,22 @@ export default function App() {
         [data.profileId]: { ...prev[data.profileId], status: data.status, port: data.port }
       }));
     });
-    return () => cleanup && cleanup();
+
+    // Auto-collapse sidebar on small screens
+    const handleResize = () => {
+        if (window.innerWidth < 1024) {
+            setIsSidebarCollapsed(true);
+        } else {
+            setIsSidebarCollapsed(false);
+        }
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Initial check
+
+    return () => {
+        cleanup && cleanup();
+        window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   useEffect(() => {
@@ -146,60 +163,87 @@ export default function App() {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground font-sans">
       {/* Sidebar */}
-      <aside className="w-64 border-r bg-muted/40 flex flex-col">
-        <div className="p-6 border-b">
-            <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-                <span className="text-primary">🕸</span> WebMCP
-            </h1>
+      <aside className={cn(
+          "border-r bg-muted/40 flex flex-col transition-all duration-300 ease-in-out relative",
+          isSidebarCollapsed ? "w-16" : "w-64"
+      )}>
+        <div className={cn("p-6 border-b flex items-center", isSidebarCollapsed ? "justify-center px-0" : "justify-between")}>
+            {!isSidebarCollapsed && (
+                <h1 className="text-xl font-bold tracking-tight flex items-center gap-2 overflow-hidden whitespace-nowrap">
+                    <span className="text-primary">🕸</span> WebMCP
+                </h1>
+            )}
+            {isSidebarCollapsed && <span className="text-xl text-primary">🕸</span>}
         </div>
-        <nav className="flex-1 p-4 space-y-2">
+
+        <nav className="flex-1 p-4 space-y-2 overflow-x-hidden">
             <Button 
                 variant={activeTab === 'dashboard' ? 'secondary' : 'ghost'} 
-                className="w-full justify-start"
+                className={cn("w-full justify-start", isSidebarCollapsed && "justify-center px-0")}
                 onClick={() => setActiveTab('dashboard')}
+                title={isSidebarCollapsed ? "Dashboard" : ""}
             >
-                <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
+                <LayoutDashboard className={cn("h-4 w-4", !isSidebarCollapsed && "mr-2")} /> 
+                {!isSidebarCollapsed && <span>Dashboard</span>}
             </Button>
             <Button 
                 variant={activeTab === 'library' ? 'secondary' : 'ghost'} 
-                className="w-full justify-start"
+                className={cn("w-full justify-start", isSidebarCollapsed && "justify-center px-0")}
                 onClick={() => setActiveTab('library')}
+                title={isSidebarCollapsed ? "Server Library" : ""}
             >
-                <LibraryIcon className="mr-2 h-4 w-4" /> Server Library
+                <LibraryIcon className={cn("h-4 w-4", !isSidebarCollapsed && "mr-2")} /> 
+                {!isSidebarCollapsed && <span>Server Library</span>}
             </Button>
             <Button 
                 variant={activeTab === 'settings' ? 'secondary' : 'ghost'} 
-                className="w-full justify-start"
+                className={cn("w-full justify-start", isSidebarCollapsed && "justify-center px-0")}
                 onClick={() => setActiveTab('settings')}
+                title={isSidebarCollapsed ? "Settings" : ""}
             >
-                <Settings className="mr-2 h-4 w-4" /> Settings
+                <Settings className={cn("h-4 w-4", !isSidebarCollapsed && "mr-2")} /> 
+                {!isSidebarCollapsed && <span>Settings</span>}
             </Button>
         </nav>
+
+        {/* Collapse Toggle */}
+        <div className="p-4 border-t flex justify-center">
+            <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 rounded-full hover:bg-muted"
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            >
+                {isSidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" /> }
+            </Button>
+        </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-8">
-        {activeTab === 'dashboard' ? (
-          <Dashboard 
-            profiles={profiles}
-            servers={servers}
-            statuses={statuses}
-            logs={logs}
-            config={config}
-            onStart={handleStart}
-            onStop={handleStop}
-            onDelete={handleDeleteProfile}
-            onSaveProfile={handleSaveProfile}
-            onOpenBridge={handleOpenBridge}
-            onNavigateToSettings={() => setActiveTab('settings')}
-            onSaveConfig={handleSaveConfig}
-            onClearLogs={handleClearLogs}
-          />
-        ) : activeTab === 'library' ? (
-          <Library servers={servers} envStatus={envStatus} onReload={loadData} />
-        ) : (
-          <SettingsView config={config} onSave={handleSaveConfig} />
-        )}
+      <main className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8">
+          {activeTab === 'dashboard' ? (
+            <Dashboard 
+              profiles={profiles}
+              servers={servers}
+              statuses={statuses}
+              logs={logs}
+              config={config}
+              onStart={handleStart}
+              onStop={handleStop}
+              onDelete={handleDeleteProfile}
+              onSaveProfile={handleSaveProfile}
+              onOpenBridge={handleOpenBridge}
+              onNavigateToSettings={() => setActiveTab('settings')}
+              onSaveConfig={handleSaveConfig}
+              onClearLogs={handleClearLogs}
+            />
+          ) : activeTab === 'library' ? (
+            <Library servers={servers} envStatus={envStatus} onReload={loadData} />
+          ) : (
+            <SettingsView config={config} onSave={handleSaveConfig} />
+          )}
+        </div>
       </main>
     </div>
   );

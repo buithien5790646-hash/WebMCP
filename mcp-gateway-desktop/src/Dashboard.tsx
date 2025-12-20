@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Square, Trash2, Plus, ExternalLink, Monitor, Command, Settings as SettingsIcon } from 'lucide-react';
+import { Play, Square, Trash2, Plus, ExternalLink, Monitor, Command, Settings as SettingsIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +43,7 @@ interface DashboardProps {
 
 export default function Dashboard({ profiles, servers, statuses, logs, config, onStart, onStop, onDelete, onSaveProfile, onOpenBridge, onNavigateToSettings, onSaveConfig, onClearLogs }: DashboardProps) {
   const [selectedId, setSelectedId] = useState<string | null>(Object.keys(profiles)[0] || null);
+  const [isListCollapsed, setIsListCollapsed] = useState(false);
   
   // Launcher State
   const [targetSite, setTargetSite] = useState(config.lastSelectedSite || config.aiSites?.[0]?.address || 'https://chatgpt.com');
@@ -52,6 +53,20 @@ export default function Dashboard({ profiles, servers, statuses, logs, config, o
          setTargetSite(config.lastSelectedSite || config.aiSites[0].address);
      }
   }, [config]);
+
+  // Auto-collapse list on small screens
+  useEffect(() => {
+      const handleResize = () => {
+          if (window.innerWidth < 1200) {
+              setIsListCollapsed(true);
+          } else {
+              setIsListCollapsed(false);
+          }
+      };
+      window.addEventListener('resize', handleResize);
+      handleResize();
+      return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleTargetSiteChange = (val: string) => {
       setTargetSite(val);
@@ -121,13 +136,28 @@ export default function Dashboard({ profiles, servers, statuses, logs, config, o
     <div className="flex h-full border rounded-lg overflow-hidden bg-background shadow-sm ring-1 ring-border">
       
       {/* LEFT SIDEBAR: Profile List */}
-      <div className="w-64 bg-muted/20 border-r flex flex-col">
-        <div className="p-3 border-b bg-muted/40">
-             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Instances</h3>
-             <Button size="sm" className="w-full justify-start" variant="outline" onClick={handleCreate}>
-                <Plus className="w-4 h-4 mr-2" /> New Instance
+      <div className={cn(
+          "bg-muted/20 border-r flex flex-col transition-all duration-300",
+          isListCollapsed ? "w-12" : "w-64"
+      )}>
+        <div className={cn("p-3 border-b bg-muted/40 flex items-center", isListCollapsed ? "justify-center px-0" : "justify-between")}>
+             {!isListCollapsed && <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Instances</h3>}
+             <Button 
+                size="sm" 
+                variant="ghost" 
+                className={cn("h-8 w-8 p-0 rounded-full", !isListCollapsed && "ml-auto")}
+                onClick={() => setIsListCollapsed(!isListCollapsed)}
+             >
+                {isListCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
              </Button>
         </div>
+        {!isListCollapsed && (
+            <div className="p-3 border-b bg-muted/20">
+                <Button size="sm" className="w-full justify-start" variant="outline" onClick={handleCreate}>
+                    <Plus className="w-4 h-4 mr-2" /> New Instance
+                </Button>
+            </div>
+        )}
         <ScrollArea className="flex-1">
             <div className="p-2 space-y-1">
                 {Object.values(profiles).map(profile => {
@@ -137,23 +167,39 @@ export default function Dashboard({ profiles, servers, statuses, logs, config, o
                             key={profile.id}
                             onClick={() => setSelectedId(profile.id)}
                             className={cn(
-                                "flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-colors text-sm",
+                                "flex items-center rounded-md cursor-pointer transition-colors text-sm relative",
+                                isListCollapsed ? "justify-center h-10 w-8 mx-auto" : "px-3 py-2 justify-between",
                                 selectedId === profile.id ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted text-muted-foreground"
                             )}
+                            title={isListCollapsed ? profile.name : ""}
                         >
                             <div className="flex items-center gap-2 overflow-hidden">
-                                <div className={cn("w-2 h-2 rounded-full shrink-0", status === 'online' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "bg-zinc-300 dark:bg-zinc-700")} />
-                                <span className="truncate">{profile.name}</span>
+                                <div className={cn(
+                                    "w-2 h-2 rounded-full shrink-0", 
+                                    status === 'online' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "bg-zinc-300 dark:bg-zinc-700",
+                                    isListCollapsed && "w-3 h-3"
+                                )} />
+                                {!isListCollapsed && <span className="truncate">{profile.name}</span>}
                             </div>
-                            {selectedId === profile.id && (
+                            {!isListCollapsed && selectedId === profile.id && (
                                 <Trash2 
                                     className="w-4 h-4 text-muted-foreground/50 hover:text-destructive shrink-0"
                                     onClick={(e) => { e.stopPropagation(); onDelete(profile.id); }}
                                 />
                             )}
+                            {isListCollapsed && selectedId === profile.id && (
+                                <div className="absolute left-0 w-1 h-6 bg-primary rounded-r-full" />
+                            )}
                         </div>
                     )
                 })}
+                {isListCollapsed && (
+                    <div className="pt-2 flex justify-center">
+                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full" onClick={handleCreate} title="New Instance">
+                            <Plus className="w-4 h-4" />
+                        </Button>
+                    </div>
+                )}
             </div>
         </ScrollArea>
       </div>
@@ -276,39 +322,42 @@ export default function Dashboard({ profiles, servers, statuses, logs, config, o
                 </Tabs>
 
                 {/* Footer: Launcher */}
-                <div className="h-16 border-t bg-muted/10 flex items-center px-6 gap-4">
-                    <div className="flex-1 flex items-center gap-3">
+                <div className="min-h-16 border-t bg-muted/10 flex flex-wrap items-center px-6 py-3 gap-4">
+                    <div className="flex-1 flex flex-wrap items-center gap-3 min-w-[300px]">
                         <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Launch AI Client:</span>
-                        <Select value={targetSite} onValueChange={handleTargetSiteChange}>
-                            <SelectTrigger className="w-[220px] bg-background">
-                                <SelectValue placeholder="Select AI Site" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {config.aiSites.map((site: any) => (
-                                    <SelectItem key={site.address} value={site.address}>
-                                        <div className="flex items-center gap-2">
-                                            <span>{site.name}</span>
-                                            {site.browser && site.browser !== 'default' && (
-                                                <span className="text-[10px] text-muted-foreground bg-muted px-1 rounded uppercase">{site.browser}</span>
-                                            )}
-                                        </div>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Button 
-                            disabled={!isOnline} 
-                            onClick={handleLaunch}
-                            className="gap-2"
-                            variant="secondary"
-                        >
-                            <ExternalLink className="w-4 h-4" /> 
-                            {isOnline ? 'Open Bridge' : 'Start Gateway First'}
-                        </Button>
+                        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                            <Select value={targetSite} onValueChange={handleTargetSiteChange}>
+                                <SelectTrigger className="w-full max-w-[220px] bg-background">
+                                    <SelectValue placeholder="Select AI Site" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {config.aiSites.map((site: any) => (
+                                        <SelectItem key={site.address} value={site.address}>
+                                            <div className="flex items-center gap-2">
+                                                <span>{site.name}</span>
+                                                {site.browser && site.browser !== 'default' && (
+                                                    <span className="text-[10px] text-muted-foreground bg-muted px-1 rounded uppercase">{site.browser}</span>
+                                                )}
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Button 
+                                disabled={!isOnline} 
+                                onClick={handleLaunch}
+                                className="gap-2 shrink-0"
+                                variant="secondary"
+                            >
+                                <ExternalLink className="w-4 h-4" /> 
+                                {isOnline ? 'Open Bridge' : 'Start Gateway First'}
+                            </Button>
+                        </div>
                     </div>
                     {isOnline && activeStatus?.token && (
-                         <div className="text-xs text-muted-foreground font-mono bg-muted px-2 py-1 rounded select-all">
-                            Token: {activeStatus.token.slice(0, 8)}...
+                         <div className="text-xs text-muted-foreground font-mono bg-muted px-2 py-1 rounded select-all shrink-0 ml-auto">
+                            <span className="opacity-50 mr-1">Token:</span>
+                            {activeStatus.token.slice(0, 8)}...
                          </div>
                     )}
                 </div>
