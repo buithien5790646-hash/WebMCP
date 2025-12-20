@@ -84,9 +84,20 @@ export class ConfigManager {
 
     private static getDefaults(): WebMCPConfig {
         const isDev = !app.isPackaged;
-        const assetsPath = isDev 
-            ? path.join(__dirname, '../../shared/assets')
-            : path.join(process.resourcesPath, 'assets');
+        let assetsPath: string;
+        
+        if (!isDev) {
+            assetsPath = path.join(process.resourcesPath, 'assets');
+        } else {
+            // Try local dist-electron/assets first (for built but not packaged)
+            // Then fallback to shared/assets (for development)
+            const localAssets = path.join(__dirname, 'assets');
+            if (fs.existsSync(localAssets) && fs.readdirSync(localAssets).length > 0) {
+                assetsPath = localAssets;
+            } else {
+                assetsPath = path.join(__dirname, '../../shared/assets');
+            }
+        }
 
         const readFile = (filename: string) => {
             const p = path.join(assetsPath, filename);

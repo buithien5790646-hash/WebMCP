@@ -1,13 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { LayoutDashboard, Library as LibraryIcon, Settings } from 'lucide-react'
 import Library from './Library'
 import Dashboard from './Dashboard'
 import SettingsView from './SettingsView'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
 
 // Types
 interface ServiceProfile {
@@ -51,9 +47,6 @@ export default function App() {
   const [envStatus, setEnvStatus] = useState<Record<string, boolean>>({});
   const [config, setConfig] = useState<any>({ browser: 'default', aiSites: [] });
   const [activeTab, setActiveTab] = useState<'dashboard' | 'library' | 'settings'>('dashboard');
-  
-  const [isCreating, setIsCreating] = useState(false);
-  const [newProfile, setNewProfile] = useState<Partial<ServiceProfile>>({ name: '', port: 3000, serverIds: [] });
 
   // Effects
   useEffect(() => {
@@ -136,15 +129,6 @@ export default function App() {
   const handleSaveProfile = async (profile: ServiceProfile) => {
      await window.ipcRenderer.invoke('db:save-profile', profile);
      loadData();
-  };
-
-  const handleCreateProfile = async () => {
-      const id = `profile-${Date.now()}`;
-      const profile = { ...newProfile, id, color: 'blue' } as ServiceProfile;
-      await window.ipcRenderer.invoke('db:save-profile', profile);
-      setIsCreating(false);
-      setNewProfile({ name: '', port: 3000 + Object.keys(profiles).length + 1, serverIds: [] });
-      loadData();
   };
 
   const handleDeleteProfile = async (id: string) => {

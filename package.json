@@ -3,8 +3,11 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "dev:vscode": "pnpm --filter mcp-gateway-vscode run watch",
+    "dev:browser": "pnpm --filter mcp-bridge-browser run dev",
+    "dev:desktop": "pnpm --filter mcp-gateway-desktop run dev",
     "build": "pnpm -r run build",
-    "test": "pnpm -r run test"
+    "release": "./build_release.sh"
   },
   "devDependencies": {
     "typescript": "^5.0.0"
