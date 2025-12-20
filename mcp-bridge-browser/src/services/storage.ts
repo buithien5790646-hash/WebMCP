@@ -12,18 +12,14 @@ export interface StorageSchema {
     error_en: string;
     error_zh: string;
     user_rules: string;
-    cached_tool_list: string[];
-    cached_tool_groups: any[];
 
     // Sync Storage
     autoSend: boolean;
-    autoPromptEnabled: boolean;
-    customSelectors: any;
     protected_tools: string[];
 }
 
-type LocalStorageKeys = 'prompt_en' | 'prompt_zh' | 'train_en' | 'train_zh' | 'error_en' | 'error_zh' | 'user_rules' | 'cached_tool_list' | 'cached_tool_groups';
-type SyncStorageKeys = 'autoSend' | 'autoPromptEnabled' | 'customSelectors' | 'protected_tools';
+type LocalStorageKeys = 'prompt_en' | 'prompt_zh' | 'train_en' | 'train_zh' | 'error_en' | 'error_zh' | 'user_rules';
+type SyncStorageKeys = 'autoSend' | 'protected_tools';
 
 /**
  * Get items from chrome.storage.local

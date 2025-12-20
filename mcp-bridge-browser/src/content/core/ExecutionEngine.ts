@@ -1,4 +1,4 @@
-import { messageBroker, i18n, logger as Logger, getLocal, setLocal, setSync, ErrorHandler } from "@/services";
+import { messageBroker, i18n, logger as Logger, setSync, ErrorHandler } from "@/services";
 const { t } = i18n;
 import { ToolExecutionPayload } from "@/types";
 import {
@@ -103,7 +103,7 @@ export class ExecutionEngine {
 
                 // Handle list_tools caching
                 if (payload.name === "list_tools") {
-                    await this.handleListTools(response.data);
+                    await this.handleListTools(payload, response.data);
                 }
             } else {
                 throw new Error(response?.error || "Unknown error");
@@ -148,33 +148,9 @@ export class ExecutionEngine {
         this.workflow.saveResult(payload.request_id, "", false);
     }
 
-    private async handleListTools(data: string) {
-        try {
-            const groups = JSON.parse(data);
-            const toolNames: string[] = [];
-            groups.forEach((g: any) => {
-                if (g.tools) g.tools.forEach((t: any) => toolNames.push(t.name));
-            });
-
-            const localData = await getLocal(["cached_tool_list"]);
-            const knownTools = new Set((localData as any).cached_tool_list || []);
-            let protectedDirty = false;
-
-            toolNames.forEach((tName) => {
-                if (!knownTools.has(tName) && !this.protectedTools.has(tName)) {
-                    this.protectedTools.add(tName);
-                    protectedDirty = true;
-                }
-            });
-
-            if (protectedDirty) {
-                await setSync({ protected_tools: Array.from(this.protectedTools) });
-                messageBroker.send({ type: "SYNC_CONFIG" });
-                Logger.log("🛡️ New tools detected & protected", "warn");
-            }
-            await setLocal({ cached_tool_list: toolNames });
-        } catch (e) {
-            console.error("[Engine] List tools processing error", e);
-        }
+    private async handleListTools(payload: ToolExecutionPayload, data: string) {
+        // We still need to save the result so the AI can see the tool list!
+        this.workflow.saveResult(payload.request_id, data, false);
+        Logger.log("🛠️ Tools listed and result saved", "info");
     }
 }

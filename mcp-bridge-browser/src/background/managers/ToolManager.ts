@@ -1,5 +1,4 @@
 import { apiClient } from '@/services/api';
-import { getLocal, setLocal, getSync, setSync } from '@/services/storage';
 import { ToolExecutionSchema } from '@/types/schemas';
 
 export class ToolManager {
@@ -9,42 +8,9 @@ export class ToolManager {
     async prefetchToolList() {
         try {
             if (!apiClient.isConfigured()) return;
-
-            const json = await apiClient.getTools();
-            const rawGroups = json.groups || [];
-            const newToolNames: string[] = [];
-
-            rawGroups.forEach((g: any) => {
-                if (g.tools) g.tools.forEach((t: any) => newToolNames.push(t.name));
-            });
-
-            // HITL Security: Auto-protect new tools
-            const localData = await getLocal(["cached_tool_list"] as any);
-            const syncData = await getSync(["protected_tools"] as any);
-
-            const knownTools = new Set(localData.cached_tool_list || []);
-            const protectedTools = new Set(syncData.protected_tools || []);
-            let protectedDirty = false;
-
-            newToolNames.forEach((tName: string) => {
-                if (!knownTools.has(tName)) {
-                    if (!protectedTools.has(tName)) {
-                        protectedTools.add(tName);
-                        protectedDirty = true;
-                    }
-                }
-            });
-
-            if (protectedDirty) {
-                await setSync({
-                    protected_tools: Array.from(protectedTools),
-                } as any);
-            }
-
-            await setLocal({
-                cached_tool_list: newToolNames,
-                cached_tool_groups: rawGroups
-            } as any);
+            await apiClient.getTools();
+            // We just trigger the fetch to ensure connectivity/auth, 
+            // no longer caching tool list/groups or auto-protecting here.
         } catch (e) {
             console.error("[WebMCP] Tool prefetch failed:", e);
         }

@@ -7,12 +7,11 @@ export class ConfigManager {
      */
     async initializeStorage() {
         // 1. Initialize user settings
-        const syncKeys = ["autoSend", "autoPromptEnabled", "protected_tools"];
+        const syncKeys = ["autoSend", "protected_tools"];
         const existingSync = await getSync(syncKeys as any);
         const syncToSet: Record<string, any> = {};
 
         if (existingSync.autoSend === undefined) syncToSet.autoSend = true;
-        if (existingSync.autoPromptEnabled === undefined) syncToSet.autoPromptEnabled = false;
 
         if (Object.keys(syncToSet).length > 0) {
             await setSync(syncToSet as any);
@@ -45,7 +44,7 @@ export class ConfigManager {
         try {
             if (!apiClient.isConfigured()) return false;
 
-            const syncData = await getSync(["protected_tools", "autoSend", "autoPromptEnabled"] as any);
+            const syncData = await getSync(["protected_tools", "autoSend"] as any);
             const localKeys = ["prompt_en", "prompt_zh", "train_en", "train_zh", "error_en", "error_zh", "user_rules"];
             const localData = await getLocal(localKeys as any);
 
