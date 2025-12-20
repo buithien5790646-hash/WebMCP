@@ -1,4 +1,4 @@
-import { HardDrive, Github, Database, BrainCircuit, Globe } from 'lucide-react';
+import { HardDrive, Github, Globe, Play, Clock, } from 'lucide-react';
 
 export interface MarketplaceItem {
   id: string;
@@ -7,10 +7,11 @@ export interface MarketplaceItem {
   author: string;
   icon: any;
   install: {
-    type: 'stdio' | 'sse';
+    type: 'stdio' | 'sse' | 'http';
     command?: string;
     args?: string[];
     url?: string;
+    headers?: Record<string, string>;
   };
   variables?: {
     env?: Array<{
@@ -61,67 +62,58 @@ export const MARKETPLACE_ITEMS: MarketplaceItem[] = [
     author: 'Model Context Protocol',
     icon: Github,
     install: {
-      type: 'stdio',
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-github'],
+      type: 'http',
+      url: 'https://api.githubcopilot.com/mcp/',
+      headers: {
+        'Authorization': 'Bearer ${input:GITHUB_MCP_PAT}'
+      }
     },
     variables: {
       env: [
         {
-          key: 'GITHUB_PERSONAL_ACCESS_TOKEN',
-          label: 'Personal Access Token',
-          placeholder: 'github_pat_...',
-          description: 'A GitHub PAT with repo permissions.',
+          key: 'GITHUB_MCP_PAT',
+          label: 'GitHub MCP PAT',
+          placeholder: 'ghp_...',
+          description: 'A GitHub Personal Access Token for GitHub MCP access.',
           required: true
         }
       ]
     }
   },
   {
-    id: 'sqlite',
-    name: 'SQLite',
-    description: 'Query and analyze SQLite databases. Great for data analysis tasks.',
-    author: 'Model Context Protocol',
-    icon: Database,
+    id: 'playwright',
+    name: 'Playwright',
+    description: 'Allow LLMs to interact with websites, take screenshots, and extract data using Playwright.',
+    author: 'Microsoft',
+    icon: Play,
     install: {
       type: 'stdio',
       command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-sqlite'],
-    },
-    variables: {
-      args: [
-        {
-          label: 'Database File Path',
-          placeholder: '/path/to/database.db',
-          description: 'Absolute path to an existing SQLite file.',
-          type: 'path',
-          required: true
-        }
-      ]
-    }
-  },
-  {
-    id: 'memory',
-    name: 'Memory',
-    description: 'A knowledge graph based memory server that persists insights across sessions.',
-    author: 'Model Context Protocol',
-    icon: BrainCircuit,
-    install: {
-      type: 'stdio',
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-memory'],
+      args: ['-y', '@playwright/mcp@latest'],
     }
   },
   {
     id: 'fetch',
     name: 'Fetch',
-    description: 'Allow LLMs to fetch and extract content from websites for research.',
+    description: 'Allow LLMs to fetch and extract content from websites for research using UVX.',
     author: 'Model Context Protocol',
     icon: Globe,
     install: {
       type: 'stdio',
-      command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-fetch'],
+      command: 'uvx',
+      args: ['mcp-server-fetch'],
+    }
+  },
+  {
+    id: 'time',
+    name: 'Time',
+    description: 'Get current time, convert time zones, and handle date/time operations.',
+    author: 'Model Context Protocol',
+    icon: Clock,
+    install: {
+      type: 'stdio',
+      command: 'uvx',
+      args: ['mcp-server-time'],
     }
   }
 ];
