@@ -16,7 +16,6 @@ export class ToolManager {
 
             rawGroups.forEach((g: any) => {
                 if (g.tools) g.tools.forEach((t: any) => newToolNames.push(t.name));
-                if (g.hidden_tools) g.hidden_tools.forEach((n: string) => newToolNames.push(n));
             });
 
             // HITL Security: Auto-protect new tools

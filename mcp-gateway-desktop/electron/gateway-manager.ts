@@ -45,13 +45,6 @@ const RUN_IN_TERMINAL_TOOL = {
     }
 };
 
-const BASIC_TOOLS = [
-    'read_file', 'read_text_file', 'write_file', 'edit_file',
-    'list_directory', 'list_directory_with_sizes',
-    'run_in_terminal', 'execute_command',
-    'search_files', 'get_tool_definitions', 'list_tools'
-];
-
 export class GatewayManager {
     private app: express.Express | null = null;
     private server: HttpServer | null = null;
@@ -150,7 +143,7 @@ export class GatewayManager {
 
     // --- Tool Grouping Helper ---
     private _generateGroupedTools() {
-        const groups: Record<string, { tools: any[], hidden_tools: string[] }> = {};
+        const groups: Record<string, { tools: any[] }> = {};
 
         // Gather
         const allTools = Array.from(this.toolRouter.values()).map(t => ({ ...t.definition, _server: t.serverId }));
@@ -158,21 +151,16 @@ export class GatewayManager {
 
         allTools.forEach(tool => {
             const server = tool._server || 'unknown';
-            if (!groups[server]) groups[server] = { tools: [], hidden_tools: [] };
+            if (!groups[server]) groups[server] = { tools: [] };
 
-            // Hot vs Cold
-            if (BASIC_TOOLS.includes(tool.name)) {
-                const { _server, ...clean } = tool;
-                groups[server].tools.push(clean);
-            } else {
-                groups[server].hidden_tools.push(tool.name);
-            }
+            // All tools are now "Hot" - Show full schema
+            const { _server, ...clean } = tool;
+            groups[server].tools.push(clean);
         });
 
         return Object.entries(groups).map(([server, data]) => ({
             server,
-            tools: data.tools,
-            hidden_tools: data.hidden_tools.sort()
+            tools: data.tools
         }));
     }
 
@@ -313,19 +301,6 @@ export class GatewayManager {
             // Internal Tools
             if (name === 'list_tools') {
                 return res.json({ content: [{ type: 'text', text: JSON.stringify(this._generateGroupedTools(), null, 2) }] });
-            }
-
-            if (name === 'get_tool_definitions') {
-                const requestedNames = args.tool_names as string[] || [];
-                const definitions = [];
-                for (const tName of requestedNames) {
-                    if (this.toolRouter.has(tName)) {
-                        definitions.push(this.toolRouter.get(tName)!.definition);
-                    } else if (tName === 'run_in_terminal') {
-                        definitions.push(RUN_IN_TERMINAL_TOOL);
-                    }
-                }
-                return res.json({ content: [{ type: 'text', text: JSON.stringify(definitions, null, 2) }] });
             }
 
             // Routing

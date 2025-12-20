@@ -76,7 +76,6 @@ export function App() {
             const names: string[] = [];
             (json.groups || []).forEach((g: any) => {
                 if (g.tools) g.tools.forEach((t: any) => names.push(t.name));
-                if (g.hidden_tools) g.hidden_tools.forEach((n: string) => names.push(n));
             });
             setToolList(names);
         } catch (e) { }

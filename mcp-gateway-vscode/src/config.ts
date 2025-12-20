@@ -7,7 +7,6 @@ export interface WebMCPConfig {
     rules: string;
     train: string;
     error_hint: string;
-    summary_tools: string[];
     protected_tools: string[];
 }
 
@@ -29,7 +28,6 @@ export class ConfigManager {
             rules: workspace.rules ?? global.rules ?? defaults.rules ?? '',
             train: workspace.train ?? global.train ?? defaults.train,
             error_hint: workspace.error_hint ?? global.error_hint ?? defaults.error_hint,
-            summary_tools: workspace.summary_tools ?? global.summary_tools ?? defaults.summary_tools,
             protected_tools: workspace.protected_tools ?? global.protected_tools ?? defaults.protected_tools,
         };
     }
@@ -87,7 +85,6 @@ export class ConfigManager {
             rules: '',
             train: readFile(lang === 'zh' ? 'train_zh.md' : 'train.md'),
             error_hint: readFile(lang === 'zh' ? 'error_hint_zh.md' : 'error_hint.md'),
-            summary_tools: ['list_tools', 'read_file', 'ls', 'search_repo'], // Example defaults
             protected_tools: [], // By default, all tools are protected if not in authorized list
         };
     }

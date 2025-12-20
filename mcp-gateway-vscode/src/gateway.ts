@@ -24,30 +24,6 @@ const RUN_IN_TERMINAL_TOOL = {
     }
 };
 
-const GET_TOOL_DEFINITIONS_TOOL = {
-    name: "get_tool_definitions",
-    description: "Fetch detailed schemas for tools that are in 'Summary Mode'. Use this when you need to use a tool but its inputSchema is hidden.",
-    inputSchema: {
-        type: "object",
-        properties: {
-            tool_names: {
-                type: "array",
-                items: { type: "string" },
-                description: "List of tool names to fetch definitions for (e.g. ['git_commit', 'git_status'])"
-            }
-        },
-        required: ["tool_names"]
-    }
-};
-
-// Tools that always show full schema (Hot Tools)
-const BASIC_TOOLS = [
-    'read_file', 'read_text_file', 'write_file', 'edit_file',
-    'list_directory', 'list_directory_with_sizes',
-    'run_in_terminal', 'execute_command',
-    'search_files', 'get_tool_definitions', 'list_tools'
-];
-
 // 定义服务器配置接口
 interface ServerConfig {
     type?: 'stdio' | 'sse' | 'http';
@@ -83,34 +59,25 @@ export class GatewayManager {
 
         // 2. Inject Internal Tools
         allTools.push({ ...RUN_IN_TERMINAL_TOOL, _server: 'internal' });
-        allTools.push({ ...GET_TOOL_DEFINITIONS_TOOL, _server: 'internal' });
 
         // 3. Group by Server
-        const groups: Record<string, { tools: any[], hidden_tools: string[] }> = {};
+        const groups: Record<string, { tools: any[] }> = {};
 
         allTools.forEach(tool => {
             const server = tool._server || 'unknown';
             if (!groups[server]) {
-                groups[server] = { tools: [], hidden_tools: [] };
+                groups[server] = { tools: [] };
             }
 
-            // Hot vs Cold decision
-            if (BASIC_TOOLS.includes(tool.name)) {
-                // Hot: Show full schema
-                // Remove internal grouping tag before sending
-                const { _server, ...cleanTool } = tool;
-                groups[server].tools.push(cleanTool);
-            } else {
-                // Cold: Only name
-                groups[server].hidden_tools.push(tool.name);
-            }
+            // All tools are now "Hot" - Show full schema
+            const { _server, ...cleanTool } = tool;
+            groups[server].tools.push(cleanTool);
         });
 
         // 4. Transform to Array format
         return Object.entries(groups).map(([server, data]) => ({
             server,
-            tools: data.tools,
-            hidden_tools: data.hidden_tools.sort()
+            tools: data.tools
         }));
     }
     private outputChannel: vscode.OutputChannel;
@@ -485,29 +452,6 @@ export class GatewayManager {
                 this.log(`   ✅ Finished: run_in_terminal (Async dispatch)`);
                 return res.json({
                     content: [{ type: 'text', text: `Command sent to terminal '${termName}': ${args.command}` }],
-                    isError: false
-                });
-            }
-
-            if (name === 'get_tool_definitions') {
-                const requestedNames = args.tool_names as string[] || [];
-                this.log(`   🚀 Executing: get_tool_definitions for [${requestedNames.join(', ')}]`);
-
-                const definitions = [];
-                // 1. Check Tool Router
-                for (const tName of requestedNames) {
-                    if (this.toolRouter.has(tName)) {
-                        definitions.push(this.toolRouter.get(tName)!.definition);
-                    } else if (tName === 'run_in_terminal') {
-                        definitions.push(RUN_IN_TERMINAL_TOOL);
-                    } else if (tName === 'get_tool_definitions') {
-                        definitions.push(GET_TOOL_DEFINITIONS_TOOL);
-                    }
-                }
-
-                this.log(`   ✅ Finished: get_tool_definitions (Found ${definitions.length}/${requestedNames.length})`);
-                return res.json({
-                    content: [{ type: 'text', text: JSON.stringify(definitions, null, 2) }],
                     isError: false
                 });
             }

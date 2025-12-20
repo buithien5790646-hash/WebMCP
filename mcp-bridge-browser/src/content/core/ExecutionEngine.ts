@@ -154,7 +154,6 @@ export class ExecutionEngine {
             const toolNames: string[] = [];
             groups.forEach((g: any) => {
                 if (g.tools) g.tools.forEach((t: any) => toolNames.push(t.name));
-                if (g.hidden_tools) g.hidden_tools.forEach((n: string) => toolNames.push(n));
             });
 
             const localData = await getLocal(["cached_tool_list"]);
