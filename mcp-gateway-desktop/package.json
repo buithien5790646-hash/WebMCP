@@ -1,7 +1,7 @@
 {
   "name": "mcp-gateway-desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.6.0",
   "main": "dist-electron/main.js",
   "description": "WebMCP Desktop Gateway",
   "author": "WebMCP Team",

@@ -14,6 +14,7 @@ BUILD_ALL=true
 BUILD_VSCODE=false
 BUILD_BROWSER=false
 BUILD_DESKTOP=false
+DESKTOP_PLATFORM="" # Default to current platform
 
 if [ $# -gt 0 ]; then
     BUILD_ALL=false
@@ -22,6 +23,9 @@ if [ $# -gt 0 ]; then
             vscode) BUILD_VSCODE=true ;;
             browser) BUILD_BROWSER=true ;;
             desktop) BUILD_DESKTOP=true ;;
+            win) BUILD_DESKTOP=true; DESKTOP_PLATFORM="--win" ;;
+            mac) BUILD_DESKTOP=true; DESKTOP_PLATFORM="--mac" ;;
+            linux) BUILD_DESKTOP=true; DESKTOP_PLATFORM="--linux" ;;
             all) BUILD_ALL=true ;;
             *) echo -e "${YELLOW}Unknown argument: $arg. Skipping...${NC}" ;;
         esac
@@ -34,22 +38,42 @@ if [ "$BUILD_ALL" = true ]; then
     BUILD_DESKTOP=true
 fi
 
-# 2. Create/Clean output directory
+# 1. Get version from root package.json
+ROOT_VERSION=$(node -p "require('./package.json').version")
+echo -e "${GREEN}📦 Target Version: ${ROOT_VERSION}${NC}"
+
+# 2. Sync versions to all packages
+echo -e "${CYAN}🔄 Syncing versions to all packages...${NC}"
+# Use a simple node script to update versions to avoid complex sed issues
+node -e "
+const fs = require('fs');
+const version = '$ROOT_VERSION';
+['mcp-gateway-vscode', 'mcp-bridge-browser', 'mcp-gateway-desktop'].forEach(pkg => {
+    const path = './' + pkg + '/package.json';
+    if (fs.existsSync(path)) {
+        const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+        data.version = version;
+        fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
+        console.log('✅ Updated ' + pkg + ' to ' + version);
+    }
+});
+"
+
+# 3. Create/Clean output directory
 mkdir -p release
 # We don't rm -rf release/* because we might only be building one component
 
-# 3. Build Shared Module (Required for all)
+# 4. Build Shared Module (Required for all)
 echo -e "${CYAN}🛠️  Building Shared Module...${NC}"
 pnpm --filter @webmcp/shared run build
 
 # ==========================================
-# 4. Package VS Code Extension
+# 5. Package VS Code Extension
 # ==========================================
 if [ "$BUILD_VSCODE" = true ]; then
     echo -e "${CYAN}📦 Packaging VS Code Extension...${NC}"
     cd mcp-gateway-vscode
-    VS_VERSION=$(node -p "require('./package.json').version")
-    VS_NAME="WebMCP-Gateway-VSCode-${VS_VERSION}.vsix"
+    VS_NAME="WebMCP-Gateway-VSCode-${ROOT_VERSION}.vsix"
     
     # We use pnpm build first to ensure assets are copied
     pnpm run build
@@ -65,13 +89,12 @@ if [ "$BUILD_VSCODE" = true ]; then
 fi
 
 # ==========================================
-# 5. Package Browser Extension
+# 6. Package Browser Extension
 # ==========================================
 if [ "$BUILD_BROWSER" = true ]; then
     echo -e "${CYAN}📦 Packaging Browser Extension...${NC}"
     cd mcp-bridge-browser
-    BROWSER_VERSION=$(node -p "require('./package.json').version")
-    BROWSER_NAME="WebMCP-Bridge-Browser-${BROWSER_VERSION}.zip"
+    BROWSER_NAME="WebMCP-Bridge-Browser-${ROOT_VERSION}.zip"
     
     pnpm run build
     if [ $? -ne 0 ]; then
@@ -93,21 +116,25 @@ if [ "$BUILD_BROWSER" = true ]; then
 fi
 
 # ==========================================
-# 6. Package Desktop App
+# 7. Package Desktop App
 # ==========================================
 if [ "$BUILD_DESKTOP" = true ]; then
-    echo -e "${CYAN}📦 Packaging Desktop App...${NC}"
+    echo -e "${CYAN}📦 Packaging Desktop App ${DESKTOP_PLATFORM}...${NC}"
     cd mcp-gateway-desktop
     
     # This will run vite build and electron-builder
-    pnpm run package
+    if [ -z "$DESKTOP_PLATFORM" ]; then
+        pnpm run package
+    else
+        pnpm run build && pnpm exec electron-builder $DESKTOP_PLATFORM
+    fi
     
     if [ $? -eq 0 ]; then
         # Find the built installer and move to release
-        # electron-builder output is in release/ (within mcp-gateway-desktop)
-        # We look for .dmg or .exe
+        # electron-builder output is in release/${ROOT_VERSION}
         mkdir -p ../release/desktop
-        cp release/*.{dmg,exe,AppImage,zip} ../release/desktop/ 2>/dev/null || true
+        # Match dmg, exe, zip, AppImage files in the version-specific subfolder
+        cp "release/${ROOT_VERSION}"/*.{dmg,exe,AppImage,zip} ../release/desktop/ 2>/dev/null || true
         echo -e "${GREEN}✅ Desktop App built: release/desktop/${NC}"
     else
         echo -e "${RED}❌ Desktop App build failed${NC}"

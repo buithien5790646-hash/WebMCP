@@ -28,24 +28,40 @@ if ($buildAll) {
     $buildDesktop = $true
 }
 
-# 2. Create/Clean output directory
+# 1. Get version from root package.json
+$rootPkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+$rootVersion = $rootPkg.version
+Write-Host "📦 Target Version: $rootVersion" -ForegroundColor Green
+
+# 2. Sync versions to all packages
+Write-Host "🔄 Syncing versions to all packages..." -ForegroundColor Cyan
+$packages = @("mcp-gateway-vscode", "mcp-bridge-browser", "mcp-gateway-desktop")
+foreach ($pkgDir in $packages) {
+    $pkgJsonPath = Join-Path $pkgDir "package.json"
+    if (Test-Path $pkgJsonPath) {
+        $pkgJson = Get-Content $pkgJsonPath -Raw | ConvertFrom-Json
+        $pkgJson.version = $rootVersion
+        $pkgJson | ConvertTo-Json -Depth 10 | Set-Content $pkgJsonPath
+        Write-Host "✅ Updated $pkgDir to $rootVersion"
+    }
+}
+
+# 3. Create/Clean output directory
 if (!(Test-Path "release")) {
     New-Item -ItemType Directory -Path "release" | Out-Null
 }
 
-# 3. Build Shared Module
+# 4. Build Shared Module
 Write-Host "🛠️ Building Shared Module..." -ForegroundColor Cyan
 cmd /c "pnpm --filter @webmcp/shared run build"
 
 # ==========================================
-# 4. Package VS Code Extension
+# 5. Package VS Code Extension
 # ==========================================
 if ($buildVscode) {
     Write-Host "📦 Packaging VS Code Extension..." -ForegroundColor Cyan
     Set-Location "mcp-gateway-vscode"
-    $json = Get-Content "package.json" -Raw | ConvertFrom-Json
-    $vsVersion = $json.version
-    $vsName = "WebMCP-Gateway-VSCode-$vsVersion.vsix"
+    $vsName = "WebMCP-Gateway-VSCode-$rootVersion.vsix"
     
     cmd /c "pnpm run build"
     cmd /c "pnpm exec vsce package --out ../release/$vsName --no-dependencies"
@@ -60,14 +76,12 @@ if ($buildVscode) {
 }
 
 # ==========================================
-# 5. Package Browser Extension
+# 6. Package Browser Extension
 # ==========================================
 if ($buildBrowser) {
     Write-Host "📦 Packaging Browser Extension..." -ForegroundColor Cyan
     Set-Location "mcp-bridge-browser"
-    $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
-    $browserVersion = $pkg.version
-    $browserName = "WebMCP-Bridge-Browser-$browserVersion.zip"
+    $browserName = "WebMCP-Bridge-Browser-$rootVersion.zip"
     
     cmd /c "pnpm run build"
     
@@ -89,7 +103,7 @@ if ($buildBrowser) {
 }
 
 # ==========================================
-# 6. Package Desktop App
+# 7. Package Desktop App
 # ==========================================
 if ($buildDesktop) {
     Write-Host "📦 Packaging Desktop App..." -ForegroundColor Cyan
@@ -101,7 +115,9 @@ if ($buildDesktop) {
         $desktopReleaseDir = Join-Path (Get-Location) "..\release\desktop"
         if (!(Test-Path $desktopReleaseDir)) { New-Item -ItemType Directory -Path $desktopReleaseDir | Out-Null }
         
-        Get-ChildItem "release\*.dmg", "release\*.exe", "release\*.AppImage", "release\*.zip" | Copy-Item -Destination $desktopReleaseDir -ErrorAction SilentlyContinue
+        # electron-builder output is in release\$rootVersion
+        $sourcePath = Join-Path "release" $rootVersion
+        Get-ChildItem (Join-Path $sourcePath "*.dmg"), (Join-Path $sourcePath "*.exe"), (Join-Path $sourcePath "*.AppImage"), (Join-Path $sourcePath "*.zip") | Copy-Item -Destination $desktopReleaseDir -ErrorAction SilentlyContinue
         Write-Host "✅ Desktop App built: release\desktop\" -ForegroundColor Green
     } else {
         Write-Host "❌ Desktop App build failed" -ForegroundColor Red
