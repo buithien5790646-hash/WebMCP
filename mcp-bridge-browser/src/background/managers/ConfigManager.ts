@@ -1,4 +1,4 @@
-import { browserService, getLocal, setLocal, getSync, setSync, apiClient, ErrorHandler } from '@/services';
+import { browserService, getLocal, setLocal, getSync, setSync, apiClient } from '@/services';
 import { GatewayConfigSchema } from '@/types/schemas';
 
 export class ConfigManager {
