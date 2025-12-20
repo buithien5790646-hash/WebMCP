@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, Library as LibraryIcon, Settings, ChevronLeft, ChevronRight, Menu } from 'lucide-react'
+import { LayoutDashboard, Library as LibraryIcon, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
 import Library from './Library'
 import Dashboard from './Dashboard'
 import SettingsView from './SettingsView'

@@ -259,7 +259,7 @@ export class GatewayManager {
         });
 
         // v1/config/restore: Restore workspace config to default (inherits from global)
-        this.app.post('/v1/config/restore', async (req, res) => {
+        this.app.post('/v1/config/restore', async (_req, res) => {
             const workspaceId = this.workspaceId;
             this.log(`🔄 Config Restore: Resetting workspace ${workspaceId} to inherit global`);
             await ConfigManager.restoreDefault(workspaceId);
@@ -269,7 +269,6 @@ export class GatewayManager {
         this.app.get('/bridge', (req: express.Request, res: express.Response) => {
             const target = req.query.target as string || 'https://chatgpt.com';
             const token = req.query.token as string;
-            const workspaceId = this.workspaceId;
             const address = this.server?.address();
             const port = address && typeof address !== 'string' ? address.port : 0;
 
