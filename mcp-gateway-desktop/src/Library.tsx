@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 interface ServerDefinition {
   id: string;
   name: string;
-  type: 'stdio' | 'sse';
+  type: 'stdio' | 'sse' | 'http';
   command?: string;
   args?: string[];
   url?: string;
@@ -217,6 +217,7 @@ export default function Library({ servers, envStatus, onReload }: Props) {
                         >
                         <option value="stdio">STDIO (Local Command)</option>
                         <option value="sse">SSE (Remote URL)</option>
+                        <option value="http">HTTP (Remote API)</option>
                         </select>
                     </div>
                     </div>
@@ -248,9 +249,9 @@ export default function Library({ servers, envStatus, onReload }: Props) {
                     </>
                     ) : (
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">SSE URL</label>
+                        <label className="text-sm font-medium">URL</label>
                         <Input 
-                            placeholder="http://localhost:8080/sse" 
+                            placeholder="https://..." 
                             value={newServer.url || ''} 
                             onChange={e => setNewServer({...newServer, url: e.target.value})}
                         />

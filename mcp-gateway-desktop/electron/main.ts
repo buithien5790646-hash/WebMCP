@@ -11,7 +11,7 @@ import Store from 'electron-store'
 interface ServerDef {
   id: string;
   name: string;
-  type: 'stdio' | 'sse';
+  type: 'stdio' | 'sse' | 'http';
   command?: string;
   args?: string[];
   env?: Record<string, string>;
