@@ -69,21 +69,56 @@ textarea {
 
 .tool-list {
     background: #fafafa;
-    padding: 10px;
+    padding: 15px;
     border: 1px solid #ccc;
     border-radius: 4px;
-    max-height: 200px;
+    max-height: 400px;
     overflow-y: auto;
+}
+
+.tool-group {
+    margin-bottom: 20px;
+}
+
+.tool-group:last-child {
+    margin-bottom: 0;
+}
+
+.group-title {
+    font-size: 13px;
+    color: #007bff;
+    margin: 0 0 10px 0;
+    padding-bottom: 4px;
+    border-bottom: 1px dashed #ddd;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .checkbox-row {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12px;
-    margin-bottom: 5px;
+    font-size: 13px;
+    margin-bottom: 8px;
     font-weight: normal;
     cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.checkbox-row:hover {
+    background: #f0f7ff;
+}
+
+.tool-name {
+    font-weight: 500;
+    color: #333;
+}
+
+.tool-desc {
+    color: #777;
+    font-size: 12px;
 }
 
 .sticky-footer {

@@ -17,7 +17,7 @@ export function App() {
         protected_tools: [],
     });
     const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-    const [toolList, setToolList] = useState<string[]>([]);
+    const [toolGroups, setToolGroups] = useState<any[]>([]);
     const [status, setStatus] = useState('');
     const [saving, setSaving] = useState(false);
     const [activeGateway, setActiveGateway] = useState<{ port: number, token: string } | null>(null);
@@ -73,11 +73,7 @@ export function App() {
                 headers: { 'X-WebMCP-Token': token }
             });
             const json = await resp.json();
-            const names: string[] = [];
-            (json.groups || []).forEach((g: any) => {
-                if (g.tools) g.tools.forEach((t: any) => names.push(t.name));
-            });
-            setToolList(names);
+            setToolGroups(json.groups || []);
         } catch (e) { }
     };
 
@@ -162,20 +158,26 @@ export function App() {
                     </Button>
                 </div>
                 <div className="tool-list">
-                    {toolList.length === 0 ? (
+                    {toolGroups.length === 0 ? (
                         <div style={{ color: '#999', fontStyle: 'italic', padding: '10px', textAlign: 'center' }}>
                             {t('opt_no_tools')}
                         </div>
                     ) : (
-                        toolList.map((toolName) => (
-                            <label key={toolName} className="checkbox-row">
-                                <input
-                                    type="checkbox"
-                                    checked={(config.protected_tools || []).includes(toolName)}
-                                    onChange={(e) => handleToolToggle(toolName, (e.target as HTMLInputElement).checked)}
-                                />
-                                {toolName}
-                            </label>
+                        toolGroups.map((group: any) => (
+                            <div key={group.server} className="tool-group">
+                                <h3 className="group-title">{group.server}</h3>
+                                {group.tools.map((tool: any) => (
+                                    <label key={tool.name} className="checkbox-row">
+                                        <input
+                                            type="checkbox"
+                                            checked={(config.protected_tools || []).includes(tool.name)}
+                                            onChange={(e) => handleToolToggle(tool.name, (e.target as HTMLInputElement).checked)}
+                                        />
+                                        <span className="tool-name">{tool.name}</span>
+                                        {tool.description && <span className="tool-desc">- {tool.description}</span>}
+                                    </label>
+                                ))}
+                            </div>
                         ))
                     )}
                 </div>
