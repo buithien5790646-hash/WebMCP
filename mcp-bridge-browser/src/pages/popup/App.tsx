@@ -76,16 +76,35 @@ export function App() {
         });
     };
 
-    const handleCopyPrompt = () => {
+    const handleCopyPrompt = async () => {
         let content = promptContent;
-        if (userRules) {
-            content = `${content}\n\n--- [User Rules] ---\n${userRules}`;
+        let rules = userRules;
+
+        // Fallback: If local storage is empty but we are connected, fetch from gateway
+        if (!content && status.connected && status.port) {
+            try {
+                const resp = await fetch(`http://127.0.0.1:${status.port}/v1/config?workspaceId=${status.workspaceId || ''}`);
+                const data = await resp.json();
+                if (data.config) {
+                    content = data.config.prompt;
+                    rules = data.config.rules;
+                }
+            } catch (e) {
+                console.error("Failed to fetch config for copy", e);
+            }
         }
+
+        if (rules) {
+            content = content ? `${content}\n\n--- [User Rules] ---\n${rules}` : rules;
+        }
+
         if (content) {
             navigator.clipboard.writeText(content).then(() => {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
             });
+        } else {
+            alert(t('opt_no_tools')); // Or a better "no prompt available" message
         }
     };
 

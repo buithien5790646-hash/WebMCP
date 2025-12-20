@@ -144,8 +144,8 @@ async function bindSession(tabId: number, port: number, token: string, workspace
   // Configure ApiClient before fetching config
   apiClient.configure(port, token);
 
-  // Fetch workspace-specific config
-  const config = await apiClient.pullConfig(workspaceId);
+  // Fetch workspace-specific config and sync to local storage
+  const config = await configManager.syncConfigFromGateway(workspaceId);
 
   // [Sync] Notify Content Script including fresh config
   browserService.sendMessage({

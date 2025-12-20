@@ -66,33 +66,52 @@ export class ConfigManager {
     /**
      * Pull and apply config from the Gateway
      */
-    async syncConfigFromGateway() {
+    async syncConfigFromGateway(workspaceId?: string) {
         try {
-            if (!apiClient.isConfigured()) return;
+            if (!apiClient.isConfigured()) return null;
 
-            const config = await apiClient.pullConfig();
-            if (!config) return;
+            const config = await apiClient.pullConfig(workspaceId);
+            if (!config) return null;
 
+            // 1. Handle Extension-Native Config Format (version/sync/local)
             const parse = GatewayConfigSchema.safeParse(config);
-            if (!parse.success) {
-                ErrorHandler.report(parse.error, "ConfigManager.syncConfigFromGateway");
-                return;
+            if (parse.success) {
+                const { sync, local } = parse.data;
+                if (sync) await setSync(sync);
+                if (local) {
+                    const safeLocal: Record<string, string> = {};
+                    const keys = ["prompt_en", "prompt_zh", "train_en", "train_zh", "error_en", "error_zh", "user_rules"];
+                    keys.forEach(k => {
+                        if (local[k]) safeLocal[k] = local[k];
+                    });
+                    if (Object.keys(safeLocal).length > 0) {
+                        await setLocal(safeLocal as any);
+                    }
+                }
+                return config;
             }
 
-            const { sync, local } = parse.data;
-            if (sync) await setSync(sync);
-            if (local) {
-                const safeLocal: Record<string, string> = {};
-                const keys = ["prompt_en", "prompt_zh", "train_en", "train_zh", "error_en", "error_zh", "user_rules"];
-                keys.forEach(k => {
-                    if (local[k]) safeLocal[k] = local[k];
-                });
-                if (Object.keys(safeLocal).length > 0) {
-                    await setLocal(safeLocal as any);
+            // 2. Handle VS Code Gateway Config Format (prompt/rules/train/error_hint)
+             // This format is simplified and depends on the Gateway's current language
+             if (config.prompt !== undefined) {
+                 const lang = navigator.language.startsWith('zh') ? 'zh' : 'en';
+                 const localToSet: Record<string, string> = {
+                    [`prompt_${lang}`]: config.prompt,
+                    [`train_${lang}`]: config.train,
+                    [`error_${lang}`]: config.error_hint,
+                    "user_rules": config.rules || ""
+                };
+                await setLocal(localToSet as any);
+
+                if (config.protected_tools) {
+                    await setSync({ protected_tools: config.protected_tools });
                 }
             }
+
+            return config;
         } catch (e) {
             ErrorHandler.report(e, "ConfigManager.syncConfigFromGateway", true);
+            return null;
         }
     }
 }
