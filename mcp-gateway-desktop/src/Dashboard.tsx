@@ -34,22 +34,29 @@ interface DashboardProps {
   onStop: (id: string) => void;
   onDelete: (id: string) => void;
   onSaveProfile: (profile: ServiceProfile) => void;
-  onOpenBridge: (url: string, port: number, token: string, browser?: string) => void;
+  onOpenBridge: (url: string, port: number, token: string, workspaceId: string, browser?: string) => void;
   config: any;
   onNavigateToSettings: () => void;
+  onSaveConfig: (config: any) => void;
+  onClearLogs: (id: string) => void;
 }
 
-export default function Dashboard({ profiles, servers, statuses, logs, config, onStart, onStop, onDelete, onSaveProfile, onOpenBridge, onNavigateToSettings }: DashboardProps) {
+export default function Dashboard({ profiles, servers, statuses, logs, config, onStart, onStop, onDelete, onSaveProfile, onOpenBridge, onNavigateToSettings, onSaveConfig, onClearLogs }: DashboardProps) {
   const [selectedId, setSelectedId] = useState<string | null>(Object.keys(profiles)[0] || null);
   
   // Launcher State
-  const [targetSite, setTargetSite] = useState(config.aiSites?.[0]?.address || 'https://chatgpt.com');
+  const [targetSite, setTargetSite] = useState(config.lastSelectedSite || config.aiSites?.[0]?.address || 'https://chatgpt.com');
   
   useEffect(() => {
      if (config.aiSites && config.aiSites.length > 0 && !config.aiSites.find((s:any) => s.address === targetSite)) {
-         setTargetSite(config.aiSites[0].address);
+         setTargetSite(config.lastSelectedSite || config.aiSites[0].address);
      }
   }, [config]);
+
+  const handleTargetSiteChange = (val: string) => {
+      setTargetSite(val);
+      onSaveConfig({ ...config, lastSelectedSite: val });
+  };
 
   // Auto-select first profile if none selected
   useEffect(() => {
@@ -97,7 +104,7 @@ export default function Dashboard({ profiles, servers, statuses, logs, config, o
   };
 
   const handleLaunch = () => {
-      if (!activeStatus?.port || !activeStatus?.token) return;
+      if (!activeProfile || !activeStatus?.port || !activeStatus?.token) return;
       
       // Determine Browser
       const siteConfig = config.aiSites.find((s: any) => s.address === targetSite);
@@ -106,7 +113,7 @@ export default function Dashboard({ profiles, servers, statuses, logs, config, o
           browser = siteConfig.browser;
       }
 
-      onOpenBridge(targetSite, activeStatus.port, activeStatus.token, browser);
+      onOpenBridge(targetSite, activeStatus.port, activeStatus.token, activeProfile.id, browser);
   };
 
   // --- Render ---
@@ -200,7 +207,7 @@ export default function Dashboard({ profiles, servers, statuses, logs, config, o
                 </div>
 
                 {/* Body Tabs */}
-                <Tabs defaultValue="logs" className="flex-1 flex flex-col min-h-0">
+                <Tabs defaultValue="logs" className="flex-1 flex flex-col min-h-0 bg-background">
                     <div className="px-6 border-b bg-muted/5">
                         <TabsList className="h-10 bg-transparent">
                             <TabsTrigger value="services" className="data-[state=active]:bg-background data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4">Configure Services</TabsTrigger>
@@ -209,7 +216,7 @@ export default function Dashboard({ profiles, servers, statuses, logs, config, o
                     </div>
 
                     {/* Tab: Services */}
-                    <TabsContent value="services" className="flex-1 p-6 overflow-y-auto space-y-6">
+                    <TabsContent value="services" className="flex-1 p-6 overflow-y-auto space-y-6 m-0 border-0">
                         <div>
                             <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
                                 <Command className="w-4 h-4" /> Enabled MCP Servers
@@ -250,8 +257,21 @@ export default function Dashboard({ profiles, servers, statuses, logs, config, o
                     </TabsContent>
 
                     {/* Tab: Logs */}
-                    <TabsContent value="logs" className="flex-1 flex flex-col min-h-0 bg-zinc-950">
-                        <LogViewer logs={activeLogs} isRunning={isOnline} />
+                    <TabsContent value="logs" className="flex-1 flex flex-col min-h-0 m-0 border-0">
+                        <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+                            <span className="text-xs font-medium text-muted-foreground">Runtime Output</span>
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={() => selectedId && onClearLogs(selectedId)}
+                            >
+                                <Trash2 className="w-3 h-3 mr-1" /> Clear Logs
+                            </Button>
+                        </div>
+                        <div className="flex-1 bg-zinc-950 overflow-hidden flex flex-col">
+                            <LogViewer logs={activeLogs} isRunning={isOnline} />
+                        </div>
                     </TabsContent>
                 </Tabs>
 
@@ -259,7 +279,7 @@ export default function Dashboard({ profiles, servers, statuses, logs, config, o
                 <div className="h-16 border-t bg-muted/10 flex items-center px-6 gap-4">
                     <div className="flex-1 flex items-center gap-3">
                         <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Launch AI Client:</span>
-                        <Select value={targetSite} onValueChange={setTargetSite}>
+                        <Select value={targetSite} onValueChange={handleTargetSiteChange}>
                             <SelectTrigger className="w-[220px] bg-background">
                                 <SelectValue placeholder="Select AI Site" />
                             </SelectTrigger>

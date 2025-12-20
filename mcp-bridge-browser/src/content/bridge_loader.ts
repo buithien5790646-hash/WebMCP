@@ -15,8 +15,16 @@ const init = () => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
     const target = params.get("target");
-    const workspaceId = params.get("workspaceId");
+    let workspaceId = params.get("workspaceId");
     const portStr = window.location.port;
+
+    // Fallback: Check if workspaceId is in data-workspace-id (used by Desktop app)
+    if (!workspaceId) {
+      const dataEl = document.getElementById("mcp-data");
+      if (dataEl) {
+        workspaceId = dataEl.getAttribute("data-workspace-id");
+      }
+    }
 
     const loader = document.getElementById("loader") as HTMLElement | null;
     const statusText = document.querySelector("p") as HTMLElement | null;

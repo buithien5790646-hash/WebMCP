@@ -53,13 +53,15 @@ export class GatewayManager {
     private toolRouter = new Map<string, { client: Client; definition: any; serverId: string }>();
     private connectedClients: { id: string; client: Client }[] = [];
     private authToken: string = '';
+    private workspaceId: string = 'default';
 
     // Callbacks
     private logFn: (msg: string) => void;
 
-    constructor(logFn: (msg: string) => void) {
+    constructor(logFn: (msg: string) => void, workspaceId?: string) {
         this.logFn = logFn;
         this.authToken = crypto.randomUUID();
+        if (workspaceId) this.workspaceId = workspaceId;
     }
 
     private log(message: string) {
@@ -199,11 +201,12 @@ export class GatewayManager {
 
         // Auth Middleware
         this.app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-            const publicPaths = ['/bridge', '/v1/config', '/favicon.ico'];
+            const publicPaths = ['/bridge', '/favicon.ico'];
             if (req.method === 'OPTIONS' || publicPaths.includes(req.path)) {
                 return next();
             }
-            const token = req.headers['authorization']?.replace('Bearer ', '') || req.query.token as string;
+
+            const token = req.headers['x-webmcp-token'] || req.headers['authorization']?.replace('Bearer ', '') || req.query.token as string;
             if (token !== this.authToken) {
                 this.log(`⚠️ Unauthorized access attempt: ${req.path}`);
                 return res.status(401).json({ error: 'Unauthorized' });
@@ -212,36 +215,61 @@ export class GatewayManager {
         });
 
         // Routes
-        const getWorkspaceId = (req: express.Request) => (req.query.workspaceId as string) || 'default';
 
-        // Config Sync (Required for Extension Handshake)
-        this.app.get('/v1/config', async (req: express.Request, res: express.Response) => {
-            const workspaceId = getWorkspaceId(req);
-            const scope = (req.query.scope as any) || 'merged';
-            const config = await ConfigManager.getConfig(workspaceId, scope);
-            res.json({ config });
+        // v1/config: Returns the merged configuration (for browser extension UI)
+        this.app.get('/v1/config', async (req, res) => {
+            const scope = (req.query.scope as 'merged' | 'global' | 'workspace') || 'merged';
+            const workspaceId = this.workspaceId;
+
+            this.log(`📥 Config Sync: Pull for workspace ${workspaceId} (scope: ${scope})`);
+            let configData = await ConfigManager.getConfig(workspaceId, scope);
+
+            // If it's a workspace scope and the config is effectively empty, 
+            // return the merged config to provide inherited values for initialization.
+            if (scope === 'workspace' && Object.values(configData).every(v => v === undefined || v === '')) {
+                configData = await ConfigManager.getConfig(workspaceId, 'merged');
+                this.log(`🛡️ Initialized workspace config with merged values (inheritance)`);
+            }
+
+            // Ensure protected_tools is initialized
+            if (configData.protected_tools === undefined) {
+                const allToolNames: string[] = [];
+                const grouped = this._generateGroupedTools();
+                grouped.forEach(g => {
+                    g.tools.forEach(t => allToolNames.push(t.name));
+                });
+                configData.protected_tools = allToolNames;
+                this.log(`🛡️ Initialized protected_tools with ${allToolNames.length} tools`);
+            }
+
+            res.json({ config: configData });
         });
 
-        this.app.post('/v1/config', async (req: express.Request, res: express.Response) => {
-            const workspaceId = getWorkspaceId(req);
-            const scope = (req.body.scope as any) || 'workspace';
+        // v1/config: Save configuration
+        this.app.post('/v1/config', async (req, res) => {
+            const scope = (req.query.scope as 'global' | 'workspace') || 'workspace';
+            const workspaceId = this.workspaceId;
             const config = req.body.config;
-            if (config) {
-                await ConfigManager.saveConfig(workspaceId, scope, config);
-            }
+
+            if (!config) return res.status(400).json({ error: "Missing config" });
+
+            this.log(`📤 Config Sync: Save for workspace ${workspaceId} (scope: ${scope})`);
+            await ConfigManager.saveConfig(workspaceId, scope, config);
             res.json({ success: true });
         });
 
-        this.app.delete('/v1/config', async (req: express.Request, res: express.Response) => {
-            const workspaceId = getWorkspaceId(req);
-            const scope = (req.query.scope as any) || 'workspace';
-            await ConfigManager.resetConfig(workspaceId, scope);
+        // v1/config/restore: Restore workspace config to default (inherits from global)
+        this.app.post('/v1/config/restore', async (req, res) => {
+            const workspaceId = this.workspaceId;
+            this.log(`🔄 Config Restore: Resetting workspace ${workspaceId} to inherit global`);
+            await ConfigManager.restoreDefault(workspaceId);
             res.json({ success: true });
         });
 
         this.app.get('/bridge', (req: express.Request, res: express.Response) => {
             const target = req.query.target as string || 'https://chatgpt.com';
             const token = req.query.token as string;
+            const workspaceId = this.workspaceId;
             const address = this.server?.address();
             const port = address && typeof address !== 'string' ? address.port : 0;
 

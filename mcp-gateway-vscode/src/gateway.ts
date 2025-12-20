@@ -271,10 +271,10 @@ export class GatewayManager {
                 return next();
             }
 
-            const clientToken = req.headers['x-webmcp-token'];
+            const clientToken = req.headers['x-webmcp-token'] || req.headers['authorization']?.replace('Bearer ', '') || req.query.token as string;
             if (!clientToken || clientToken !== this.authToken) {
                 this.log(`⛔ Unauthorized access attempt. Token: ${clientToken}`);
-                return res.status(403).json({
+                return res.status(401).json({
                     isError: true,
                     content: [{ type: 'text', text: "⛔ Forbidden: Invalid Security Token. Please launch from VS Code." }]
                 });
@@ -289,10 +289,19 @@ export class GatewayManager {
             if (!workspaceId) return res.status(400).json({ error: "Missing workspaceId" });
 
             this.log(`📥 Config Sync: Pull for workspace ${workspaceId} (scope: ${scope})`);
-            const configData = await ConfigManager.getConfig(this.context, workspaceId, scope);
+            let configData = await ConfigManager.getConfig(this.context, workspaceId, scope);
 
-            // If it's a merged config and protected_tools is undefined, initialize it.
-            if (scope === 'merged' && configData.protected_tools === undefined) {
+            // If it's a workspace scope and the config is effectively empty, 
+            // return the merged config to provide inherited values for initialization.
+            let isInherited = false;
+            if (scope === 'workspace' && Object.values(configData).every(v => v === undefined || v === '')) {
+                configData = await ConfigManager.getConfig(this.context, workspaceId, 'merged');
+                isInherited = true;
+                this.log(`🛡️ Initialized workspace config with merged values (inheritance)`);
+            }
+
+            // If it's a merged config (or inherited for workspace) and protected_tools is undefined, initialize it.
+            if ((scope === 'merged' || isInherited) && configData.protected_tools === undefined) {
                 const allToolNames: string[] = [];
                 const grouped = this._generateGroupedTools();
                 grouped.forEach(g => {

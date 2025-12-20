@@ -111,11 +111,11 @@ ipcMain.handle('gateway:start', async (_event, profileId: string) => {
       }
     }
 
-    // 3. Create Manager with specific Logger
+    // 3. Create Manager with specific Logger and workspaceId (profileId)
     const manager = new GatewayManager((msg) => {
         // Send logs specifically to this profile's channel
         win?.webContents.send(`log:${profileId}`, msg);
-    });
+    }, profileId);
 
     managers.set(profileId, manager);
 

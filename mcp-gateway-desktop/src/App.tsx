@@ -115,9 +115,8 @@ export default function App() {
     setStatuses(prev => ({ ...prev, [id]: { ...prev[id], status: 'offline' } }));
   };
 
-  const handleOpenBridge = (url: string, port: number, token?: string, browserMode: string = 'default') => {
-     if (!token) return;
-     const bridgeUrl = `http://127.0.0.1:${port}/bridge?token=${token}&target=${encodeURIComponent(url)}`;
+  const handleOpenBridge = (url: string, port: number, token: string, workspaceId: string, browserMode: string = 'default') => {
+     const bridgeUrl = `http://127.0.0.1:${port}/bridge?token=${token}&target=${encodeURIComponent(url)}&workspaceId=${workspaceId}`;
      window.ipcRenderer.invoke('open-url', bridgeUrl, browserMode);
   };
 
@@ -138,6 +137,10 @@ export default function App() {
         loadData();
       }
   }
+
+  const handleClearLogs = (id: string) => {
+    setLogs(prev => ({ ...prev, [id]: [] }));
+  };
 
   // Render
   return (
@@ -189,6 +192,8 @@ export default function App() {
             onSaveProfile={handleSaveProfile}
             onOpenBridge={handleOpenBridge}
             onNavigateToSettings={() => setActiveTab('settings')}
+            onSaveConfig={handleSaveConfig}
+            onClearLogs={handleClearLogs}
           />
         ) : activeTab === 'library' ? (
           <Library servers={servers} envStatus={envStatus} onReload={loadData} />

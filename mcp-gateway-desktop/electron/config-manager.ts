@@ -74,6 +74,13 @@ export class ConfigManager {
         this.store.delete(key);
     }
 
+    /**
+     * Restore configuration for a workspace (deletes workspace config so it inherits global)
+     */
+    static async restoreDefault(workspaceId: string): Promise<void> {
+        this.store.delete(`${this.PREFIX}${workspaceId}`);
+    }
+
     private static getGlobalConfig(): Partial<WebMCPConfig> {
         return this.store.get(`${this.PREFIX}global`) as Partial<WebMCPConfig> || {};
     }
@@ -95,7 +102,7 @@ export class ConfigManager {
             if (fs.existsSync(localAssets) && fs.readdirSync(localAssets).length > 0) {
                 assetsPath = localAssets;
             } else {
-                assetsPath = path.join(__dirname, '../../shared/assets');
+                assetsPath = path.join(app.getAppPath(), '../shared/assets');
             }
         }
 
@@ -106,13 +113,18 @@ export class ConfigManager {
         };
 
         const locale = app.getLocale();
-        const lang = locale.startsWith('zh') ? 'zh' : 'en';
+        const isEnglish = locale.startsWith('en');
+        const lang = isEnglish ? 'en' : 'zh';
+
+        const prompt = readFile(lang === 'zh' ? 'prompt_zh.md' : 'prompt.md');
+        const train = readFile(lang === 'zh' ? 'train_zh.md' : 'train.md');
+        const error_hint = readFile(lang === 'zh' ? 'error_hint_zh.md' : 'error_hint.md');
 
         return {
-            prompt: readFile(lang === 'zh' ? 'prompt_zh.md' : 'prompt.md') || "You are a helpful AI assistant with access to local tools...",
+            prompt: prompt || (lang === 'zh' ? "你是一个强大的 AI 助手..." : "You are a helpful AI assistant..."),
             rules: "",
-            train: readFile(lang === 'zh' ? 'train_zh.md' : 'train.md') || "Training data instructions...",
-            error_hint: readFile(lang === 'zh' ? 'error_hint_zh.md' : 'error_hint.md') || "If a tool fails, try to explain why...",
+            train: train || (lang === 'zh' ? "训练数据指令..." : "Training data instructions..."),
+            error_hint: error_hint || (lang === 'zh' ? "如果工具失败..." : "If a tool fails..."),
         };
     }
 }
