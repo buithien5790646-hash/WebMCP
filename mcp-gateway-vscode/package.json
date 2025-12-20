@@ -203,8 +203,8 @@
     "test": "vscode-test"
   },
   "dependencies": {
-    "@webmcp/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.1",
+    "@webmcp/shared": "workspace:*",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "zod": "^3.22.4"
@@ -217,6 +217,7 @@
     "@types/vscode": "^1.106.1",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
+    "copy-webpack-plugin": "^13.0.1",
     "eslint": "^9.39.1",
     "ts-loader": "^9.5.4",
     "typescript": "^5.9.3",

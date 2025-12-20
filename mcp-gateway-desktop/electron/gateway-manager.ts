@@ -7,6 +7,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import * as crypto from 'node:crypto';
 import { Server as HttpServer } from 'http';
+import { ConfigManager } from './config-manager';
 
 // --- Interfaces ---
 
@@ -211,12 +212,30 @@ export class GatewayManager {
         });
 
         // Routes
+        const getWorkspaceId = (req: express.Request) => (req.query.workspaceId as string) || 'default';
 
         // Config Sync (Required for Extension Handshake)
-        this.app.get('/v1/config', (_req: express.Request, res: express.Response) => {
-            res.json({ config: null });
+        this.app.get('/v1/config', async (req: express.Request, res: express.Response) => {
+            const workspaceId = getWorkspaceId(req);
+            const scope = (req.query.scope as any) || 'merged';
+            const config = await ConfigManager.getConfig(workspaceId, scope);
+            res.json({ config });
         });
-        this.app.post('/v1/config', (_req: express.Request, res: express.Response) => {
+
+        this.app.post('/v1/config', async (req: express.Request, res: express.Response) => {
+            const workspaceId = getWorkspaceId(req);
+            const scope = (req.body.scope as any) || 'workspace';
+            const config = req.body.config;
+            if (config) {
+                await ConfigManager.saveConfig(workspaceId, scope, config);
+            }
+            res.json({ success: true });
+        });
+
+        this.app.delete('/v1/config', async (req: express.Request, res: express.Response) => {
+            const workspaceId = getWorkspaceId(req);
+            const scope = (req.query.scope as any) || 'workspace';
+            await ConfigManager.resetConfig(workspaceId, scope);
             res.json({ success: true });
         });
 

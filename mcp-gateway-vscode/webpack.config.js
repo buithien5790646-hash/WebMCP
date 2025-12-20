@@ -7,6 +7,8 @@ const path = require('path');
 //@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
+const CopyPlugin = require('copy-webpack-plugin');
+
 /** @type WebpackConfig */
 const extensionConfig = {
   target: 'node',
@@ -22,6 +24,13 @@ const extensionConfig = {
     filename: '[name].js', // 👈 修改：使用占位符，这样会生成 extension.js 和 commandServer.js
     libraryTarget: 'commonjs2'
   },
+  plugins: [
+    new CopyPlugin({
+      patterns: [
+        { from: '../shared/assets', to: 'assets' }
+      ],
+    }),
+  ],
   externals: {
     vscode: 'commonjs vscode',
     // ⚠️ 关键：commandServer 运行在原生 Node 环境，不需要 'vscode' 模块，但 Webpack 可能会尝试打包 sdk 里的依赖。

@@ -97,11 +97,17 @@ export class ConfigManager {
     }
 
     private static async getDefaults(context: vscode.ExtensionContext): Promise<WebMCPConfig> {
-        const assetsPath = path.join(context.extensionPath, 'assets');
+        // Try shared assets (dev mode) or extension dist/assets (packaged mode)
+        const devSharedPath = path.join(context.extensionPath, '..', 'shared', 'assets');
+        const packagedAssetsPath = path.join(context.extensionPath, 'dist', 'assets');
+        const legacyAssetsPath = path.join(context.extensionPath, 'assets');
 
         const readFile = (filename: string) => {
-            const p = path.join(assetsPath, filename);
-            if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
+            const paths = [devSharedPath, packagedAssetsPath, legacyAssetsPath];
+            for (const basePath of paths) {
+                const p = path.join(basePath, filename);
+                if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
+            }
             return '';
         };
 
