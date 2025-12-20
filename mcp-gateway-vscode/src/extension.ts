@@ -67,7 +67,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // [Multi-Workspace] Get Workspace Context
         const workspaceId = WorkspaceManager.getWorkspaceId(context);
-        const enabledServices = context.workspaceState.get<string[]>('mcp.enabledServices') || [];
+        let enabledServices = context.workspaceState.get<string[]>('mcp.enabledServices');
+
+        // If undefined, default to all available servers
+        if (enabledServices === undefined) {
+            enabledServices = Object.keys(mcpServers);
+        }
 
         // [Security] Extract Allowed Origins from AI Sites config
         const aiSites = config.get<AISiteConfig[]>('aiSites') || [];

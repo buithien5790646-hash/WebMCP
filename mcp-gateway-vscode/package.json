@@ -40,20 +40,11 @@
         "title": "Toggle MCP Service"
       }
     ],
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "mcp-gateway-explorer",
-          "title": "WebMCP",
-          "icon": "images/icon.png"
-        }
-      ]
-    },
     "views": {
-      "mcp-gateway-explorer": [
+      "explorer": [
         {
           "id": "mcp-servers",
-          "name": "MCP Servers",
+          "name": "WebMCP Servers",
           "icon": "images/icon.png"
         }
       ]

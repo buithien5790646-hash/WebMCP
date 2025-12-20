@@ -21,10 +21,11 @@ export class MCPServiceProvider implements vscode.TreeDataProvider<MCPServiceIte
             const config = vscode.workspace.getConfiguration('mcpGateway');
             const servers = config.get<Record<string, any>>('servers') || {};
 
-            const enabledServices = this.context.workspaceState.get<string[]>('mcp.enabledServices') || [];
+            const enabledServices = this.context.workspaceState.get<string[]>('mcp.enabledServices');
 
             const items = Object.entries(servers).map(([id, info]) => {
-                const isEnabled = enabledServices.includes(id);
+                // If enabledServices is undefined, default to true for all
+                const isEnabled = enabledServices === undefined ? true : enabledServices.includes(id);
                 return new MCPServiceItem(
                     id,
                     info.name || id,
@@ -38,9 +39,18 @@ export class MCPServiceProvider implements vscode.TreeDataProvider<MCPServiceIte
     }
 
     toggleService(id: string): void {
-        const enabledServices = this.context.workspaceState.get<string[]>('mcp.enabledServices') || [];
-        const index = enabledServices.indexOf(id);
+        const config = vscode.workspace.getConfiguration('mcpGateway');
+        const servers = config.get<Record<string, any>>('servers') || {};
+        
+        let enabledServices = this.context.workspaceState.get<string[]>('mcp.enabledServices');
+        
+        // If it's the first time toggling, initialize with all servers except the one being toggled off,
+        // OR if it was already initialized, just update the list.
+        if (enabledServices === undefined) {
+            enabledServices = Object.keys(servers);
+        }
 
+        const index = enabledServices.indexOf(id);
         if (index > -1) {
             enabledServices.splice(index, 1);
         } else {
