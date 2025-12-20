@@ -4,21 +4,25 @@ import { getSync, setSync, getLocal, setLocal, onStorageChanged, removeStorageLi
 /**
  * Hook for accessing chrome.storage.sync
  */
-export function useStorage<T>(key: string, defaultValue: T): [T, (value: T) => void] {
+export function useStorage<T>(key: string, defaultValue: T, workspaceId?: string): [T, (value: T) => void] {
     const [value, setValue] = useState<T>(defaultValue);
+    // Only prefix protected_tools, others like autoSend might be global
+    const storageKey = (workspaceId && key === 'protected_tools') ? `${workspaceId}_${key}` : key;
 
     useEffect(() => {
         // Load initial value
-        getSync(key as any).then((items) => {
-            if (items[key as keyof typeof items] !== undefined) {
-                setValue(items[key as keyof typeof items] as any);
+        getSync(storageKey as any).then((items) => {
+            if (items[storageKey as keyof typeof items] !== undefined) {
+                setValue(items[storageKey as keyof typeof items] as any);
+            } else {
+                setValue(defaultValue);
             }
         });
 
         // Listen for changes
         const listener = (changes: { [key: string]: chrome.storage.StorageChange }, namespace: string) => {
-            if (namespace === 'sync' && changes[key]) {
-                setValue(changes[key].newValue);
+            if (namespace === 'sync' && changes[storageKey]) {
+                setValue(changes[storageKey].newValue);
             }
         };
 
@@ -27,10 +31,10 @@ export function useStorage<T>(key: string, defaultValue: T): [T, (value: T) => v
         return () => {
             removeStorageListener(listener);
         };
-    }, [key]);
+    }, [storageKey, defaultValue]);
 
     const updateValue = (newValue: T) => {
-        setSync({ [key]: newValue } as any).then(() => {
+        setSync({ [storageKey]: newValue } as any).then(() => {
             setValue(newValue);
         });
     };
@@ -41,21 +45,24 @@ export function useStorage<T>(key: string, defaultValue: T): [T, (value: T) => v
 /**
  * Hook for accessing chrome.storage.local
  */
-export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T) => void] {
+export function useLocalStorage<T>(key: string, defaultValue: T, workspaceId?: string): [T, (value: T) => void] {
     const [value, setValue] = useState<T>(defaultValue);
+    const storageKey = workspaceId ? `${workspaceId}_${key}` : key;
 
     useEffect(() => {
         // Load initial value
-        getLocal(key as any).then((items) => {
-            if (items[key as keyof typeof items] !== undefined) {
-                setValue(items[key as keyof typeof items] as any);
+        getLocal(storageKey as any).then((items) => {
+            if (items[storageKey as keyof typeof items] !== undefined) {
+                setValue(items[storageKey as keyof typeof items] as any);
+            } else {
+                setValue(defaultValue);
             }
         });
 
         // Listen for changes
         const listener = (changes: { [key: string]: chrome.storage.StorageChange }, namespace: string) => {
-            if (namespace === 'local' && changes[key]) {
-                setValue(changes[key].newValue);
+            if (namespace === 'local' && changes[storageKey]) {
+                setValue(changes[storageKey].newValue);
             }
         };
 
@@ -64,10 +71,10 @@ export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T)
         return () => {
             removeStorageListener(listener);
         };
-    }, [key]);
+    }, [storageKey, defaultValue]);
 
     const updateValue = (newValue: T) => {
-        setLocal({ [key]: newValue } as any).then(() => {
+        setLocal({ [storageKey]: newValue } as any).then(() => {
             setValue(newValue);
         });
     };

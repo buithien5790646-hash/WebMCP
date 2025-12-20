@@ -6,6 +6,7 @@ import { detectPlatform } from "./adapters";
 import { DOMObserver, MessageParser, Workflow, ExecutionEngine } from "./core";
 
 let isClientConnected = false;
+let workspaceId: string | undefined;
 let protectedTools = new Set<string>();
 
 // Config state
@@ -51,6 +52,12 @@ messageBroker.on("TOGGLE_LOG", (request) => {
 messageBroker.on("STATUS_UPDATE", (request) => {
   const wasConnected = isClientConnected;
   isClientConnected = request.connected;
+  const oldWorkspaceId = workspaceId;
+  workspaceId = request.workspaceId;
+
+  if (workspaceId !== oldWorkspaceId) {
+    syncFromStorage();
+  }
 
   if (request.config) {
     const config = request.config;
@@ -72,16 +79,31 @@ messageBroker.on("STATUS_UPDATE", (request) => {
 });
 
 // === Storage Sync ===
-getSync(["autoSend", "protected_tools"] as any).then((items) => {
-  CONFIG.autoSend = items.autoSend ?? true;
-  if (items.protected_tools) protectedTools = new Set(items.protected_tools);
-});
+function syncFromStorage() {
+  const prefix = workspaceId ? `${workspaceId}_` : '';
+  const ptKey = `${prefix}protected_tools`;
+  const asKey = "autoSend"; // Global for now, or prefix if desired
+
+  getSync([asKey, ptKey] as any).then((items) => {
+    CONFIG.autoSend = items[asKey] ?? true;
+    if (items[ptKey]) protectedTools = new Set(items[ptKey]);
+    Logger.log(`[MCP] Storage synced (prefix: ${prefix || 'none'})`, "info");
+  });
+}
+
+// Initial sync
+syncFromStorage();
 
 onStorageChanged((changes, namespace) => {
   if (namespace === "sync") {
     if (changes.autoSend) CONFIG.autoSend = changes.autoSend.newValue;
-    if (changes.protected_tools) {
-      protectedTools = new Set(changes.protected_tools.newValue);
+    
+    const prefix = workspaceId ? `${workspaceId}_` : '';
+    const ptKey = `${prefix}protected_tools`;
+    
+    if (changes[ptKey]) {
+      protectedTools = new Set(changes[ptKey].newValue);
+      Logger.log(`[MCP] Protected tools updated via storage`, "info");
     }
   }
 });
@@ -110,7 +132,8 @@ function runMainLoop() {
   // Delegate processing to engine
   engine.updateConfig({
     autoSend: CONFIG.autoSend,
-    protectedTools: protectedTools
+    protectedTools: protectedTools,
+    workspaceId: workspaceId
   });
 
   engine.processCodeBlocks(Array.from(codeElements));
@@ -130,6 +153,13 @@ if (adapter) {
 
   messageBroker.send({ type: "GET_STATUS" }).then((response) => {
     isClientConnected = !!(response && response.connected);
+    const oldWorkspaceId = workspaceId;
+    workspaceId = response?.workspaceId;
+    
+    if (workspaceId !== oldWorkspaceId) {
+      syncFromStorage();
+    }
+
     if (isClientConnected) {
       Logger.log(`WebMCP activated for ${adapter.name}`, "info");
       runMainLoop();

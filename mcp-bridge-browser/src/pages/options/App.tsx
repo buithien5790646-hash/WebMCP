@@ -2,8 +2,9 @@ import { useState, useEffect } from 'preact/hooks';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { useI18n } from '@/hooks/useI18n';
-import { getLocal } from '@/services/storage';
+import { getLocal, onStorageChanged, removeStorageListener } from '@/services/storage';
 import { i18n } from '@/services/i18n';
+import { messageBroker } from '@/services/MessageBroker';
 const { t } = i18n;
 import './App.css';
 
@@ -55,6 +56,28 @@ export function App() {
         });
     }, [activeTab]);
 
+    useEffect(() => {
+        if (!workspaceId) return;
+
+        const listener = (changes: any, namespace: string) => {
+            if (namespace === 'sync') {
+                const prefix = workspaceId ? `${workspaceId}_` : '';
+                const ptKey = `${prefix}protected_tools`;
+                
+                if (changes[ptKey]) {
+                    const newList = changes[ptKey].newValue || [];
+                    setConfig((prev: any) => ({
+                        ...prev,
+                        protected_tools: newList
+                    }));
+                }
+            }
+        };
+
+        onStorageChanged(listener);
+        return () => removeStorageListener(listener);
+    }, [workspaceId]);
+
     const loadConfig = async (port: number, token: string, wId: string | null, scope: 'global' | 'workspace' | 'merged' = 'workspace') => {
         try {
             const resp = await fetch(`http://127.0.0.1:${port}/v1/config?workspaceId=${wId || ''}&scope=${scope}`, {
@@ -93,6 +116,7 @@ export function App() {
             });
             if (resp.ok) {
                 showStatus(t('status_saved_synced'));
+                messageBroker.send({ type: 'PULL_CONFIG', workspaceId });
             } else {
                 showStatus('Save Failed');
             }
@@ -116,6 +140,7 @@ export function App() {
                 // The API getConfig already handles this logic when we pass scope.
                 await loadConfig(activeGateway.port, activeGateway.token, workspaceId, activeTab);
                 showStatus(t('status_reset_done'));
+                messageBroker.send({ type: 'PULL_CONFIG', workspaceId });
             } catch (e) {
                 showStatus('Reset Failed');
             }

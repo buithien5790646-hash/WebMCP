@@ -25,13 +25,13 @@ export function App() {
     const [status, setStatus] = useState<SessionStatus>({ connected: false });
     const [gateways, setGateways] = useState<Gateway[]>([]);
     const [currentTabId, setCurrentTabId] = useState<number | null>(null);
-    const [autoSend, setAutoSend] = useStorage('autoSend', true);
+    const [autoSend, setAutoSend] = useStorage('autoSend', true, status.workspaceId);
     const [showLog, setShowLog] = useState(false);
     const [copied, setCopied] = useState(false);
 
     const promptKey = i18n.lang === 'zh' ? 'prompt_zh' : 'prompt_en';
-    const [promptContent] = useLocalStorage(promptKey, '');
-    const [userRules] = useLocalStorage('user_rules', '');
+    const [promptContent] = useLocalStorage(promptKey, '', status.workspaceId);
+    const [userRules] = useLocalStorage('user_rules', '', status.workspaceId);
 
     useEffect(() => {
         // Get status and tab info when popup opens

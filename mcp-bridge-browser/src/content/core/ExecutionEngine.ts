@@ -16,6 +16,7 @@ import { Workflow } from "./Workflow";
 export class ExecutionEngine {
     private protectedTools = new Set<string>();
     private autoSend = true;
+    private workspaceId?: string;
 
     constructor(
         private parser: MessageParser,
@@ -24,9 +25,10 @@ export class ExecutionEngine {
         private modalManager: ModalManager
     ) { }
 
-    updateConfig(config: { autoSend: boolean; protectedTools: Set<string> }) {
+    updateConfig(config: { autoSend: boolean; protectedTools: Set<string>; workspaceId?: string }) {
         this.autoSend = config.autoSend;
         this.protectedTools = config.protectedTools;
+        this.workspaceId = config.workspaceId;
     }
 
     /**
@@ -66,8 +68,9 @@ export class ExecutionEngine {
                 if (isAlways) {
                     Logger.log(`⚡ Tool '${p.name}' set to Always Allow`, "action");
                     this.protectedTools.delete(p.name);
-                    await setSync({ protected_tools: Array.from(this.protectedTools) });
-                    messageBroker.send({ type: "SYNC_CONFIG" });
+                    const prefix = this.workspaceId ? `${this.workspaceId}_` : '';
+                    await setSync({ [`${prefix}protected_tools`]: Array.from(this.protectedTools) });
+                    messageBroker.send({ type: "SYNC_CONFIG", workspaceId: this.workspaceId });
                 }
                 await this.executeTool(p, element);
             } else {

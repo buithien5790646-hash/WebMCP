@@ -61,8 +61,20 @@ messageBroker.on("SHOW_NOTIFICATION", (req) => {
   });
 });
 
-messageBroker.on("SYNC_CONFIG", (_req, _sender, sendResponse) => {
-  configManager.pushConfigToGateway().then(success => sendResponse({ success }));
+messageBroker.on("SYNC_CONFIG", (req, sender, sendResponse) => {
+  const targetTabId = sender.tab?.id;
+  if (targetTabId) {
+    sessionManager.getSession(targetTabId).then((session) => {
+      configManager.pushConfigToGateway(session?.workspaceId).then(success => sendResponse({ success }));
+    });
+  } else {
+    configManager.pushConfigToGateway(req.workspaceId).then(success => sendResponse({ success }));
+  }
+  return true;
+});
+
+messageBroker.on("PULL_CONFIG", (req, _sender, sendResponse) => {
+  configManager.syncConfigFromGateway(req.workspaceId).then(config => sendResponse({ success: !!config, config }));
   return true;
 });
 
@@ -102,7 +114,13 @@ browserService.onTabsUpdated(async (tabId, changeInfo, tab) => {
       if (configManager.isUrlAllowed(tab.url)) {
         sessionManager.updateBadge(tabId, true);
         // [Sync] Restore connection state
-        browserService.sendMessage({ type: "STATUS_UPDATE", connected: true }, tabId).catch(() => { });
+        const config = await configManager.syncConfigFromGateway(session.workspaceId);
+        browserService.sendMessage({ 
+          type: "STATUS_UPDATE", 
+          connected: true,
+          workspaceId: session.workspaceId,
+          config: config
+        }, tabId).catch(() => { });
         if (session.showLog) {
           browserService.sendMessage({ type: "TOGGLE_LOG", show: true }, tabId).catch(() => { });
         }
@@ -151,7 +169,8 @@ async function bindSession(tabId: number, port: number, token: string, workspace
   browserService.sendMessage({
     type: "STATUS_UPDATE",
     connected: true,
-    config: config
+    config: config,
+    workspaceId: workspaceId
   }, tabId).catch(() => { });
 
   await toolManager.prefetchToolList();
