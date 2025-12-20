@@ -285,24 +285,24 @@ export class GatewayManager {
         // 4.1 Hierarchical Config Sync
         this.app.get('/v1/config', async (req, res) => {
             const workspaceId = req.query.workspaceId as string;
+            const scope = (req.query.scope as 'merged' | 'global' | 'workspace') || 'merged';
             if (!workspaceId) return res.status(400).json({ error: "Missing workspaceId" });
 
-            this.log(`📥 Config Sync: Pull for workspace ${workspaceId}`);
-            const mergedConfig = await ConfigManager.getMergedConfig(this.context, workspaceId);
+            this.log(`📥 Config Sync: Pull for workspace ${workspaceId} (scope: ${scope})`);
+            const configData = await ConfigManager.getConfig(this.context, workspaceId, scope);
 
-            // If protected_tools is undefined, it means "uninitialized", so we protect all by default.
-            // If it is [], it means the user has explicitly authorized all tools.
-            if (mergedConfig.protected_tools === undefined) {
+            // If it's a merged config and protected_tools is undefined, initialize it.
+            if (scope === 'merged' && configData.protected_tools === undefined) {
                 const allToolNames: string[] = [];
                 const grouped = this._generateGroupedTools();
                 grouped.forEach(g => {
                     g.tools.forEach(t => allToolNames.push(t.name));
                 });
-                mergedConfig.protected_tools = allToolNames;
+                configData.protected_tools = allToolNames;
                 this.log(`🛡️ Initialized protected_tools with ${allToolNames.length} tools`);
             }
 
-            res.json({ config: mergedConfig });
+            res.json({ config: configData });
         });
 
         this.app.post('/v1/config', async (req, res) => {

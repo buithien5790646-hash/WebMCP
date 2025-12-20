@@ -94,6 +94,8 @@ class I18nService {
 
             // Options Page
             opt_title: { en: 'WebMCP Settings', zh: 'WebMCP 设置' },
+            tab_workspace: { en: 'Workspace Settings', zh: '当前工作区设置' },
+            tab_global: { en: 'Global Settings', zh: '全局设置' },
             opt_hitl_title: { en: 'Human-in-the-Loop (Approval)', zh: '人工审批 (HITL)' },
             opt_hitl_desc: { en: 'Select tools that require manual approval before execution.', zh: '选择在执行前需要人工确认的工具。' },
             btn_refresh_list: { en: '🔄 Refresh List', zh: '🔄 刷新列表' },

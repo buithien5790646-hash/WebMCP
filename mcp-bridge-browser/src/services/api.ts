@@ -98,9 +98,12 @@ export class ApiClient {
     /**
      * Push configuration to the Gateway
      */
-    async pushConfig(config: any, workspaceId?: string): Promise<void> {
+    async pushConfig(config: any, workspaceId?: string, scope: 'global' | 'workspace' = 'workspace'): Promise<void> {
         let url = `${this.getBaseUrl()}/v1/config`;
-        if (workspaceId) url += `?workspaceId=${workspaceId}`;
+        const params = new URLSearchParams();
+        if (workspaceId) params.append('workspaceId', workspaceId);
+        params.append('scope', scope);
+        url += `?${params.toString()}`;
 
         const response = await fetch(url, {
             method: 'POST',
@@ -116,9 +119,12 @@ export class ApiClient {
     /**
      * Pull configuration from the Gateway
      */
-    async pullConfig(workspaceId?: string): Promise<any> {
+    async pullConfig(workspaceId?: string, scope: 'merged' | 'global' | 'workspace' = 'merged'): Promise<any> {
         let url = `${this.getBaseUrl()}/v1/config`;
-        if (workspaceId) url += `?workspaceId=${workspaceId}`;
+        const params = new URLSearchParams();
+        if (workspaceId) params.append('workspaceId', workspaceId);
+        params.append('scope', scope);
+        url += `?${params.toString()}`;
 
         const response = await fetch(url, {
             headers: this.getHeaders(),
@@ -130,6 +136,26 @@ export class ApiClient {
 
         const data = await response.json();
         return data.config || null;
+    }
+
+    /**
+     * Reset configuration on the Gateway
+     */
+    async resetConfig(workspaceId?: string, scope: 'global' | 'workspace' = 'workspace'): Promise<void> {
+        let url = `${this.getBaseUrl()}/v1/config`;
+        const params = new URLSearchParams();
+        if (workspaceId) params.append('workspaceId', workspaceId);
+        params.append('scope', scope);
+        url += `?${params.toString()}`;
+
+        const response = await fetch(url, {
+            method: 'DELETE',
+            headers: this.getHeaders(),
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to reset config');
+        }
     }
 }
 

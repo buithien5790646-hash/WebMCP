@@ -22,6 +22,8 @@ export function App() {
     const [saving, setSaving] = useState(false);
     const [activeGateway, setActiveGateway] = useState<{ port: number, token: string } | null>(null);
 
+    const [activeTab, setActiveTab] = useState<'workspace' | 'global'>('workspace');
+
     useEffect(() => {
         // 1. Get workspaceId from URL
         const params = new URLSearchParams(window.location.search);
@@ -45,17 +47,17 @@ export function App() {
             if (session) {
                 setWorkspaceId(id);
                 setActiveGateway({ port: session.port, token: session.token });
-                loadConfig(session.port, session.token, id);
+                loadConfig(session.port, session.token, id, activeTab);
                 refreshTools(session.port, session.token);
             } else {
                 showStatus(t('status_gateway_failed'));
             }
         });
-    }, []);
+    }, [activeTab]);
 
-    const loadConfig = async (port: number, token: string, wId: string | null) => {
+    const loadConfig = async (port: number, token: string, wId: string | null, scope: 'global' | 'workspace' | 'merged' = 'workspace') => {
         try {
-            const resp = await fetch(`http://127.0.0.1:${port}/v1/config?workspaceId=${wId || ''}`, {
+            const resp = await fetch(`http://127.0.0.1:${port}/v1/config?workspaceId=${wId || ''}&scope=${scope}`, {
                 headers: { 'X-WebMCP-Token': token }
             });
             const data = await resp.json();
@@ -81,7 +83,7 @@ export function App() {
         if (!activeGateway || !workspaceId) return;
         setSaving(true);
         try {
-            const resp = await fetch(`http://127.0.0.1:${activeGateway.port}/v1/config?workspaceId=${workspaceId}&scope=workspace`, {
+            const resp = await fetch(`http://127.0.0.1:${activeGateway.port}/v1/config?workspaceId=${workspaceId}&scope=${activeTab}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -105,11 +107,14 @@ export function App() {
         if (!activeGateway || !workspaceId) return;
         if (confirm(t('confirm_reset'))) {
             try {
-                await fetch(`http://127.0.0.1:${activeGateway.port}/v1/config?workspaceId=${workspaceId}&scope=workspace`, {
+                await fetch(`http://127.0.0.1:${activeGateway.port}/v1/config?workspaceId=${workspaceId}&scope=${activeTab}`, {
                     method: 'DELETE',
                     headers: { 'X-WebMCP-Token': activeGateway.token }
                 });
-                await loadConfig(activeGateway.port, activeGateway.token, workspaceId);
+                // After reset, re-pull the merged config if we are in workspace tab, 
+                // or default config if we are in global tab.
+                // The API getConfig already handles this logic when we pass scope.
+                await loadConfig(activeGateway.port, activeGateway.token, workspaceId, activeTab);
                 showStatus(t('status_reset_done'));
             } catch (e) {
                 showStatus('Reset Failed');
@@ -144,6 +149,21 @@ export function App() {
                 <span>{t('opt_title')}</span>
                 <span className="lang-badge">{lang.toUpperCase()}</span>
             </h1>
+
+            <div className="tabs">
+                <button 
+                    className={`tab-item ${activeTab === 'workspace' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('workspace')}
+                >
+                    {t('tab_workspace')}
+                </button>
+                <button 
+                    className={`tab-item ${activeTab === 'global' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('global')}
+                >
+                    {t('tab_global')}
+                </button>
+            </div>
 
             <Card>
                 <h2>{t('opt_hitl_title')}</h2>

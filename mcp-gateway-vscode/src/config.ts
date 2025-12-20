@@ -16,12 +16,32 @@ export class ConfigManager {
     static readonly PREFIX = 'mcp.config.';
 
     /**
-     * Get the merged configuration for a workspace
+     * Get the merged configuration for a workspace, or just the specified scope
      */
-    static async getMergedConfig(context: vscode.ExtensionContext, workspaceId: string): Promise<WebMCPConfig> {
+    static async getConfig(context: vscode.ExtensionContext, workspaceId: string, scope: 'merged' | 'global' | 'workspace' = 'merged'): Promise<WebMCPConfig> {
         const defaults = await this.getDefaults(context);
         const global = this.getGlobalConfig(context);
         const workspace = this.getWorkspaceConfig(context, workspaceId);
+
+        if (scope === 'global') {
+            return {
+                prompt: global.prompt ?? defaults.prompt,
+                rules: global.rules ?? defaults.rules ?? '',
+                train: global.train ?? defaults.train,
+                error_hint: global.error_hint ?? defaults.error_hint,
+                protected_tools: global.protected_tools ?? defaults.protected_tools,
+            };
+        }
+
+        if (scope === 'workspace') {
+            return {
+                prompt: workspace.prompt ?? undefined as any,
+                rules: workspace.rules ?? undefined as any,
+                train: workspace.train ?? undefined as any,
+                error_hint: workspace.error_hint ?? undefined as any,
+                protected_tools: workspace.protected_tools ?? undefined as any,
+            };
+        }
 
         return {
             prompt: workspace.prompt ?? global.prompt ?? defaults.prompt,
@@ -30,6 +50,13 @@ export class ConfigManager {
             error_hint: workspace.error_hint ?? global.error_hint ?? defaults.error_hint,
             protected_tools: workspace.protected_tools ?? global.protected_tools ?? defaults.protected_tools,
         };
+    }
+
+    /**
+     * Get the merged configuration for a workspace (Legacy wrapper)
+     */
+    static async getMergedConfig(context: vscode.ExtensionContext, workspaceId: string): Promise<WebMCPConfig> {
+        return this.getConfig(context, workspaceId, 'merged');
     }
 
     /**
