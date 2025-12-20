@@ -289,6 +289,19 @@ export class GatewayManager {
 
             this.log(`📥 Config Sync: Pull for workspace ${workspaceId}`);
             const mergedConfig = await ConfigManager.getMergedConfig(this.context, workspaceId);
+
+            // If protected_tools is undefined, it means "uninitialized", so we protect all by default.
+            // If it is [], it means the user has explicitly authorized all tools.
+            if (mergedConfig.protected_tools === undefined) {
+                const allToolNames: string[] = [];
+                const grouped = this._generateGroupedTools();
+                grouped.forEach(g => {
+                    g.tools.forEach(t => allToolNames.push(t.name));
+                });
+                mergedConfig.protected_tools = allToolNames;
+                this.log(`🛡️ Initialized protected_tools with ${allToolNames.length} tools`);
+            }
+
             res.json({ config: mergedConfig });
         });
 

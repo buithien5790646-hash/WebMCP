@@ -7,7 +7,7 @@ export interface WebMCPConfig {
     rules: string;
     train: string;
     error_hint: string;
-    protected_tools: string[];
+    protected_tools?: string[];
 }
 
 export type ConfigScope = 'default' | 'global' | 'workspace';
@@ -85,7 +85,7 @@ export class ConfigManager {
             rules: '',
             train: readFile(lang === 'zh' ? 'train_zh.md' : 'train.md'),
             error_hint: readFile(lang === 'zh' ? 'error_hint_zh.md' : 'error_hint.md'),
-            protected_tools: [], // By default, all tools are protected if not in authorized list
+            // protected_tools is undefined by default to indicate "uninitialized"
         };
     }
 }

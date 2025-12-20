@@ -34,14 +34,15 @@ interface StartResult {
 // --- Internal Tools ---
 
 const RUN_IN_TERMINAL_TOOL = {
-    name: "run_in_terminal",
-    description: "Execute a command in the user's terminal (Not fully supported in Desktop yet).",
+    name: 'run_in_terminal',
+    description: 'Run a shell command in the local system terminal. This is useful for long running tasks, starting servers, or interactive commands.',
     inputSchema: {
-        type: "object",
+        type: 'object',
         properties: {
-            command: { type: "string" }
+            command: { type: 'string', description: 'The shell command to run' },
+            cwd: { type: 'string', description: 'Working directory' }
         },
-        required: ["command"]
+        required: ['command']
     }
 };
 
@@ -143,19 +144,18 @@ export class GatewayManager {
 
     // --- Tool Grouping Helper ---
     private _generateGroupedTools() {
-        const groups: Record<string, { tools: any[] }> = {};
-
-        // Gather
         const allTools = Array.from(this.toolRouter.values()).map(t => ({ ...t.definition, _server: t.serverId }));
         allTools.push({ ...RUN_IN_TERMINAL_TOOL, _server: 'internal' });
 
+        const groups: Record<string, { tools: any[] }> = {};
+
         allTools.forEach(tool => {
             const server = tool._server || 'unknown';
-            if (!groups[server]) groups[server] = { tools: [] };
-
-            // All tools are now "Hot" - Show full schema
-            const { _server, ...clean } = tool;
-            groups[server].tools.push(clean);
+            if (!groups[server]) {
+                groups[server] = { tools: [] };
+            }
+            const { _server, ...cleanTool } = tool;
+            groups[server].tools.push(cleanTool);
         });
 
         return Object.entries(groups).map(([server, data]) => ({
