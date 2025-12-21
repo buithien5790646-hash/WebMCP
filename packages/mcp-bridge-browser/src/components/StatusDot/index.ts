@@ -1,1 +1,1 @@
-export { StatusDot } from './StatusDot';
+export { StatusDot } from "./StatusDot";

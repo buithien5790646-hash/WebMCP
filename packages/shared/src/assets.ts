@@ -124,5 +124,5 @@ Please regenerate the instruction according to the correct format above.`,
 \`\`\`
 
 请根据上述正确格式重新生成指令。`,
-  }
+  },
 };

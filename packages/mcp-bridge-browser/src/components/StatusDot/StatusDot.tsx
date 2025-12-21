@@ -1,9 +1,9 @@
-import './StatusDot.css';
+import "./StatusDot.css";
 
 interface StatusDotProps {
-    online: boolean;
+  online: boolean;
 }
 
 export function StatusDot({ online }: StatusDotProps) {
-    return <div className={`status-dot ${online ? 'online' : ''}`} />;
+  return <div className={`status-dot ${online ? "online" : ""}`} />;
 }

@@ -7,12 +7,14 @@
 > Please ensure you have installed the corresponding extension in Chrome or Edge.
 
 ## 🚀 Introduction
+
 **WebMCP Gateway** turns your VS Code into a local MCP (Model Context Protocol) server. This allows Web-based AI models (like Gemini, ChatGPT, DeepSeek) to securely access your local files, execute terminal commands, and assist you in writing code.
 
 ## ✨ Core Features
-* **Zero-Config Connection**: Automatically finds available ports, no manual setup required.
-* **Secure Bridging**: Uses a one-time Token mechanism to ensure secure communication between the browser and the editor.
-* **Tool Exposure**: Standardizes local filesystem operations and terminal commands as MCP tools for the AI.
+
+- **Zero-Config Connection**: Automatically finds available ports, no manual setup required.
+- **Secure Bridging**: Uses a one-time Token mechanism to ensure secure communication between the browser and the editor.
+- **Tool Exposure**: Standardizes local filesystem operations and terminal commands as MCP tools for the AI.
 
 ## ⚙️ Installation & Usage
 
@@ -29,5 +31,7 @@ A: Check if any other program is using ports in the 30000-40000 range, or try re
 A: Ensure VS Code is running and the status bar shows `WebMCP: <Port>`. Ensure the page is opened from the VS Code extension.
 
 ---
+
 ## 📄 License
+
 MIT License

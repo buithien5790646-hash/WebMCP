@@ -1,7 +1,12 @@
-import { i18n, logger as Logger, messageBroker, getLocal, getSync, onStorageChanged } from "@/services";
 import {
-  ModalManager
-} from "./ui";
+  i18n,
+  logger as Logger,
+  messageBroker,
+  getLocal,
+  getSync,
+  onStorageChanged,
+} from "@/services";
+import { ModalManager } from "./ui";
 import { detectPlatform } from "./adapters";
 import { DOMObserver, MessageParser, Workflow, ExecutionEngine } from "./core";
 
@@ -80,14 +85,14 @@ messageBroker.on("STATUS_UPDATE", (request) => {
 
 // === Storage Sync ===
 function syncFromStorage() {
-  const prefix = workspaceId ? `${workspaceId}_` : '';
+  const prefix = workspaceId ? `${workspaceId}_` : "";
   const ptKey = `${prefix}protected_tools`;
   const asKey = "autoSend"; // Global for now, or prefix if desired
 
   getSync([asKey, ptKey] as any).then((items) => {
     CONFIG.autoSend = items[asKey] ?? true;
     if (items[ptKey]) protectedTools = new Set(items[ptKey]);
-    Logger.log(`[MCP] Storage synced (prefix: ${prefix || 'none'})`, "info");
+    Logger.log(`[MCP] Storage synced (prefix: ${prefix || "none"})`, "info");
   });
 }
 
@@ -97,10 +102,10 @@ syncFromStorage();
 onStorageChanged((changes, namespace) => {
   if (namespace === "sync") {
     if (changes.autoSend) CONFIG.autoSend = changes.autoSend.newValue;
-    
-    const prefix = workspaceId ? `${workspaceId}_` : '';
+
+    const prefix = workspaceId ? `${workspaceId}_` : "";
     const ptKey = `${prefix}protected_tools`;
-    
+
     if (changes[ptKey]) {
       protectedTools = new Set(changes[ptKey].newValue);
       Logger.log(`[MCP] Protected tools updated via storage`, "info");
@@ -133,7 +138,7 @@ function runMainLoop() {
   engine.updateConfig({
     autoSend: CONFIG.autoSend,
     protectedTools: protectedTools,
-    workspaceId: workspaceId
+    workspaceId: workspaceId,
   });
 
   engine.processCodeBlocks(Array.from(codeElements));
@@ -155,7 +160,7 @@ if (adapter) {
     isClientConnected = !!(response && response.connected);
     const oldWorkspaceId = workspaceId;
     workspaceId = response?.workspaceId;
-    
+
     if (workspaceId !== oldWorkspaceId) {
       syncFromStorage();
     }

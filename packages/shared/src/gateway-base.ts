@@ -1,324 +1,356 @@
-import express from 'express';
-import cors from 'cors';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
-import * as crypto from 'node:crypto';
-import { Server as HttpServer } from 'http';
-import { GatewayConfig, ServerConfig, StartResult, WebMCPConfig } from './types';
+import express from "express";
+import cors from "cors";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import * as crypto from "node:crypto";
+import { Server as HttpServer } from "http";
+import { GatewayConfig, ServerConfig, StartResult, WebMCPConfig } from "./types";
 
 export interface GatewayHooks {
-    log: (message: string) => void;
-    error: (message: string, err?: any) => void;
-    onActivity?: () => void;
-    getConfig: (workspaceId: string, scope: 'merged' | 'global' | 'workspace') => Promise<WebMCPConfig>;
-    saveConfig: (workspaceId: string, scope: 'global' | 'workspace', updates: Partial<WebMCPConfig>) => Promise<void>;
-    resetConfig?: (workspaceId: string, scope: 'global' | 'workspace') => Promise<void>;
-    restoreDefaultConfig?: (workspaceId: string) => Promise<void>;
-    getInternalTools: () => any[];
-    handleInternalToolCall: (name: string, args: any) => Promise<any> | undefined;
+  log: (message: string) => void;
+  error: (message: string, err?: any) => void;
+  onActivity?: () => void;
+  getConfig: (
+    workspaceId: string,
+    scope: "merged" | "global" | "workspace"
+  ) => Promise<WebMCPConfig>;
+  saveConfig: (
+    workspaceId: string,
+    scope: "global" | "workspace",
+    updates: Partial<WebMCPConfig>
+  ) => Promise<void>;
+  resetConfig?: (workspaceId: string, scope: "global" | "workspace") => Promise<void>;
+  restoreDefaultConfig?: (workspaceId: string) => Promise<void>;
+  getInternalTools: () => any[];
+  handleInternalToolCall: (name: string, args: any) => Promise<any> | undefined;
 }
 
 export abstract class BaseGatewayManager {
-    protected app: express.Express | null = null;
-    protected server: HttpServer | null = null;
-    protected toolRouter = new Map<string, { client: Client; definition: any; serverId: string }>();
-    protected connectedClients: { id: string; client: Client }[] = [];
-    protected authToken: string = '';
+  protected app: express.Express | null = null;
+  protected server: HttpServer | null = null;
+  protected toolRouter = new Map<string, { client: Client; definition: any; serverId: string }>();
+  protected connectedClients: { id: string; client: Client }[] = [];
+  protected authToken: string = "";
 
-    constructor(
-        protected hooks: GatewayHooks,
-        protected workspaceId: string = 'default'
-    ) {
-        this.authToken = crypto.randomUUID();
+  constructor(
+    protected hooks: GatewayHooks,
+    protected workspaceId: string = "default"
+  ) {
+    this.authToken = crypto.randomUUID();
+  }
+
+  protected log(message: string) {
+    this.hooks.log(message);
+  }
+
+  protected error(message: string, err?: any) {
+    this.hooks.error(message, err);
+  }
+
+  protected onActivity() {
+    if (this.hooks.onActivity) {
+      this.hooks.onActivity();
     }
+  }
 
-    protected log(message: string) {
-        this.hooks.log(message);
-    }
+  async connectToServers(servers: Record<string, ServerConfig>, enabledServices?: string[]) {
+    // Cleanup existing
+    this.connectedClients.forEach((c) => {
+      try {
+        c.client.close();
+      } catch {
+        /* ignore */
+      }
+    });
+    this.connectedClients = [];
+    this.toolRouter.clear();
 
-    protected error(message: string, err?: any) {
-        this.hooks.error(message, err);
-    }
+    this.log("🔌 Connecting to MCP servers...");
 
-    protected onActivity() {
-        if (this.hooks.onActivity) {
-            this.hooks.onActivity();
+    for (const [serverId, config] of Object.entries(servers)) {
+      if (config.disabled) continue;
+      if (enabledServices && !enabledServices.includes(serverId)) {
+        this.log(`   -> Skipping [${serverId}] (Not enabled)`);
+        continue;
+      }
+
+      try {
+        let client: Client;
+        if (config.type === "http") {
+          if (!config.url) throw new Error("Missing URL");
+          this.log(`   -> Connecting [${serverId}] via HTTP: ${config.url}`);
+          const transport = new StreamableHTTPClientTransport(new URL(config.url), {
+            requestInit: { headers: config.headers },
+          });
+          client = new Client({ name: "webmcp-gateway", version: "1.0.0" }, { capabilities: {} });
+          await client.connect(transport);
+        } else if (config.type === "sse") {
+          if (!config.url) throw new Error("Missing URL");
+          this.log(`   -> Connecting [${serverId}] via SSE: ${config.url}`);
+          const transport = new SSEClientTransport(new URL(config.url), {
+            requestInit: { headers: config.headers },
+            eventSourceInit: { headers: config.headers } as any,
+          });
+          client = new Client({ name: "webmcp-gateway", version: "1.0.0" }, { capabilities: {} });
+          await client.connect(transport);
+        } else {
+          // Stdio
+          const command = config.command || "npx";
+          const args = config.args || [];
+          const env = { ...process.env, ...config.env } as Record<string, string>;
+
+          this.log(`   -> Starting [${serverId}]: ${command} ${args.join(" ")}`);
+          const transport = new StdioClientTransport({ command, args, env });
+          client = new Client({ name: "webmcp-gateway", version: "1.0.0" }, { capabilities: {} });
+          await client.connect(transport);
         }
+
+        this.connectedClients.push({ id: serverId, client });
+
+        // Discovery
+        const list = await client.listTools();
+        this.log(`   ✅ [${serverId}] Connected. Loaded ${list.tools.length} tools.`);
+
+        list.tools.forEach((tool: any) => {
+          if (this.toolRouter.has(tool.name)) {
+            this.log(`   ⚠️ Warning: Tool '${tool.name}' overridden by ${serverId}`);
+          }
+          this.toolRouter.set(tool.name, { client, definition: tool, serverId });
+        });
+      } catch (err: any) {
+        this.error(`Failed to connect to [${serverId}]`, err);
+      }
     }
+  }
 
-    async connectToServers(servers: Record<string, ServerConfig>, enabledServices?: string[]) {
-        // Cleanup existing
-        this.connectedClients.forEach(c => { try { c.client.close(); } catch { /* ignore */ } });
-        this.connectedClients = [];
-        this.toolRouter.clear();
+  protected _generateGroupedTools() {
+    const allTools = Array.from(this.toolRouter.values()).map((t) => ({
+      ...t.definition,
+      _server: t.serverId,
+    }));
 
-        this.log('🔌 Connecting to MCP servers...');
+    // Inject Internal Tools
+    const internalTools = this.hooks.getInternalTools();
+    internalTools.forEach((tool) => {
+      allTools.push({ ...tool, _server: "internal" });
+    });
 
-        for (const [serverId, config] of Object.entries(servers)) {
-            if (config.disabled) continue;
-            if (enabledServices && !enabledServices.includes(serverId)) {
-                this.log(`   -> Skipping [${serverId}] (Not enabled)`);
-                continue;
-            }
+    const groups: Record<string, { tools: any[] }> = {};
 
-            try {
-                let client: Client;
-                if (config.type === 'http') {
-                    if (!config.url) throw new Error("Missing URL");
-                    this.log(`   -> Connecting [${serverId}] via HTTP: ${config.url}`);
-                    const transport = new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: config.headers } });
-                    client = new Client({ name: "webmcp-gateway", version: "1.0.0" }, { capabilities: {} });
-                    await client.connect(transport);
+    allTools.forEach((tool) => {
+      const server = tool._server || "unknown";
+      if (!groups[server]) {
+        groups[server] = { tools: [] };
+      }
+      const { _server, ...cleanTool } = tool;
+      groups[server].tools.push(cleanTool);
+    });
 
-                } else if (config.type === 'sse') {
-                    if (!config.url) throw new Error("Missing URL");
-                    this.log(`   -> Connecting [${serverId}] via SSE: ${config.url}`);
-                    const transport = new SSEClientTransport(new URL(config.url), {
-                        requestInit: { headers: config.headers },
-                        eventSourceInit: { headers: config.headers } as any
-                    });
-                    client = new Client({ name: "webmcp-gateway", version: "1.0.0" }, { capabilities: {} });
-                    await client.connect(transport);
+    return Object.entries(groups).map(([server, data]) => ({
+      server,
+      tools: data.tools,
+    }));
+  }
 
-                } else {
-                    // Stdio
-                    const command = config.command || 'npx';
-                    const args = config.args || [];
-                    const env = { ...process.env, ...config.env } as Record<string, string>;
+  async start(config: GatewayConfig): Promise<StartResult> {
+    if (this.server) await this.stop();
+    await this.connectToServers(config.mcpServers, config.enabledServices);
 
-                    this.log(`   -> Starting [${serverId}]: ${command} ${args.join(' ')}`);
-                    const transport = new StdioClientTransport({ command, args, env });
-                    client = new Client({ name: "webmcp-gateway", version: "1.0.0" }, { capabilities: {} });
-                    await client.connect(transport);
-                }
+    if (!this.authToken) this.authToken = crypto.randomUUID();
 
-                this.connectedClients.push({ id: serverId, client });
+    this.app = express();
+    this.app.use(express.json());
 
-                // Discovery
-                const list = await client.listTools();
-                this.log(`   ✅ [${serverId}] Connected. Loaded ${list.tools.length} tools.`);
+    // CORS
+    this.app.use(
+      cors({
+        origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+          if (
+            !origin ||
+            origin.startsWith("http://localhost") ||
+            origin.startsWith("http://127.0.0.1") ||
+            origin.startsWith("chrome-extension://")
+          ) {
+            cb(null, true);
+          } else if (config.allowedOrigins?.includes(origin)) {
+            cb(null, true);
+          } else {
+            cb(null, true); // Permissive for now, matching desktop
+          }
+        },
+      })
+    );
 
-                list.tools.forEach((tool: any) => {
-                    if (this.toolRouter.has(tool.name)) {
-                        this.log(`   ⚠️ Warning: Tool '${tool.name}' overridden by ${serverId}`);
-                    }
-                    this.toolRouter.set(tool.name, { client, definition: tool, serverId });
-                });
+    // Activity and Logging Middleware
+    this.app.use((req: express.Request, _res: express.Response, next: express.NextFunction) => {
+      this.onActivity();
+      if (req.method !== "OPTIONS" && req.path !== "/bridge") {
+        this.log(`🔔 [${req.method}] ${req.url}`);
+      }
+      next();
+    });
 
-            } catch (err: any) {
-                this.error(`Failed to connect to [${serverId}]`, err);
-            }
-        }
-    }
+    // Auth Middleware
+    this.app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+      const publicPaths = ["/bridge", "/favicon.ico"];
+      if (req.method === "OPTIONS" || publicPaths.includes(req.path)) {
+        return next();
+      }
 
-    protected _generateGroupedTools() {
-        const allTools = Array.from(this.toolRouter.values()).map(t => ({ ...t.definition, _server: t.serverId }));
-        
-        // Inject Internal Tools
-        const internalTools = this.hooks.getInternalTools();
-        internalTools.forEach(tool => {
-            allTools.push({ ...tool, _server: 'internal' });
+      const token =
+        req.headers["x-webmcp-token"] ||
+        req.headers["authorization"]?.replace("Bearer ", "") ||
+        (req.query.token as string);
+      if (token !== this.authToken) {
+        this.log(`⚠️ Unauthorized access attempt: ${req.path}`);
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      next();
+    });
+
+    // Routes
+    this.setupRoutes();
+
+    // Start Listening
+    return new Promise((resolve, reject) => {
+      if (!this.app) return reject(new Error("Express app not initialized"));
+      const tryListen = (p: number) => {
+        this.server = this.app!.listen(p, "127.0.0.1", () => {
+          this.log(`🌐 Gateway running on http://127.0.0.1:${p}`);
+          resolve({ port: p, token: this.authToken });
         });
-
-        const groups: Record<string, { tools: any[] }> = {};
-
-        allTools.forEach(tool => {
-            const server = tool._server || 'unknown';
-            if (!groups[server]) {
-                groups[server] = { tools: [] };
-            }
-            const { _server, ...cleanTool } = tool;
-            groups[server].tools.push(cleanTool);
+        this.server.on("error", (e: any) => {
+          if (e.code === "EADDRINUSE") {
+            this.log(`⚠️ Port ${p} in use, trying ${p + 1}...`);
+            tryListen(p + 1);
+          } else {
+            reject(e);
+          }
         });
+      };
+      tryListen(config.preferredPort || config.port);
+    });
+  }
 
-        return Object.entries(groups).map(([server, data]) => ({
-            server,
-            tools: data.tools
-        }));
-    }
+  protected setupRoutes() {
+    if (!this.app) return;
 
-    async start(config: GatewayConfig): Promise<StartResult> {
-        if (this.server) await this.stop();
-        await this.connectToServers(config.mcpServers, config.enabledServices);
+    this.app.get("/v1/config", async (req, res) => {
+      const scope = (req.query.scope as "merged" | "global" | "workspace") || "merged";
+      const workspaceId = (req.query.workspaceId as string) || this.workspaceId;
 
-        if (!this.authToken) this.authToken = crypto.randomUUID();
+      this.log(`📥 Config Sync: Pull for workspace ${workspaceId} (scope: ${scope})`);
+      let configData = await this.hooks.getConfig(workspaceId, scope);
 
-        this.app = express();
-        this.app.use(express.json());
+      if (
+        scope === "workspace" &&
+        Object.values(configData).every((v) => v === undefined || v === "")
+      ) {
+        configData = await this.hooks.getConfig(workspaceId, "merged");
+        this.log(`🛡️ Initialized workspace config with merged values (inheritance)`);
+      }
 
-        // CORS
-        this.app.use(cors({
-            origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
-                if (!origin || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1') || origin.startsWith('chrome-extension://')) {
-                    cb(null, true);
-                } else if (config.allowedOrigins?.includes(origin)) {
-                    cb(null, true);
-                } else {
-                    cb(null, true); // Permissive for now, matching desktop
-                }
-            }
-        }));
-
-        // Activity and Logging Middleware
-        this.app.use((req: express.Request, _res: express.Response, next: express.NextFunction) => {
-            this.onActivity();
-            if (req.method !== 'OPTIONS' && req.path !== '/bridge') {
-                this.log(`🔔 [${req.method}] ${req.url}`);
-            }
-            next();
+      if (configData.protected_tools === undefined) {
+        const allToolNames: string[] = [];
+        const grouped = this._generateGroupedTools();
+        grouped.forEach((g) => {
+          g.tools.forEach((t) => allToolNames.push(t.name));
         });
+        configData.protected_tools = allToolNames;
+        this.log(`🛡️ Initialized protected_tools with ${allToolNames.length} tools`);
+      }
 
-        // Auth Middleware
-        this.app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-            const publicPaths = ['/bridge', '/favicon.ico'];
-            if (req.method === 'OPTIONS' || publicPaths.includes(req.path)) {
-                return next();
-            }
+      res.json({ config: configData });
+    });
 
-            const token = req.headers['x-webmcp-token'] || req.headers['authorization']?.replace('Bearer ', '') || req.query.token as string;
-            if (token !== this.authToken) {
-                this.log(`⚠️ Unauthorized access attempt: ${req.path}`);
-                return res.status(401).json({ error: 'Unauthorized' });
-            }
-            next();
+    this.app.post("/v1/config", async (req, res) => {
+      const scope = (req.query.scope as "global" | "workspace") || "workspace";
+      const workspaceId = (req.query.workspaceId as string) || this.workspaceId;
+      const config = req.body.config;
+
+      if (!config) return res.status(400).json({ error: "Missing config" });
+
+      this.log(`📤 Config Sync: Save for workspace ${workspaceId} (scope: ${scope})`);
+      await this.hooks.saveConfig(workspaceId, scope, config);
+      res.json({ success: true });
+    });
+
+    this.app.delete("/v1/config", async (req, res) => {
+      const scope = (req.query.scope as "global" | "workspace") || "workspace";
+      const workspaceId = (req.query.workspaceId as string) || this.workspaceId;
+
+      if (this.hooks.resetConfig) {
+        await this.hooks.resetConfig(workspaceId, scope);
+        this.log(`🗑️ Config Sync: Reset ${scope} for workspace ${workspaceId}`);
+        res.json({ success: true });
+      } else {
+        res.status(501).json({ error: "Not implemented" });
+      }
+    });
+
+    this.app.post("/v1/config/restore", async (req, res) => {
+      const workspaceId = (req.query.workspaceId as string) || this.workspaceId;
+      if (this.hooks.restoreDefaultConfig) {
+        this.log(`🔄 Config Restore: Resetting workspace ${workspaceId} to inherit global`);
+        await this.hooks.restoreDefaultConfig(workspaceId);
+        res.json({ success: true });
+      } else {
+        res.status(501).json({ error: "Not implemented" });
+      }
+    });
+
+    this.app.get("/bridge", (req: express.Request, res: express.Response) => {
+      const target = (req.query.target as string) || "https://chatgpt.com";
+      const token = req.query.token as string;
+      const address = this.server?.address();
+      const port = address && typeof address !== "string" ? address.port : 0;
+
+      res.send(this.getBridgeHtml(port, token, target));
+    });
+
+    this.app.get("/v1/tools", (_req: express.Request, res: express.Response) => {
+      return res.json({ groups: this._generateGroupedTools() });
+    });
+
+    this.app.post("/v1/tools/call", async (req: express.Request, res: express.Response) => {
+      const { name, arguments: args } = req.body;
+
+      // Internal Tools
+      if (name === "list_tools") {
+        return res.json({
+          content: [{ type: "text", text: JSON.stringify(this._generateGroupedTools(), null, 2) }],
         });
+      }
 
-        // Routes
-        this.setupRoutes();
+      const internalResult = await this.hooks.handleInternalToolCall(name, args);
+      if (internalResult !== undefined) {
+        return res.json(internalResult);
+      }
 
-        // Start Listening
-        return new Promise((resolve, reject) => {
-            if (!this.app) return reject(new Error("Express app not initialized"));
-            const tryListen = (p: number) => {
-                this.server = this.app!.listen(p, '127.0.0.1', () => {
-                    this.log(`🌐 Gateway running on http://127.0.0.1:${p}`);
-                    resolve({ port: p, token: this.authToken });
-                });
-                this.server.on('error', (e: any) => {
-                    if (e.code === 'EADDRINUSE') {
-                        this.log(`⚠️ Port ${p} in use, trying ${p + 1}...`);
-                        tryListen(p + 1);
-                    } else {
-                        reject(e);
-                    }
-                });
-            };
-            tryListen(config.preferredPort || config.port);
-        });
-    }
+      // Routing
+      const route = this.toolRouter.get(name);
+      if (!route) {
+        return res
+          .status(404)
+          .json({ isError: true, content: [{ type: "text", text: `Tool ${name} not found` }] });
+      }
 
-    protected setupRoutes() {
-        if (!this.app) return;
+      try {
+        this.log(`🚀 Executing ${name}...`);
+        const result = await route.client.callTool({ name, arguments: args || {} });
+        this.log(`✅ Finished ${name}`);
+        res.json(result);
+      } catch (err: any) {
+        this.error(`Tool execution failed`, err);
+        res.status(500).json({ isError: true, content: [{ type: "text", text: err.message }] });
+      }
+    });
+  }
 
-        this.app.get('/v1/config', async (req, res) => {
-            const scope = (req.query.scope as 'merged' | 'global' | 'workspace') || 'merged';
-            const workspaceId = (req.query.workspaceId as string) || this.workspaceId;
-
-            this.log(`📥 Config Sync: Pull for workspace ${workspaceId} (scope: ${scope})`);
-            let configData = await this.hooks.getConfig(workspaceId, scope);
-
-            if (scope === 'workspace' && Object.values(configData).every(v => v === undefined || v === '')) {
-                configData = await this.hooks.getConfig(workspaceId, 'merged');
-                this.log(`🛡️ Initialized workspace config with merged values (inheritance)`);
-            }
-
-            if (configData.protected_tools === undefined) {
-                const allToolNames: string[] = [];
-                const grouped = this._generateGroupedTools();
-                grouped.forEach(g => {
-                    g.tools.forEach(t => allToolNames.push(t.name));
-                });
-                configData.protected_tools = allToolNames;
-                this.log(`🛡️ Initialized protected_tools with ${allToolNames.length} tools`);
-            }
-
-            res.json({ config: configData });
-        });
-
-        this.app.post('/v1/config', async (req, res) => {
-            const scope = (req.query.scope as 'global' | 'workspace') || 'workspace';
-            const workspaceId = (req.query.workspaceId as string) || this.workspaceId;
-            const config = req.body.config;
-
-            if (!config) return res.status(400).json({ error: "Missing config" });
-
-            this.log(`📤 Config Sync: Save for workspace ${workspaceId} (scope: ${scope})`);
-            await this.hooks.saveConfig(workspaceId, scope, config);
-            res.json({ success: true });
-        });
-
-        this.app.delete('/v1/config', async (req, res) => {
-            const scope = (req.query.scope as 'global' | 'workspace') || 'workspace';
-            const workspaceId = (req.query.workspaceId as string) || this.workspaceId;
-
-            if (this.hooks.resetConfig) {
-                await this.hooks.resetConfig(workspaceId, scope);
-                this.log(`🗑️ Config Sync: Reset ${scope} for workspace ${workspaceId}`);
-                res.json({ success: true });
-            } else {
-                res.status(501).json({ error: "Not implemented" });
-            }
-        });
-
-        this.app.post('/v1/config/restore', async (req, res) => {
-            const workspaceId = (req.query.workspaceId as string) || this.workspaceId;
-            if (this.hooks.restoreDefaultConfig) {
-                this.log(`🔄 Config Restore: Resetting workspace ${workspaceId} to inherit global`);
-                await this.hooks.restoreDefaultConfig(workspaceId);
-                res.json({ success: true });
-            } else {
-                res.status(501).json({ error: "Not implemented" });
-            }
-        });
-
-        this.app.get('/bridge', (req: express.Request, res: express.Response) => {
-            const target = req.query.target as string || 'https://chatgpt.com';
-            const token = req.query.token as string;
-            const address = this.server?.address();
-            const port = address && typeof address !== 'string' ? address.port : 0;
-
-            res.send(this.getBridgeHtml(port, token, target));
-        });
-
-        this.app.get('/v1/tools', (_req: express.Request, res: express.Response) => {
-            return res.json({ groups: this._generateGroupedTools() });
-        });
-
-        this.app.post('/v1/tools/call', async (req: express.Request, res: express.Response) => {
-            const { name, arguments: args } = req.body;
-
-            // Internal Tools
-            if (name === 'list_tools') {
-                return res.json({ content: [{ type: 'text', text: JSON.stringify(this._generateGroupedTools(), null, 2) }] });
-            }
-
-            const internalResult = await this.hooks.handleInternalToolCall(name, args);
-            if (internalResult !== undefined) {
-                return res.json(internalResult);
-            }
-
-            // Routing
-            const route = this.toolRouter.get(name);
-            if (!route) {
-                return res.status(404).json({ isError: true, content: [{ type: 'text', text: `Tool ${name} not found` }] });
-            }
-
-            try {
-                this.log(`🚀 Executing ${name}...`);
-                const result = await route.client.callTool({ name, arguments: args || {} });
-                this.log(`✅ Finished ${name}`);
-                res.json(result);
-            } catch (err: any) {
-                this.error(`Tool execution failed`, err);
-                res.status(500).json({ isError: true, content: [{ type: 'text', text: err.message }] });
-            }
-        });
-    }
-
-    protected getBridgeHtml(port: number, token: string, target: string) {
-        return `
+  protected getBridgeHtml(port: number, token: string, target: string) {
+    return `
                 <!DOCTYPE html>
                 <html>
                 <head>
@@ -371,15 +403,21 @@ export abstract class BaseGatewayManager {
                 </body>
                 </html>
             `;
-    }
+  }
 
-    async stop() {
-        if (this.server) {
-            this.server.close();
-            this.server = null;
-            this.log('🛑 Gateway stopped');
-        }
-        this.connectedClients.forEach(c => { try { c.client.close(); } catch { /* ignore */ } });
-        this.connectedClients = [];
+  async stop() {
+    if (this.server) {
+      this.server.close();
+      this.server = null;
+      this.log("🛑 Gateway stopped");
     }
+    this.connectedClients.forEach((c) => {
+      try {
+        c.client.close();
+      } catch {
+        /* ignore */
+      }
+    });
+    this.connectedClients = [];
+  }
 }

@@ -1,7 +1,7 @@
-import { HandshakeResponse } from '@/types';
-import { apiClient } from '@/services/api';
-import { browserService, messageBroker } from '@/services';
-import { sessionManager, configManager, toolManager } from './managers';
+import { HandshakeResponse } from "@/types";
+import { apiClient } from "@/services/api";
+import { browserService, messageBroker } from "@/services";
+import { sessionManager, configManager, toolManager } from "./managers";
 
 // === WebMCP Background Service (MV3 Persistent Edition) ===
 
@@ -39,7 +39,7 @@ messageBroker.on("SET_LOG_VISIBLE", (req, _sender, sendResponse) => {
   const show = req.show ?? false;
   if (targetTabId) {
     sessionManager.updateSessionLog(targetTabId, show).then(() => {
-      browserService.sendMessage({ type: "TOGGLE_LOG", show: show }, targetTabId).catch(() => { });
+      browserService.sendMessage({ type: "TOGGLE_LOG", show: show }, targetTabId).catch(() => {});
       sendResponse({ success: true });
     });
   }
@@ -65,16 +65,20 @@ messageBroker.on("SYNC_CONFIG", (req, sender, sendResponse) => {
   const targetTabId = sender.tab?.id;
   if (targetTabId) {
     sessionManager.getSession(targetTabId).then((session) => {
-      configManager.pushConfigToGateway(session?.workspaceId).then(success => sendResponse({ success }));
+      configManager
+        .pushConfigToGateway(session?.workspaceId)
+        .then((success) => sendResponse({ success }));
     });
   } else {
-    configManager.pushConfigToGateway(req.workspaceId).then(success => sendResponse({ success }));
+    configManager.pushConfigToGateway(req.workspaceId).then((success) => sendResponse({ success }));
   }
   return true;
 });
 
 messageBroker.on("PULL_CONFIG", (req, _sender, sendResponse) => {
-  configManager.syncConfigFromGateway(req.workspaceId).then(config => sendResponse({ success: !!config, config }));
+  configManager
+    .syncConfigFromGateway(req.workspaceId)
+    .then((config) => sendResponse({ success: !!config, config }));
   return true;
 });
 
@@ -96,12 +100,14 @@ messageBroker.on("CONNECT_EXISTING", (req, sender, sendResponse) => {
 // 3. Tab 状态追踪 (安全熔断与连接恢复)
 browserService.onTabsUpdated(async (tabId, changeInfo, tab) => {
   // 1. 如果 URL 发生变化，立即校验安全性
-  if (changeInfo.url || (changeInfo.status === 'loading' && tab.url)) {
+  if (changeInfo.url || (changeInfo.status === "loading" && tab.url)) {
     const targetUrl = changeInfo.url || tab.url;
     if (targetUrl && !configManager.isUrlAllowed(targetUrl)) {
       const session = await sessionManager.getSession(tabId);
       if (session) {
-        console.warn(`[WebMCP] Security Fuse: Navigation to unauthorized URL ${targetUrl}. Revoking session.`);
+        console.warn(
+          `[WebMCP] Security Fuse: Navigation to unauthorized URL ${targetUrl}. Revoking session.`
+        );
         await sessionManager.removeSession(tabId);
       }
     }
@@ -115,14 +121,19 @@ browserService.onTabsUpdated(async (tabId, changeInfo, tab) => {
         sessionManager.updateBadge(tabId, true);
         // [Sync] Restore connection state
         const config = await configManager.syncConfigFromGateway(session.workspaceId);
-        browserService.sendMessage({ 
-          type: "STATUS_UPDATE", 
-          connected: true,
-          workspaceId: session.workspaceId,
-          config: config
-        }, tabId).catch(() => { });
+        browserService
+          .sendMessage(
+            {
+              type: "STATUS_UPDATE",
+              connected: true,
+              workspaceId: session.workspaceId,
+              config: config,
+            },
+            tabId
+          )
+          .catch(() => {});
         if (session.showLog) {
-          browserService.sendMessage({ type: "TOGGLE_LOG", show: true }, tabId).catch(() => { });
+          browserService.sendMessage({ type: "TOGGLE_LOG", show: true }, tabId).catch(() => {});
         }
       } else {
         console.warn(`[WebMCP] Post-load security check failed for ${tab.url}. Removing session.`);
@@ -133,7 +144,10 @@ browserService.onTabsUpdated(async (tabId, changeInfo, tab) => {
 });
 
 // === 逻辑实现 (协调层) ===
-async function handleHandshake(request: any, tabId: number | null | undefined): Promise<HandshakeResponse> {
+async function handleHandshake(
+  request: any,
+  tabId: number | null | undefined
+): Promise<HandshakeResponse> {
   const { port, token, workspaceId, force } = request;
   if (!tabId) return { success: false, error: "No Tab ID" };
 
@@ -166,12 +180,17 @@ async function bindSession(tabId: number, port: number, token: string, workspace
   const config = await configManager.syncConfigFromGateway(workspaceId);
 
   // [Sync] Notify Content Script including fresh config
-  browserService.sendMessage({
-    type: "STATUS_UPDATE",
-    connected: true,
-    config: config,
-    workspaceId: workspaceId
-  }, tabId).catch(() => { });
+  browserService
+    .sendMessage(
+      {
+        type: "STATUS_UPDATE",
+        connected: true,
+        config: config,
+        workspaceId: workspaceId,
+      },
+      tabId
+    )
+    .catch(() => {});
 
   await toolManager.prefetchToolList();
 }

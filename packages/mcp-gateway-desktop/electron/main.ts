@@ -1,18 +1,18 @@
-import { app, BrowserWindow, ipcMain, shell, globalShortcut, Menu } from 'electron'
-import path from 'node:path'
-import { exec, spawn } from 'node:child_process'
-import { promisify } from 'node:util'
+import { app, BrowserWindow, ipcMain, shell, globalShortcut, Menu } from "electron";
+import path from "node:path";
+import { exec, spawn } from "node:child_process";
+import { promisify } from "node:util";
 
-const execAsync = promisify(exec)
-import { GatewayManager } from './gateway-manager'
-import type { ServerConfig } from '@webmcp/shared'
-import Store from 'electron-store'
+const execAsync = promisify(exec);
+import { GatewayManager } from "./gateway-manager";
+import type { ServerConfig } from "@webmcp/shared";
+import Store from "electron-store";
 
 // --- Interfaces for Type Safety ---
 interface ServerDef {
   id: string;
   name: string;
-  type: 'stdio' | 'sse' | 'http';
+  type: "stdio" | "sse" | "http";
   command?: string;
   args?: string[];
   env?: Record<string, string>;
@@ -47,28 +47,28 @@ interface StoreSchema {
 
 // ----------------------------------
 
-process.env.DIST = path.join(__dirname, '../dist')
-process.env.VITE_PUBLIC = app.isPackaged 
-  ? process.env.DIST 
-  : path.join(process.env.DIST, '../public')
+process.env.DIST = path.join(__dirname, "../dist");
+process.env.VITE_PUBLIC = app.isPackaged
+  ? process.env.DIST
+  : path.join(process.env.DIST, "../public");
 
-let win: BrowserWindow | null
+let win: BrowserWindow | null;
 
 const store = new Store<StoreSchema>({
   defaults: {
     profiles: {},
     servers: {},
     config: {
-      browser: 'default',
+      browser: "default",
       aiSites: [
         { name: "ChatGPT", address: "https://chatgpt.com" },
         { name: "Claude", address: "https://claude.ai" },
         { name: "Gemini", address: "https://gemini.google.com", browser: "edge" },
-        { name: "DeepSeek", address: "https://chat.deepseek.com" }
-      ]
-    }
-  }
-})
+        { name: "DeepSeek", address: "https://chat.deepseek.com" },
+      ],
+    },
+  },
+});
 
 // Manager Instances: profileId -> GatewayManager
 const managers = new Map<string, GatewayManager>();
@@ -78,164 +78,169 @@ const managers = new Map<string, GatewayManager>();
 // -------------------------------------------------------------------
 
 // Gateway: Start
-ipcMain.handle('gateway:start', async (_event, profileId: string) => {
+ipcMain.handle("gateway:start", async (_event, profileId: string) => {
   try {
     // 0. Check existing
     if (managers.has(profileId)) {
-        await managers.get(profileId)?.stop();
-        managers.delete(profileId);
+      await managers.get(profileId)?.stop();
+      managers.delete(profileId);
     }
 
     // 1. Load Profile Config
-    const profiles = (store.get('profiles') || {}) as Record<string, ProfileDef>
-    const servers = (store.get('servers') || {}) as Record<string, ServerDef>
+    const profiles = (store.get("profiles") || {}) as Record<string, ProfileDef>;
+    const servers = (store.get("servers") || {}) as Record<string, ServerDef>;
 
-    const profile = profiles[profileId]
-    if (!profile) throw new Error(`Profile ${profileId} not found`)
+    const profile = profiles[profileId];
+    if (!profile) throw new Error(`Profile ${profileId} not found`);
 
     // 2. Construct Gateway Config
-    const mcpServers: Record<string, ServerConfig> = {}
-    
+    const mcpServers: Record<string, ServerConfig> = {};
+
     if (Array.isArray(profile.serverIds)) {
       for (const srvId of profile.serverIds) {
-        const srvDef = servers[srvId]
+        const srvDef = servers[srvId];
         if (srvDef) {
           mcpServers[srvDef.name || srvId] = {
             command: srvDef.command,
             args: srvDef.args,
             env: srvDef.env,
-            type: srvDef.type || 'stdio',
+            type: srvDef.type || "stdio",
             url: srvDef.url,
-            disabled: srvDef.disabled
-          }
+            disabled: srvDef.disabled,
+          };
         }
       }
     }
 
     // 3. Create Manager with specific Logger and workspaceId (profileId)
     const manager = new GatewayManager((msg) => {
-        // Send logs specifically to this profile's channel
-        win?.webContents.send(`log:${profileId}`, msg);
+      // Send logs specifically to this profile's channel
+      win?.webContents.send(`log:${profileId}`, msg);
     }, profileId);
 
     managers.set(profileId, manager);
 
     // 4. Start
     const result = await manager.start({
-        port: profile.port,
-        mcpServers: mcpServers,
-        allowedOrigins: []
+      port: profile.port,
+      mcpServers: mcpServers,
+      allowedOrigins: [],
     });
-    
-    return { status: 'success', port: result.port, token: result.token }
+
+    return { status: "success", port: result.port, token: result.token };
   } catch (err: any) {
-    return { status: 'error', message: err.message }
+    return { status: "error", message: err.message };
   }
-})
+});
 
 // Gateway: Stop
-ipcMain.handle('gateway:stop', async (_event, profileId: string) => {
+ipcMain.handle("gateway:stop", async (_event, profileId: string) => {
   const manager = managers.get(profileId);
   if (manager) {
-      await manager.stop();
-      managers.delete(profileId);
+    await manager.stop();
+    managers.delete(profileId);
   }
-  return { status: 'stopped' }
-})
+  return { status: "stopped" };
+});
 
 // DB: Get All Data
-ipcMain.handle('db:get-all', () => {
+ipcMain.handle("db:get-all", () => {
   return {
-    profiles: store.get('profiles') || {},
-    servers: store.get('servers') || {}
-  }
-})
+    profiles: store.get("profiles") || {},
+    servers: store.get("servers") || {},
+  };
+});
 
 // DB: Profile Operations
-ipcMain.handle('db:save-profile', (_event, profile: ProfileDef) => {
-  store.set(`profiles.${profile.id}`, profile)
-  return { success: true }
-})
+ipcMain.handle("db:save-profile", (_event, profile: ProfileDef) => {
+  store.set(`profiles.${profile.id}`, profile);
+  return { success: true };
+});
 
-ipcMain.handle('db:delete-profile', (_event, id: string) => {
-  store.delete(`profiles.${id}` as any)
-  return { success: true }
-})
+ipcMain.handle("db:delete-profile", (_event, id: string) => {
+  store.delete(`profiles.${id}` as any);
+  return { success: true };
+});
 
 // DB: Server Operations
-ipcMain.handle('db:save-server', (_event, server: ServerDef) => {
-  store.set(`servers.${server.id}`, server)
-  return { success: true }
-})
+ipcMain.handle("db:save-server", (_event, server: ServerDef) => {
+  store.set(`servers.${server.id}`, server);
+  return { success: true };
+});
 
-ipcMain.handle('db:delete-server', (_event, id: string) => {
-  store.delete(`servers.${id}` as any)
-  return { success: true }
-})
+ipcMain.handle("db:delete-server", (_event, id: string) => {
+  store.delete(`servers.${id}` as any);
+  return { success: true };
+});
 
 // Config Operations
-ipcMain.handle('config:get', () => store.get('config'))
-ipcMain.handle('config:save', (_event, config: AppConfig) => {
-  store.set('config', config);
+ipcMain.handle("config:get", () => store.get("config"));
+ipcMain.handle("config:save", (_event, config: AppConfig) => {
+  store.set("config", config);
   return { success: true };
-})
+});
 
 // Utils with Browser Support
-ipcMain.handle('open-url', (_event, url: string, browserMode: string = 'default') => {
-    const platform = process.platform;
-    let command = '';
+ipcMain.handle("open-url", (_event, url: string, browserMode: string = "default") => {
+  const platform = process.platform;
+  let command = "";
 
-    if (browserMode === 'default') {
-        shell.openExternal(url);
-        return;
-    }
+  if (browserMode === "default") {
+    shell.openExternal(url);
+    return;
+  }
 
-    // Browser Launch Logic (Ported from VS Code Extension)
-    if (platform === 'win32') {
-        if (browserMode === 'chrome') command = `start chrome "${url}"`;
-        else if (browserMode === 'edge') command = `start msedge "${url}"`;
-    } else if (platform === 'darwin') {
-        if (browserMode === 'chrome') command = `open -a "Google Chrome" "${url}"`;
-        else if (browserMode === 'edge') command = `open -a "Microsoft Edge" "${url}"`;
-    } else {
-        if (browserMode === 'chrome') command = `google-chrome "${url}"`;
-        else if (browserMode === 'edge') command = `microsoft-edge "${url}"`;
-        else command = `xdg-open "${url}"`;
-    }
+  // Browser Launch Logic (Ported from VS Code Extension)
+  if (platform === "win32") {
+    if (browserMode === "chrome") command = `start chrome "${url}"`;
+    else if (browserMode === "edge") command = `start msedge "${url}"`;
+  } else if (platform === "darwin") {
+    if (browserMode === "chrome") command = `open -a "Google Chrome" "${url}"`;
+    else if (browserMode === "edge") command = `open -a "Microsoft Edge" "${url}"`;
+  } else {
+    if (browserMode === "chrome") command = `google-chrome "${url}"`;
+    else if (browserMode === "edge") command = `microsoft-edge "${url}"`;
+    else command = `xdg-open "${url}"`;
+  }
 
-    if (command) {
-        exec(command, (err) => {
-            if (err) console.error(`Failed to open browser: ${err.message}`);
-        });
-    } else {
-        shell.openExternal(url);
-    }
+  if (command) {
+    exec(command, (err) => {
+      if (err) console.error(`Failed to open browser: ${err.message}`);
+    });
+  } else {
+    shell.openExternal(url);
+  }
 });
 
 // Environment Check
-ipcMain.handle('gateway:test', async (_event, server: ServerDef) => {
-  if (server.type === 'sse') {
+ipcMain.handle("gateway:test", async (_event, server: ServerDef) => {
+  if (server.type === "sse") {
     try {
       const res = await fetch(server.url!);
-      if (res.ok) return { status: 'ok', message: 'Connection successful' };
-      return { status: 'error', message: `HTTP Status: ${res.status}` };
+      if (res.ok) return { status: "ok", message: "Connection successful" };
+      return { status: "error", message: `HTTP Status: ${res.status}` };
     } catch (e: any) {
-      return { status: 'error', message: e.message };
+      return { status: "error", message: e.message };
     }
   } else {
     return new Promise((resolve) => {
       // Dry run via spawn
       const child = spawn(server.command!, server.args || [], {
         env: { ...process.env, ...server.env },
-        shell: process.platform === 'win32' // Use shell on Windows for compatibility
+        shell: process.platform === "win32", // Use shell on Windows for compatibility
       });
-      
-      let stderr = '';
+
+      let stderr = "";
       let resolved = false;
 
-      child.stderr?.on('data', (d) => { stderr += d.toString() });
-      child.on('error', (err) => {
-        if (!resolved) { resolved = true; resolve({ status: 'error', message: err.message }); }
+      child.stderr?.on("data", (d) => {
+        stderr += d.toString();
+      });
+      child.on("error", (err) => {
+        if (!resolved) {
+          resolved = true;
+          resolve({ status: "error", message: err.message });
+        }
       });
 
       // If it stays alive for 2.5s, we consider it healthy
@@ -243,17 +248,17 @@ ipcMain.handle('gateway:test', async (_event, server: ServerDef) => {
         if (!resolved) {
           resolved = true;
           child.kill();
-          resolve({ status: 'ok', message: 'Process started healthy' });
+          resolve({ status: "ok", message: "Process started healthy" });
         }
       }, 2500);
 
-      child.on('exit', (code) => {
+      child.on("exit", (code) => {
         if (!resolved) {
           resolved = true;
           clearTimeout(timer);
-          resolve({ 
-            status: 'error', 
-            message: `Process exited early (Code ${code}). ${stderr.slice(0, 200)}` 
+          resolve({
+            status: "error",
+            message: `Process exited early (Code ${code}). ${stderr.slice(0, 200)}`,
           });
         }
       });
@@ -261,13 +266,13 @@ ipcMain.handle('gateway:test', async (_event, server: ServerDef) => {
   }
 });
 
-ipcMain.handle('env:check', async () => {
-  const tools = ['node', 'npx', 'docker', 'git', 'python3', 'uv'];
+ipcMain.handle("env:check", async () => {
+  const tools = ["node", "npx", "docker", "git", "python3", "uv"];
   const results: Record<string, boolean> = {};
-  
+
   for (const tool of tools) {
     try {
-      const cmd = process.platform === 'win32' ? `where ${tool}` : `command -v ${tool}`;
+      const cmd = process.platform === "win32" ? `where ${tool}` : `command -v ${tool}`;
       await execAsync(cmd);
       results[tool] = true;
     } catch {
@@ -287,46 +292,46 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, "preload.js"),
       sandbox: false,
       nodeIntegration: true,
       contextIsolation: true,
     },
-  })
+  });
 
-  win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', (new Date).toLocaleString())
-  })
+  win.webContents.on("did-finish-load", () => {
+    win?.webContents.send("main-process-message", new Date().toLocaleString());
+  });
 
   if (process.env.VITE_DEV_SERVER_URL) {
-    win.loadURL(process.env.VITE_DEV_SERVER_URL)
+    win.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
-    win.loadFile(path.join(process.env.DIST || '', 'index.html'))
+    win.loadFile(path.join(process.env.DIST || "", "index.html"));
   }
 }
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-    win = null
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+    win = null;
   }
-})
+});
 
-app.on('activate', () => {
+app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow()
+    createWindow();
   }
-})
+});
 
 app.whenReady().then(() => {
-  Menu.setApplicationMenu(null)
-  createWindow()
-  
+  Menu.setApplicationMenu(null);
+  createWindow();
+
   // Register F12 to open DevTools
-  globalShortcut.register('F12', () => {
-    win?.webContents.toggleDevTools()
-  })
-  globalShortcut.register('CommandOrControl+Shift+I', () => {
-    win?.webContents.toggleDevTools()
-  })
-})
+  globalShortcut.register("F12", () => {
+    win?.webContents.toggleDevTools();
+  });
+  globalShortcut.register("CommandOrControl+Shift+I", () => {
+    win?.webContents.toggleDevTools();
+  });
+});
