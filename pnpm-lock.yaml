@@ -54,9 +54,6 @@ importers:
 
   mcp-gateway-desktop:
     dependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.25.1
-        version: 1.25.1(hono@4.11.1)(zod@3.25.76)
       '@radix-ui/react-scroll-area':
         specifier: ^1.2.10
         version: 1.2.10(@types/react-dom@18.3.7(@types/react@18.3.27))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -78,15 +75,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
-      cors:
-        specifier: ^2.8.5
-        version: 2.8.5
       electron-store:
         specifier: ^8.1.0
         version: 8.2.0
-      express:
-        specifier: ^4.18.2
-        version: 4.22.1
       lucide-react:
         specifier: ^0.562.0
         version: 0.562.0(react@18.3.1)
@@ -154,12 +145,6 @@ importers:
       '@webmcp/shared':
         specifier: workspace:*
         version: link:../shared
-      cors:
-        specifier: ^2.8.5
-        version: 2.8.5
-      express:
-        specifier: ^4.18.2
-        version: 4.22.1
       zod:
         specifier: ^3.22.4
         version: 3.25.76
