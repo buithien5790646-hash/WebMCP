@@ -7,10 +7,17 @@
     "dev:browser": "pnpm --filter mcp-bridge-browser run dev",
     "dev:desktop": "pnpm --filter mcp-gateway-desktop run dev",
     "build": "pnpm -r run build",
+    "lint": "eslint \"packages/**/src/**/*.{ts,tsx}\"",
+    "format": "prettier --write \"packages/**/*.{ts,tsx,md,json}\"",
     "release": "./build_release.sh"
   },
   "devDependencies": {
-    "typescript": "^5.0.0"
+    "@eslint/js": "^9.16.0",
+    "eslint": "^9.16.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.18.0"
   },
   "packageManager": "pnpm@10.25.0+sha512.5e82639027af37cf832061bcc6d639c219634488e0f2baebe785028a793de7b525ffcd3f7ff574f5e9860654e098fe852ba8ac5dd5cefe1767d23a020a92f501"
 }

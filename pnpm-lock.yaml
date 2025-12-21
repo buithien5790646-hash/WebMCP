@@ -8,11 +8,26 @@ importers:
 
   .:
     devDependencies:
+      '@eslint/js':
+        specifier: ^9.16.0
+        version: 9.39.2
+      eslint:
+        specifier: ^9.16.0
+        version: 9.39.2(jiti@1.21.7)
+      globals:
+        specifier: ^15.14.0
+        version: 15.15.0
+      prettier:
+        specifier: ^3.1.0
+        version: 3.7.4
       typescript:
-        specifier: ^5.0.0
+        specifier: ^5.9.3
         version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.18.0
+        version: 8.50.0(eslint@9.39.2(jiti@1.21.7))(typescript@5.9.3)
 
-  mcp-bridge-browser:
+  packages/mcp-bridge-browser:
     dependencies:
       '@webmcp/shared':
         specifier: workspace:*
@@ -52,7 +67,7 @@ importers:
         specifier: ^1.6.0
         version: 1.6.1(@types/node@20.19.27)(@vitest/ui@1.6.1)(jsdom@24.1.3)(terser@5.44.1)
 
-  mcp-gateway-desktop:
+  packages/mcp-gateway-desktop:
     dependencies:
       '@radix-ui/react-scroll-area':
         specifier: ^1.2.10
@@ -137,7 +152,7 @@ importers:
         specifier: ^0.14.5
         version: 0.14.6
 
-  mcp-gateway-vscode:
+  packages/mcp-gateway-vscode:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.1
@@ -149,12 +164,6 @@ importers:
         specifier: ^3.22.4
         version: 3.25.76
     devDependencies:
-      '@types/cors':
-        specifier: ^2.8.17
-        version: 2.8.19
-      '@types/express':
-        specifier: ^4.17.21
-        version: 4.17.25
       '@types/mocha':
         specifier: ^10.0.10
         version: 10.0.10
@@ -170,21 +179,12 @@ importers:
       '@vscode/test-electron':
         specifier: ^2.5.2
         version: 2.5.2
-      copy-webpack-plugin:
-        specifier: ^13.0.1
-        version: 13.0.1(webpack@5.104.1)
-      eslint:
-        specifier: ^9.39.1
-        version: 9.39.2(jiti@1.21.7)
       ts-loader:
         specifier: ^9.5.4
         version: 9.5.4(typescript@5.9.3)(webpack@5.104.1)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
-      typescript-eslint:
-        specifier: ^8.46.3
-        version: 8.50.0(eslint@9.39.2(jiti@1.21.7))(typescript@5.9.3)
       webpack:
         specifier: ^5.102.1
         version: 5.104.1(webpack-cli@6.0.1)
@@ -192,7 +192,7 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1(webpack@5.104.1)
 
-  shared:
+  packages/shared:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.1
@@ -1914,12 +1914,6 @@ packages:
     resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
     engines: {node: '>= 0.6'}
 
-  copy-webpack-plugin@13.0.1:
-    resolution: {integrity: sha512-J+YV3WfhY6W/Xf9h+J1znYuqTye2xkBUIGyTPWuBAT27qajBa5mR4f8WBmfDY3YjRftT2kqZZiLi1qf0H+UOFw==}
-    engines: {node: '>= 18.12.0'}
-    peerDependencies:
-      webpack: ^5.1.0
-
   core-util-is@1.0.2:
     resolution: {integrity: sha512-3lqz5YjWTYnW6dlDa5TLaTCcShfar1e40rmcJVwCBJC6mWlFuj0eCHIElmG1g5kyuJ/GD+8Wn4FFCcz4gJPfaQ==}
 
@@ -2501,6 +2495,10 @@ packages:
 
   globals@14.0.0:
     resolution: {integrity: sha512-oahGvuMGQlPw/ivIYBjVSrWAfWLBeku5tpPE2fOPLi+WHffIWbuh2tCjhyQhTBPMf5E9jDEH4FOmTYgYwbKwtQ==}
+    engines: {node: '>=18'}
+
+  globals@15.15.0:
+    resolution: {integrity: sha512-7ACyT3wmyp3I61S4fG682L0VA2RGD9otkqGJIwNUMF1SWUombIIk+af1unuDYgMm082aHYwD+mzJvv9Iu8dsgg==}
     engines: {node: '>=18'}
 
   globalthis@1.0.4:
@@ -3361,6 +3359,11 @@ packages:
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
+
+  prettier@3.7.4:
+    resolution: {integrity: sha512-v6UNi1+3hSlVvv8fSaoUbggEM5VErKmmpGA7Pl3HF8V6uKY7rvClBOJlH6yNwQtfTueNkGVpOv/mtWL9L4bgRA==}
+    engines: {node: '>=14'}
+    hasBin: true
 
   pretty-format@29.7.0:
     resolution: {integrity: sha512-Pdlw/oPxN+aXdmM9R00JVC9WVFoCLTKJvDVLgmJ+qAffBMxsV85l/Lu7sNx4zSzPyoL2euImuEwHhOXdEgNFZQ==}
@@ -6139,15 +6142,6 @@ snapshots:
 
   cookie@0.7.2: {}
 
-  copy-webpack-plugin@13.0.1(webpack@5.104.1):
-    dependencies:
-      glob-parent: 6.0.2
-      normalize-path: 3.0.0
-      schema-utils: 4.3.3
-      serialize-javascript: 6.0.2
-      tinyglobby: 0.2.15
-      webpack: 5.104.1(webpack-cli@6.0.1)
-
   core-util-is@1.0.2:
     optional: true
 
@@ -6879,6 +6873,8 @@ snapshots:
     optional: true
 
   globals@14.0.0: {}
+
+  globals@15.15.0: {}
 
   globalthis@1.0.4:
     dependencies:
@@ -7667,6 +7663,8 @@ snapshots:
   preact@10.28.0: {}
 
   prelude-ls@1.2.1: {}
+
+  prettier@3.7.4: {}
 
   pretty-format@29.7.0:
     dependencies:

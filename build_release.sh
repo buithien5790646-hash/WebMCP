@@ -48,8 +48,8 @@ echo -e "${CYAN}🔄 Syncing versions to all packages...${NC}"
 node -e "
 const fs = require('fs');
 const version = '$ROOT_VERSION';
-['mcp-gateway-vscode', 'mcp-bridge-browser', 'mcp-gateway-desktop'].forEach(pkg => {
-    const path = './' + pkg + '/package.json';
+['mcp-gateway-vscode', 'mcp-bridge-browser', 'mcp-gateway-desktop', 'shared'].forEach(pkg => {
+    const path = './packages/' + pkg + '/package.json';
     if (fs.existsSync(path)) {
         const data = JSON.parse(fs.readFileSync(path, 'utf8'));
         data.version = version;
@@ -72,12 +72,12 @@ pnpm --filter @webmcp/shared run build
 # ==========================================
 if [ "$BUILD_VSCODE" = true ]; then
     echo -e "${CYAN}📦 Packaging VS Code Extension...${NC}"
-    cd mcp-gateway-vscode
+    cd packages/mcp-gateway-vscode
     VS_NAME="WebMCP-Gateway-VSCode-${ROOT_VERSION}.vsix"
     
     # We use pnpm build first to ensure assets are copied
     pnpm run build
-    pnpm exec vsce package --out "../release/${VS_NAME}" --no-dependencies
+    pnpm exec vsce package --out "../../release/${VS_NAME}" --no-dependencies
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ VS Code Extension built: release/${VS_NAME}${NC}"
@@ -85,7 +85,7 @@ if [ "$BUILD_VSCODE" = true ]; then
         echo -e "${RED}❌ VS Code Extension build failed${NC}"
         exit 1
     fi
-    cd ..
+    cd ../..
 fi
 
 # ==========================================
@@ -93,7 +93,7 @@ fi
 # ==========================================
 if [ "$BUILD_BROWSER" = true ]; then
     echo -e "${CYAN}📦 Packaging Browser Extension...${NC}"
-    cd mcp-bridge-browser
+    cd packages/mcp-bridge-browser
     BROWSER_NAME="WebMCP-Bridge-Browser-${ROOT_VERSION}.zip"
     
     pnpm run build
@@ -104,7 +104,7 @@ if [ "$BUILD_BROWSER" = true ]; then
     
     # Zip DIST folder content
     cd dist
-    zip -r "../../release/${BROWSER_NAME}" . > /dev/null
+    zip -r "../../../release/${BROWSER_NAME}" . > /dev/null
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Browser Extension built: release/${BROWSER_NAME}${NC}"
@@ -112,15 +112,15 @@ if [ "$BUILD_BROWSER" = true ]; then
         echo -e "${RED}❌ Browser Extension zip failed${NC}"
         exit 1
     fi
-    cd ../..
+    cd ../../..
 fi
 
 # ==========================================
 # 7. Package Desktop App
 # ==========================================
 if [ "$BUILD_DESKTOP" = true ]; then
-    echo -e "${CYAN}📦 Packaging Desktop App ${DESKTOP_PLATFORM}...${NC}"
-    cd mcp-gateway-desktop
+    echo -e "${CYAN}📦 Packaging Desktop App...${NC}"
+    cd packages/mcp-gateway-desktop
     
     # This will run vite build and electron-builder
     if [ -z "$DESKTOP_PLATFORM" ]; then
@@ -140,7 +140,7 @@ if [ "$BUILD_DESKTOP" = true ]; then
         echo -e "${RED}❌ Desktop App build failed${NC}"
         exit 1
     fi
-    cd ..
+    cd ../..
 fi
 
 echo -e "${GREEN}🎉 Selected builds completed! Please check the 'release' folder.${NC}"

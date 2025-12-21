@@ -1,9 +1,5 @@
 packages:
-  - mcp-core
-  - mcp-gateway-desktop
-  - mcp-gateway-vscode
-  - mcp-bridge-browser
-  - shared
+  - 'packages/*'
 
 onlyBuiltDependencies:
   - electron

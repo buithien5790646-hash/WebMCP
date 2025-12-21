@@ -46,7 +46,7 @@
     "appId": "com.webmcp.desktop",
     "productName": "WebMCP Desktop",
     "directories": {
-      "output": "release/${version}"
+      "output": "../../release/desktop/${version}"
     },
     "files": [
       "dist-electron/**/*",
