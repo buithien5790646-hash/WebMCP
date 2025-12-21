@@ -9,6 +9,7 @@
     "build": "pnpm run lint && pnpm -r run build",
     "lint": "eslint \"packages/**/src/**/*.{ts,tsx}\"",
     "lint:fix": "eslint \"packages/**/src/**/*.{ts,tsx}\" --fix",
+    "clean": "find . -name \"node_modules\" -type d -prune -exec rm -rf '{}' + && find . -name \"dist\" -type d -prune -exec rm -rf '{}' + && find . -name \"dist-electron\" -type d -prune -exec rm -rf '{}' + && rm -rf release",
     "format": "prettier --write \"packages/**/*.{ts,tsx,md,json}\"",
     "release": "./build_release.sh"
   },
