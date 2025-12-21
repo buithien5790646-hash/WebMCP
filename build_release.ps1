@@ -35,36 +35,54 @@ Write-Host "📦 Target Version: $rootVersion" -ForegroundColor Green
 
 # 2. Sync versions to all packages
 Write-Host "🔄 Syncing versions to all packages..." -ForegroundColor Cyan
-$packages = @("mcp-gateway-vscode", "mcp-bridge-browser", "mcp-gateway-desktop")
-foreach ($pkgDir in $packages) {
-    $pkgJsonPath = Join-Path $pkgDir "package.json"
-    if (Test-Path $pkgJsonPath) {
-        $pkgJson = Get-Content $pkgJsonPath -Raw | ConvertFrom-Json
+$packages = @(
+    "packages/shared/package.json",
+    "packages/mcp-gateway-vscode/package.json",
+    "packages/mcp-gateway-desktop/package.json",
+    "packages/mcp-bridge-browser/package.json"
+)
+foreach ($pkgPath in $packages) {
+    if (Test-Path $pkgPath) {
+        $pkgJson = Get-Content $pkgPath -Raw | ConvertFrom-Json
         $pkgJson.version = $rootVersion
-        $pkgJson | ConvertTo-Json -Depth 10 | Set-Content $pkgJsonPath
-        Write-Host "✅ Updated $pkgDir to $rootVersion"
+        # Write back with formatting
+        $pkgJson | ConvertTo-Json -Depth 10 | Set-Content $pkgPath
+        Write-Host "✅ Updated $pkgPath to $rootVersion"
     }
 }
 
-# 3. Create/Clean output directory
+# 3. Run Linting
+Write-Host "🔍 Running Linting..." -ForegroundColor Cyan
+cmd /c "pnpm run lint"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Linting failed. Please fix errors before releasing." -ForegroundColor Red
+    exit 1
+}
+Write-Host "✅ Linting passed!" -ForegroundColor Green
+
+# 4. Install dependencies
+Write-Host "📦 Installing dependencies..." -ForegroundColor Cyan
+cmd /c "pnpm install --no-frozen-lockfile"
+
+# 5. Create/Clean output directory
 if (!(Test-Path "release")) {
     New-Item -ItemType Directory -Path "release" | Out-Null
 }
 
-# 4. Build Shared Module
+# 6. Build Shared Module
 Write-Host "🛠️ Building Shared Module..." -ForegroundColor Cyan
 cmd /c "pnpm --filter @webmcp/shared run build"
 
 # ==========================================
-# 5. Package VS Code Extension
+# 7. Package VS Code Extension
 # ==========================================
 if ($buildVscode) {
     Write-Host "📦 Packaging VS Code Extension..." -ForegroundColor Cyan
-    Set-Location "mcp-gateway-vscode"
+    Set-Location "packages/mcp-gateway-vscode"
     $vsName = "WebMCP-Gateway-VSCode-$rootVersion.vsix"
     
     cmd /c "pnpm run build"
-    cmd /c "pnpm exec vsce package --out ../release/$vsName --no-dependencies"
+    cmd /c "pnpm exec vsce package --out ../../release/$vsName --no-dependencies"
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "✅ VS Code Extension built: release\$vsName" -ForegroundColor Green
@@ -72,21 +90,21 @@ if ($buildVscode) {
         Write-Host "❌ VS Code Extension build failed" -ForegroundColor Red
         exit 1
     }
-    Set-Location ".."
+    Set-Location "../.."
 }
 
 # ==========================================
-# 6. Package Browser Extension
+# 8. Package Browser Extension
 # ==========================================
 if ($buildBrowser) {
     Write-Host "📦 Packaging Browser Extension..." -ForegroundColor Cyan
-    Set-Location "mcp-bridge-browser"
+    Set-Location "packages/mcp-bridge-browser"
     $browserName = "WebMCP-Bridge-Browser-$rootVersion.zip"
     
     cmd /c "pnpm run build"
     
     $distPath = Join-Path (Get-Location) "dist"
-    $releasePath = Join-Path (Get-Location) "..\release\$browserName"
+    $releasePath = Join-Path (Get-Location) "..\..\release\$browserName"
     
     if (Test-Path $releasePath) { Remove-Item $releasePath }
     
@@ -99,31 +117,25 @@ if ($buildBrowser) {
         Write-Host "❌ Browser Extension zip failed" -ForegroundColor Red
         exit 1
     }
-    Set-Location ".."
+    Set-Location "../.."
 }
 
 # ==========================================
-# 7. Package Desktop App
+# 9. Package Desktop App
 # ==========================================
 if ($buildDesktop) {
     Write-Host "📦 Packaging Desktop App..." -ForegroundColor Cyan
-    Set-Location "mcp-gateway-desktop"
+    Set-Location "packages/mcp-gateway-desktop"
     
     cmd /c "pnpm run package"
     
     if ($LASTEXITCODE -eq 0) {
-        $desktopReleaseDir = Join-Path (Get-Location) "..\release\desktop"
-        if (!(Test-Path $desktopReleaseDir)) { New-Item -ItemType Directory -Path $desktopReleaseDir | Out-Null }
-        
-        # electron-builder output is in release\$rootVersion
-        $sourcePath = Join-Path "release" $rootVersion
-        Get-ChildItem (Join-Path $sourcePath "*.dmg"), (Join-Path $sourcePath "*.exe"), (Join-Path $sourcePath "*.AppImage"), (Join-Path $sourcePath "*.zip") | Copy-Item -Destination $desktopReleaseDir -ErrorAction SilentlyContinue
-        Write-Host "✅ Desktop App built: release\desktop\" -ForegroundColor Green
+        Write-Host "✅ Desktop App built successfully" -ForegroundColor Green
     } else {
         Write-Host "❌ Desktop App build failed" -ForegroundColor Red
         exit 1
     }
-    Set-Location ".."
+    Set-Location "../.."
 }
 
 Write-Host "🎉 Selected builds completed! Please check the 'release' folder." -ForegroundColor Green
