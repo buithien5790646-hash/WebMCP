@@ -99,7 +99,7 @@ export function App() {
             });
             const json = await resp.json();
             setToolGroups(json.groups || []);
-        } catch (e) { }
+        } catch (e) { /* ignore */ }
     };
 
     const handleSave = async () => {

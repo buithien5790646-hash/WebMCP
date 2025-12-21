@@ -76,14 +76,14 @@ export default function App() {
     handleResize(); // Initial check
 
     return () => {
-        cleanup && cleanup();
+        if (cleanup) cleanup();
         window.removeEventListener('resize', handleResize);
     };
   }, []);
 
   useEffect(() => {
     // Store cleanup functions
-    const removers: Function[] = [];
+    const removers: (() => void)[] = [];
 
     Object.keys(profiles).forEach(id => {
       const removeListener = window.ipcRenderer.on(`log:${id}`, (_e: any, msg: string) => {

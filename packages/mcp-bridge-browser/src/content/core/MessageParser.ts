@@ -54,7 +54,7 @@ export class MessageParser {
      */
     private handleParseError(codeElement: Element, textContent: string, error: Error) {
         const now = Date.now();
-        let state = this.blockStates.get(codeElement);
+        const state = this.blockStates.get(codeElement);
 
         if (!state || state.text !== textContent) {
             // Text changed, reset timer

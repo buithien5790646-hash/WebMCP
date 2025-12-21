@@ -48,18 +48,36 @@ echo -e "${CYAN}🔄 Syncing versions to all packages...${NC}"
 node -e "
 const fs = require('fs');
 const version = '$ROOT_VERSION';
-['mcp-gateway-vscode', 'mcp-bridge-browser', 'mcp-gateway-desktop', 'shared'].forEach(pkg => {
-    const path = './packages/' + pkg + '/package.json';
-    if (fs.existsSync(path)) {
-        const data = JSON.parse(fs.readFileSync(path, 'utf8'));
-        data.version = version;
-        fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
-        console.log('✅ Updated ' + pkg + ' to ' + version);
+const packages = [
+    './packages/shared/package.json',
+    './packages/mcp-gateway-vscode/package.json',
+    './packages/mcp-gateway-desktop/package.json',
+    './packages/mcp-bridge-browser/package.json'
+];
+packages.forEach(pkgPath => {
+    if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        pkg.version = version;
+        fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+        console.log('✅ Updated ' + pkgPath + ' to ' + version);
     }
 });
 "
 
-# 3. Create/Clean output directory
+# 3. Run Linting
+echo -e "${CYAN}🔍 Running Linting...${NC}"
+pnpm run lint
+if [ $? -ne 0 ]; then
+    echo -e "${RED}❌ Linting failed. Please fix errors before releasing.${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ Linting passed!${NC}"
+
+# 4. Install dependencies
+echo -e "${CYAN}📦 Installing dependencies...${NC}"
+pnpm install --no-frozen-lockfile
+
+# 5. Create/Clean output directory
 mkdir -p release
 # We don't rm -rf release/* because we might only be building one component
 

@@ -3,7 +3,6 @@ import cors from 'cors';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-// @ts-ignore
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import * as crypto from 'node:crypto';
 import { Server as HttpServer } from 'http';
@@ -51,7 +50,7 @@ export abstract class BaseGatewayManager {
 
     async connectToServers(servers: Record<string, ServerConfig>, enabledServices?: string[]) {
         // Cleanup existing
-        this.connectedClients.forEach(c => { try { c.client.close(); } catch { } });
+        this.connectedClients.forEach(c => { try { c.client.close(); } catch { /* ignore */ } });
         this.connectedClients = [];
         this.toolRouter.clear();
 
@@ -380,7 +379,7 @@ export abstract class BaseGatewayManager {
             this.server = null;
             this.log('🛑 Gateway stopped');
         }
-        this.connectedClients.forEach(c => { try { c.client.close(); } catch { } });
+        this.connectedClients.forEach(c => { try { c.client.close(); } catch { /* ignore */ } });
         this.connectedClients = [];
     }
 }

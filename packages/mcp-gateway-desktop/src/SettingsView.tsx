@@ -49,8 +49,7 @@ export default function SettingsView({ config, onSave }: SettingsViewProps) {
 
   const updateSite = (index: number, field: keyof AISiteConfig, value: string) => {
     const newSites = [...localConfig.aiSites];
-    // @ts-ignore
-    newSites[index][field] = value;
+    newSites[index] = { ...newSites[index], [field]: value };
     setLocalConfig({ ...localConfig, aiSites: newSites });
     setIsDirty(true);
   };

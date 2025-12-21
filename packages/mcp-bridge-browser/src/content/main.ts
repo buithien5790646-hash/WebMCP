@@ -15,7 +15,7 @@ interface ConfigState {
   autoSend: boolean;
 }
 
-let CONFIG: ConfigState = {
+const CONFIG: ConfigState = {
   pollInterval: 1000,
   autoSend: true,
 };
