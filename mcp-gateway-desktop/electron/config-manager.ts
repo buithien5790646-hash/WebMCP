@@ -1,8 +1,6 @@
 import Store from 'electron-store';
-import * as path from 'path';
-import * as fs from 'fs';
 import { app } from 'electron';
-import { BaseConfigManager } from '@webmcp/shared';
+import { BaseConfigManager, ASSETS } from '@webmcp/shared';
 import type { IMCPStorage, WebMCPConfig } from '@webmcp/shared';
 
 class ElectronMCPStorage implements IMCPStorage {
@@ -68,39 +66,15 @@ export class ConfigManager extends BaseConfigManager {
     }
 
     static getDefaults(): WebMCPConfig {
-        const isDev = !app.isPackaged;
-        let assetsPath: string;
-        
-        if (!isDev) {
-            assetsPath = path.join(process.resourcesPath, 'assets');
-        } else {
-            const localAssets = path.join(__dirname, 'assets');
-            if (fs.existsSync(localAssets) && fs.readdirSync(localAssets).length > 0) {
-                assetsPath = localAssets;
-            } else {
-                assetsPath = path.join(app.getAppPath(), '../shared/assets');
-            }
-        }
-
-        const readFile = (filename: string) => {
-            const p = path.join(assetsPath, filename);
-            if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
-            return '';
-        };
-
         const locale = app.getLocale();
-        const isEnglish = locale.startsWith('en');
-        const lang = isEnglish ? 'en' : 'zh';
-
-        const prompt = readFile(lang === 'zh' ? 'prompt_zh.md' : 'prompt.md');
-        const train = readFile(lang === 'zh' ? 'train_zh.md' : 'train.md');
-        const error_hint = readFile(lang === 'zh' ? 'error_hint_zh.md' : 'error_hint.md');
+        const isZh = locale.startsWith('zh');
+        const assets = isZh ? ASSETS.zh : ASSETS.en;
 
         return {
-            prompt: prompt || (lang === 'zh' ? "你是一个强大的 AI 助手..." : "You are a helpful AI assistant..."),
+            prompt: assets.prompt,
             rules: "",
-            train: train || (lang === 'zh' ? "训练数据指令..." : "Training data instructions..."),
-            error_hint: error_hint || (lang === 'zh' ? "如果工具失败..." : "If a tool fails..."),
+            train: assets.train,
+            error_hint: assets.error_hint,
         };
     }
 }

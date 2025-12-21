@@ -7,7 +7,7 @@ const path = require('path');
 //@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
-const CopyPlugin = require('copy-webpack-plugin');
+const webpack = require('webpack');
 
 /** @type WebpackConfig */
 const extensionConfig = {
@@ -25,10 +25,8 @@ const extensionConfig = {
     libraryTarget: 'commonjs2'
   },
   plugins: [
-    new CopyPlugin({
-      patterns: [
-        { from: '../shared/assets', to: 'assets' }
-      ],
+    new webpack.IgnorePlugin({
+      resourceRegExp: /canvas|bufferutil|utf-8-validate/,
     }),
   ],
   externals: {

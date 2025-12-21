@@ -11,3 +11,4 @@ export {
 export { IMCPStorage } from './storage';
 export { BaseConfigManager } from './config-base';
 export { BaseGatewayManager, GatewayHooks } from './gateway-base';
+export { ASSETS } from './assets';

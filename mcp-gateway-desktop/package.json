@@ -7,7 +7,7 @@
   "author": "WebMCP Team",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && node -e \"const fs=require('fs');const path=require('path');const s='../shared/assets';const d='./dist-electron/assets';if(fs.existsSync(s)){fs.mkdirSync(d,{recursive:true});fs.readdirSync(s).forEach(f=>fs.copyFileSync(path.join(s,f),path.join(d,f)))}\"",
+    "build": "tsc && vite build",
     "package": "pnpm run build && electron-builder",
     "preview": "vite preview"
   },
@@ -52,15 +52,6 @@
       "dist-electron/**/*",
       "dist/**/*",
       "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "../shared/assets",
-        "to": "assets",
-        "filter": [
-          "**/*"
-        ]
-      }
     ],
     "mac": {
       "target": "dmg",

@@ -4,6 +4,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "generate-assets": "node scripts/generate-assets.js",
+    "prebuild": "npm run generate-assets",
     "build": "tsc"
   },
   "dependencies": {

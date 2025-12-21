@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
-import { BaseConfigManager, IMCPStorage, WebMCPConfig } from '@webmcp/shared';
+import { BaseConfigManager, IMCPStorage, WebMCPConfig, ASSETS } from '@webmcp/shared';
 
 class VSCodeMCPStorage implements IMCPStorage {
     constructor(private state: vscode.Memento) {}
@@ -34,7 +32,7 @@ export class ConfigManager extends BaseConfigManager {
      * Get the merged configuration for a workspace, or just the specified scope
      */
     static async getConfig(context: vscode.ExtensionContext, workspaceId: string, scope: 'merged' | 'global' | 'workspace' = 'merged'): Promise<WebMCPConfig> {
-        return this.getInstance(context).getConfig(workspaceId, scope, await this.getDefaults(context));
+        return this.getInstance(context).getConfig(workspaceId, scope, this.getDefaults());
     }
 
     /**
@@ -56,27 +54,15 @@ export class ConfigManager extends BaseConfigManager {
         return this.getInstance(context).resetConfig(workspaceId, scope);
     }
 
-    static async getDefaults(context: vscode.ExtensionContext): Promise<WebMCPConfig> {
-        const devSharedPath = path.join(context.extensionPath, '..', 'shared', 'assets');
-        const packagedAssetsPath = path.join(context.extensionPath, 'dist', 'assets');
-        const legacyAssetsPath = path.join(context.extensionPath, 'assets');
-
-        const readFile = (filename: string) => {
-            const paths = [devSharedPath, packagedAssetsPath, legacyAssetsPath];
-            for (const basePath of paths) {
-                const p = path.join(basePath, filename);
-                if (fs.existsSync(p)) return fs.readFileSync(p, 'utf8');
-            }
-            return '';
-        };
-
+    static getDefaults(): WebMCPConfig {
         const lang = vscode.env.language.startsWith('zh') ? 'zh' : 'en';
+        const assets = lang === 'zh' ? ASSETS.zh : ASSETS.en;
 
         return {
-            prompt: readFile(lang === 'zh' ? 'prompt_zh.md' : 'prompt.md'),
+            prompt: assets.prompt,
             rules: '',
-            train: readFile(lang === 'zh' ? 'train_zh.md' : 'train.md'),
-            error_hint: readFile(lang === 'zh' ? 'error_hint_zh.md' : 'error_hint.md'),
+            train: assets.train,
+            error_hint: assets.error_hint,
         };
     }
 }
