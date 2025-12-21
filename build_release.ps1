@@ -1,82 +1,141 @@
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "Stop"
 
-Write-Host "[START] Starting WebMCP Release Build (Monorepo Edition)..." -ForegroundColor Green
+Write-Host "🚀 Starting WebMCP Release Build..." -ForegroundColor Green
 
-# 1. Check Requirements
-if (!(Get-Command "pnpm" -ErrorAction SilentlyContinue)) {
-    Write-Error "pnpm is required but not found in PATH."
+# 1. Parse arguments
+$buildAll = $true
+$buildVscode = $false
+$buildBrowser = $false
+$buildDesktop = $false
+
+if ($args.Count -gt 0) {
+    $buildAll = $false
+    foreach ($arg in $args) {
+        switch ($arg) {
+            "vscode" { $buildVscode = $true }
+            "browser" { $buildBrowser = $true }
+            "desktop" { $buildDesktop = $true }
+            "all" { $buildAll = $true }
+            default { Write-Host "Unknown argument: $arg. Skipping..." -ForegroundColor Yellow }
+        }
+    }
+}
+
+if ($buildAll) {
+    $buildVscode = $true
+    $buildBrowser = $true
+    $buildDesktop = $true
+}
+
+# 1. Get version from root package.json
+$rootPkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+$rootVersion = $rootPkg.version
+Write-Host "📦 Target Version: $rootVersion" -ForegroundColor Green
+
+# 2. Sync versions to all packages
+Write-Host "🔄 Syncing versions to all packages..." -ForegroundColor Cyan
+$packages = @(
+    "packages/shared/package.json",
+    "packages/mcp-gateway-vscode/package.json",
+    "packages/mcp-gateway-desktop/package.json",
+    "packages/mcp-bridge-browser/package.json"
+)
+foreach ($pkgPath in $packages) {
+    if (Test-Path $pkgPath) {
+        $pkgJson = Get-Content $pkgPath -Raw | ConvertFrom-Json
+        $pkgJson.version = $rootVersion
+        # Write back with formatting
+        $pkgJson | ConvertTo-Json -Depth 10 | Set-Content $pkgPath
+        Write-Host "✅ Updated $pkgPath to $rootVersion"
+    }
+}
+
+# 3. Run Linting
+Write-Host "🔍 Running Linting..." -ForegroundColor Cyan
+cmd /c "pnpm run lint"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Linting failed. Please fix errors before releasing." -ForegroundColor Red
     exit 1
 }
+Write-Host "✅ Linting passed!" -ForegroundColor Green
 
-# 2. Create/Clean release directory
-if (Test-Path "release") {
-    Remove-Item "release" -Recurse -Force
+# 4. Install dependencies
+Write-Host "📦 Installing dependencies..." -ForegroundColor Cyan
+cmd /c "pnpm install --no-frozen-lockfile"
+
+# 5. Create/Clean output directory
+if (!(Test-Path "release")) {
+    New-Item -ItemType Directory -Path "release" | Out-Null
 }
-New-Item -ItemType Directory -Force -Path "release" | Out-Null
 
-# 3. Install & Build Shared
-Write-Host "[*] Installing dependencies & Building Shared..." -ForegroundColor Cyan
-cmd /c "pnpm install"
+# 6. Build Shared Module
+Write-Host "🛠️ Building Shared Module..." -ForegroundColor Cyan
 cmd /c "pnpm --filter @webmcp/shared run build"
 
 # ==========================================
-# 4. Package VS Code Extension (Server)
+# 7. Package VS Code Extension
 # ==========================================
-Write-Host "[*] Building VS Code Extension..." -ForegroundColor Cyan
-Set-Location "mcp-gateway-vscode"
-
-# Get version
-$json = Get-Content "package.json" -Raw | ConvertFrom-Json
-$vsVersion = $json.version
-$vsName = "WebMCP-Gateway-VSCode-$vsVersion.vsix"
-
-# Package (Use --no-dependencies to skip npm install check by vsce, as we use pnpm)
-cmd /c "pnpm exec vsce package --out ../release/$vsName --no-dependencies"
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "[OK] VS Code Extension built: release\$vsName" -ForegroundColor Green
-} else {
-    Write-Host "[ERROR] VS Code Extension build failed" -ForegroundColor Red
-    exit 1
+if ($buildVscode) {
+    Write-Host "📦 Packaging VS Code Extension..." -ForegroundColor Cyan
+    Set-Location "packages/mcp-gateway-vscode"
+    $vsName = "WebMCP-Gateway-VSCode-$rootVersion.vsix"
+    
+    cmd /c "pnpm run build"
+    cmd /c "pnpm exec vsce package --out ../../release/$vsName --no-dependencies"
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✅ VS Code Extension built: release\$vsName" -ForegroundColor Green
+    } else {
+        Write-Host "❌ VS Code Extension build failed" -ForegroundColor Red
+        exit 1
+    }
+    Set-Location "../.."
 }
 
-Set-Location ".."
-
 # ==========================================
-# 5. Package Browser Extension (Client)
+# 8. Package Browser Extension
 # ==========================================
-Write-Host "[*] Building Browser Extension (Vite)..." -ForegroundColor Cyan
-Set-Location "mcp-bridge-browser"
-
-# Get version
-$pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
-$browserVersion = $pkg.version
-$browserName = "WebMCP-Bridge-Browser-$browserVersion.zip"
-
-# Vite Build
-cmd /c "pnpm run build"
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Vite build failed"
+if ($buildBrowser) {
+    Write-Host "📦 Packaging Browser Extension..." -ForegroundColor Cyan
+    Set-Location "packages/mcp-bridge-browser"
+    $browserName = "WebMCP-Bridge-Browser-$rootVersion.zip"
+    
+    cmd /c "pnpm run build"
+    
+    $distPath = Join-Path (Get-Location) "dist"
+    $releasePath = Join-Path (Get-Location) "..\..\release\$browserName"
+    
+    if (Test-Path $releasePath) { Remove-Item $releasePath }
+    
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($distPath, $releasePath)
+    
+    if (Test-Path $releasePath) {
+        Write-Host "✅ Browser Extension built: release\$browserName" -ForegroundColor Green
+    } else {
+        Write-Host "❌ Browser Extension zip failed" -ForegroundColor Red
+        exit 1
+    }
+    Set-Location "../.."
 }
 
-# Zip 'dist' folder content
-$distPath = Join-Path (Get-Location) "dist"
-$releasePath = Join-Path (Get-Location) "..\release\$browserName"
-
-Write-Host "[*] Zipping dist folder to $browserName..." -ForegroundColor Cyan
-
-# Use .NET Compression
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory($distPath, $releasePath)
-
-if (Test-Path $releasePath) {
-    Write-Host "[OK] Browser Extension built: release\$browserName" -ForegroundColor Green
-} else {
-    Write-Error "Browser Extension zip failed"
+# ==========================================
+# 9. Package Desktop App
+# ==========================================
+if ($buildDesktop) {
+    Write-Host "📦 Packaging Desktop App..." -ForegroundColor Cyan
+    Set-Location "packages/mcp-gateway-desktop"
+    
+    cmd /c "pnpm run package"
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✅ Desktop App built successfully" -ForegroundColor Green
+    } else {
+        Write-Host "❌ Desktop App build failed" -ForegroundColor Red
+        exit 1
+    }
+    Set-Location "../.."
 }
 
-Set-Location ".."
-
-Write-Host "[DONE] All builds completed! Please check the 'release' folder." -ForegroundColor Green
+Write-Host "🎉 Selected builds completed! Please check the 'release' folder." -ForegroundColor Green

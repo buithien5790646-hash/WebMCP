@@ -1,8 +1,23 @@
+# Dependencies
 node_modules
-dist
 .pnpm-debug.log
+*.log
+
+# Build Outputs (Web & Electron)
 dist
-*.vsix
-mcp-bridge-browser.zip
-.DS_Store
+dist-electron
 release
+out
+build
+
+# Packages & Installers
+*.vsix
+*.zip
+*.dmg
+*.exe
+*.app
+
+# System & IDE
+.DS_Store
+.vscode
+.idea

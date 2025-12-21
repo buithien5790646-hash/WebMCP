@@ -1,0 +1,221 @@
+{
+  "name": "mcp-gateway-vscode",
+  "publisher": "three-water666",
+  "displayName": "WebMCP Gateway",
+  "description": "Connect Web AI to Local VS Code via Model Context Protocol (Zero-Config)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/three-water666/WebMCP.git"
+  },
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "version": "0.6.0",
+  "engines": {
+    "vscode": "^1.106.1"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "menus": {
+      "editor/context": [
+        {
+          "command": "mcp-gateway.copyContext",
+          "when": "editorHasSelection",
+          "group": "9_cutcopypaste@100"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "mcp-gateway.copyContext",
+        "title": "WebMCP: Copy Context"
+      },
+      {
+        "command": "mcp-gateway.toggleService",
+        "title": "Toggle MCP Service"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "mcp-servers",
+          "name": "WebMCP Servers",
+          "icon": "images/icon.png"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "MCP Gateway",
+      "properties": {
+        "mcpGateway.aiSites": {
+          "type": "array",
+          "default": [
+            {
+              "name": "ChatGPT",
+              "address": "https://chatgpt.com",
+              "showQuickLaunch": true
+            },
+            {
+              "name": "Gemini",
+              "address": "https://gemini.google.com",
+              "showQuickLaunch": true
+            },
+            {
+              "name": "aistudio",
+              "address": "https://aistudio.google.com/",
+              "showQuickLaunch": true
+            },
+            {
+              "name": "DeepSeek",
+              "address": "https://chat.deepseek.com",
+              "showQuickLaunch": true
+            }
+          ],
+          "description": "User-defined list of AI platforms.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Display name"
+              },
+              "address": {
+                "type": "string",
+                "description": "URL of the AI service"
+              },
+              "showQuickLaunch": {
+                "type": "boolean",
+                "default": true,
+                "description": "Show in the main quick pick menu"
+              },
+              "browser": {
+                "type": "string",
+                "enum": [
+                  "default",
+                  "chrome",
+                  "edge"
+                ],
+                "default": "default",
+                "description": "Specific browser for this site (overrides global setting)"
+              }
+            }
+          }
+        },
+        "mcpGateway.port": {
+          "type": "number",
+          "default": 34567,
+          "description": "The port the local gateway server will listen on."
+        },
+        "mcpGateway.browser": {
+          "type": "string",
+          "default": "default",
+          "enum": [
+            "default",
+            "chrome",
+            "edge"
+          ],
+          "description": "Global default browser. Used if no site-specific browser is configured."
+        },
+        "mcpGateway.servers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "Command to execute"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Arguments"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "stdio",
+                  "sse",
+                  "http"
+                ],
+                "description": "Connection type",
+                "default": "stdio"
+              },
+              "url": {
+                "type": "string",
+                "description": "URL for SSE/HTTP"
+              },
+              "headers": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "HTTP Headers"
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Environment variables"
+              }
+            }
+          },
+          "default": {
+            "filesystem": {
+              "command": "npx",
+              "args": [
+                "-y",
+                "@modelcontextprotocol/server-filesystem",
+                "."
+              ]
+            },
+            "command": {
+              "command": "node",
+              "args": [
+                "${extensionPath}/dist/commandServer.js",
+                "--project-root",
+                "."
+              ]
+            }
+          },
+          "description": "Configuration for MCP Servers."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "build": "pnpm run package",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.1",
+    "@webmcp/shared": "workspace:*",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.106.1",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.3",
+    "webpack": "^5.102.1",
+    "webpack-cli": "^6.0.1"
+  }
+}
