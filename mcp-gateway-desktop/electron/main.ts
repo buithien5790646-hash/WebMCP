@@ -4,7 +4,8 @@ import { exec, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 
 const execAsync = promisify(exec)
-import { GatewayManager, ServerConfig } from './gateway-manager'
+import { GatewayManager } from './gateway-manager'
+import type { ServerConfig } from '@webmcp/shared'
 import Store from 'electron-store'
 
 // --- Interfaces for Type Safety ---

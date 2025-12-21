@@ -2,54 +2,44 @@ import Store from 'electron-store';
 import * as path from 'path';
 import * as fs from 'fs';
 import { app } from 'electron';
+import { BaseConfigManager } from '@webmcp/shared';
+import type { IMCPStorage, WebMCPConfig } from '@webmcp/shared';
 
-export interface WebMCPConfig {
-    prompt: string;
-    rules: string;
-    train: string;
-    error_hint: string;
-    protected_tools?: string[];
+class ElectronMCPStorage implements IMCPStorage {
+    constructor(private store: Store) {}
+    get<T>(key: string): T | undefined {
+        return this.store.get(key) as T;
+    }
+    async update(key: string, value: any): Promise<void> {
+        if (value === undefined) {
+            this.store.delete(key);
+        } else {
+            this.store.set(key, value);
+        }
+    }
 }
 
-export class ConfigManager {
-    private static readonly PREFIX = 'mcp.config.';
+export class ConfigManager extends BaseConfigManager {
+    private static instance: ConfigManager;
     private static store = new Store();
+
+    private constructor() {
+        const storage = new ElectronMCPStorage(ConfigManager.store);
+        super(storage, storage); // Desktop uses same store for both
+    }
+
+    static getInstance(): ConfigManager {
+        if (!ConfigManager.instance) {
+            ConfigManager.instance = new ConfigManager();
+        }
+        return ConfigManager.instance;
+    }
 
     /**
      * Get the merged configuration for a workspace, or just the specified scope
      */
     static async getConfig(workspaceId: string, scope: 'merged' | 'global' | 'workspace' = 'merged'): Promise<WebMCPConfig> {
-        const defaults = this.getDefaults();
-        const global = this.getGlobalConfig();
-        const workspace = this.getWorkspaceConfig(workspaceId);
-
-        if (scope === 'global') {
-            return {
-                prompt: global.prompt ?? defaults.prompt,
-                rules: global.rules ?? defaults.rules ?? '',
-                train: global.train ?? defaults.train,
-                error_hint: global.error_hint ?? defaults.error_hint,
-                protected_tools: global.protected_tools ?? defaults.protected_tools,
-            };
-        }
-
-        if (scope === 'workspace') {
-            return {
-                prompt: workspace.prompt ?? undefined as any,
-                rules: workspace.rules ?? undefined as any,
-                train: workspace.train ?? undefined as any,
-                error_hint: workspace.error_hint ?? undefined as any,
-                protected_tools: workspace.protected_tools ?? undefined as any,
-            };
-        }
-
-        return {
-            prompt: workspace.prompt ?? global.prompt ?? defaults.prompt,
-            rules: workspace.rules ?? global.rules ?? defaults.rules ?? '',
-            train: workspace.train ?? global.train ?? defaults.train,
-            error_hint: workspace.error_hint ?? global.error_hint ?? defaults.error_hint,
-            protected_tools: workspace.protected_tools ?? global.protected_tools ?? defaults.protected_tools,
-        };
+        return this.getInstance().getConfig(workspaceId, scope, this.getDefaults());
     }
 
     /**
@@ -60,18 +50,14 @@ export class ConfigManager {
         scope: 'global' | 'workspace',
         updates: Partial<WebMCPConfig>
     ): Promise<void> {
-        const key = scope === 'global' ? `${this.PREFIX}global` : `${this.PREFIX}${workspaceId}`;
-        const current = this.store.get(key) as Partial<WebMCPConfig> || {};
-        const next = { ...current, ...updates };
-        this.store.set(key, next);
+        return this.getInstance().saveConfig(workspaceId, scope, updates);
     }
 
     /**
      * Reset configuration for a scope
      */
     static async resetConfig(workspaceId: string, scope: 'global' | 'workspace'): Promise<void> {
-        const key = scope === 'global' ? `${this.PREFIX}global` : `${this.PREFIX}${workspaceId}`;
-        this.store.delete(key);
+        return this.getInstance().resetConfig(workspaceId, scope);
     }
 
     /**
@@ -81,23 +67,13 @@ export class ConfigManager {
         this.store.delete(`${this.PREFIX}${workspaceId}`);
     }
 
-    private static getGlobalConfig(): Partial<WebMCPConfig> {
-        return this.store.get(`${this.PREFIX}global`) as Partial<WebMCPConfig> || {};
-    }
-
-    private static getWorkspaceConfig(workspaceId: string): Partial<WebMCPConfig> {
-        return this.store.get(`${this.PREFIX}${workspaceId}`) as Partial<WebMCPConfig> || {};
-    }
-
-    private static getDefaults(): WebMCPConfig {
+    static getDefaults(): WebMCPConfig {
         const isDev = !app.isPackaged;
         let assetsPath: string;
         
         if (!isDev) {
             assetsPath = path.join(process.resourcesPath, 'assets');
         } else {
-            // Try local dist-electron/assets first (for built but not packaged)
-            // Then fallback to shared/assets (for development)
             const localAssets = path.join(__dirname, 'assets');
             if (fs.existsSync(localAssets) && fs.readdirSync(localAssets).length > 0) {
                 assetsPath = localAssets;
