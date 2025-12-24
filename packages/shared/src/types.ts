@@ -6,7 +6,7 @@ export interface WebMCPConfig {
   rules: string;
   train: string;
   error_hint: string;
-  protected_tools?: string[];
+  always_allow_tools?: string[];
 }
 
 /**

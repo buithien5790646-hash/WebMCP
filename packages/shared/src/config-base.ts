@@ -26,7 +26,7 @@ export abstract class BaseConfigManager {
         rules: global.rules ?? defaults.rules ?? "",
         train: global.train ?? defaults.train,
         error_hint: global.error_hint ?? defaults.error_hint,
-        protected_tools: global.protected_tools ?? defaults.protected_tools,
+        always_allow_tools: global.always_allow_tools ?? defaults.always_allow_tools,
       };
     }
 
@@ -36,7 +36,7 @@ export abstract class BaseConfigManager {
         rules: workspace.rules ?? (undefined as any),
         train: workspace.train ?? (undefined as any),
         error_hint: workspace.error_hint ?? (undefined as any),
-        protected_tools: workspace.protected_tools ?? (undefined as any),
+        always_allow_tools: workspace.always_allow_tools ?? (undefined as any),
       };
     }
 
@@ -45,8 +45,8 @@ export abstract class BaseConfigManager {
       rules: workspace.rules ?? global.rules ?? defaults.rules ?? "",
       train: workspace.train ?? global.train ?? defaults.train,
       error_hint: workspace.error_hint ?? global.error_hint ?? defaults.error_hint,
-      protected_tools:
-        workspace.protected_tools ?? global.protected_tools ?? defaults.protected_tools,
+      always_allow_tools:
+        workspace.always_allow_tools ?? global.always_allow_tools ?? defaults.always_allow_tools,
     };
   }
 

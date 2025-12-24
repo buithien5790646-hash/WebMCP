@@ -17,8 +17,8 @@ export function useStorage<T>(
   workspaceId?: string
 ): [T, (value: T) => void] {
   const [value, setValue] = useState<T>(defaultValue);
-  // Only prefix protected_tools, others like autoSend might be global
-  const storageKey = workspaceId && key === "protected_tools" ? `${workspaceId}_${key}` : key;
+  // Only prefix always_allow_tools, others like autoSend might be global
+  const storageKey = workspaceId && key === "always_allow_tools" ? `${workspaceId}_${key}` : key;
 
   useEffect(() => {
     // Load initial value

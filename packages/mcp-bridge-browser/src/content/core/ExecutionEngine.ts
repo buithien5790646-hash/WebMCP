@@ -14,7 +14,7 @@ import { MessageParser } from "./MessageParser";
 import { Workflow } from "./Workflow";
 
 export class ExecutionEngine {
-  private protectedTools = new Set<string>();
+  private alwaysAllowTools = new Set<string>();
   private autoSend = true;
   private workspaceId?: string;
 
@@ -25,9 +25,9 @@ export class ExecutionEngine {
     private modalManager: ModalManager
   ) {}
 
-  updateConfig(config: { autoSend: boolean; protectedTools: Set<string>; workspaceId?: string }) {
+  updateConfig(config: { autoSend: boolean; alwaysAllowTools: Set<string>; workspaceId?: string }) {
     this.autoSend = config.autoSend;
-    this.protectedTools = config.protectedTools;
+    this.alwaysAllowTools = config.alwaysAllowTools;
     this.workspaceId = config.workspaceId;
   }
 
@@ -43,7 +43,8 @@ export class ExecutionEngine {
           this.workflow.markDiscovered(payload.request_id);
           cancelAutoSend();
 
-          if (this.protectedTools.has(payload.name)) {
+          // New tools (not in alwaysAllowTools) are protected by default
+          if (!this.alwaysAllowTools.has(payload.name)) {
             Logger.log(`${t("hitl_intercept")}: ${payload.name}`, "warn");
             markVisualProcessing(codeEl as HTMLElement);
             this.handleProtectedTool(payload, codeEl as HTMLElement);
@@ -67,9 +68,9 @@ export class ExecutionEngine {
       if (confirmed) {
         if (isAlways) {
           Logger.log(`⚡ Tool '${p.name}' set to Always Allow`, "action");
-          this.protectedTools.delete(p.name);
+          this.alwaysAllowTools.add(p.name);
           const prefix = this.workspaceId ? `${this.workspaceId}_` : "";
-          await setSync({ [`${prefix}protected_tools`]: Array.from(this.protectedTools) });
+          await setSync({ [`${prefix}always_allow_tools`]: Array.from(this.alwaysAllowTools) });
           messageBroker.send({ type: "SYNC_CONFIG", workspaceId: this.workspaceId });
         }
         await this.executeTool(p, element);

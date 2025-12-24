@@ -7,7 +7,7 @@ export class ConfigManager {
    */
   async initializeStorage() {
     // 1. Initialize user settings
-    const syncKeys = ["autoSend", "protected_tools"];
+    const syncKeys = ["autoSend", "always_allow_tools"];
     const existingSync = await getSync(syncKeys as any);
     const syncToSet: Record<string, any> = {};
 
@@ -46,7 +46,7 @@ export class ConfigManager {
       const lang = navigator.language.startsWith("zh") ? "zh" : "en";
 
       // 1. Get current data from extension storage
-      const syncKeysRaw = ["protected_tools", "autoSend"];
+      const syncKeysRaw = ["always_allow_tools", "autoSend"];
       const syncKeys = syncKeysRaw.map((k) => `${prefix}${k}`);
       const syncDataPrefixed = await getSync(syncKeys as any);
 
@@ -68,7 +68,7 @@ export class ConfigManager {
         rules: localDataPrefixed[`${prefix}user_rules`],
         train: localDataPrefixed[`${prefix}train_${lang}`],
         error_hint: localDataPrefixed[`${prefix}error_${lang}`],
-        protected_tools: syncDataPrefixed[`${prefix}protected_tools`],
+        always_allow_tools: syncDataPrefixed[`${prefix}always_allow_tools`],
       };
 
       // 3. Also include the full sync/local structure for extension-native support if needed
@@ -78,7 +78,7 @@ export class ConfigManager {
         version: 1,
         timestamp: new Date().toISOString(),
         sync: {
-          protected_tools: syncDataPrefixed[`${prefix}protected_tools`],
+          always_allow_tools: syncDataPrefixed[`${prefix}always_allow_tools`],
           autoSend: syncDataPrefixed[`${prefix}autoSend`],
         },
         local: {
@@ -147,7 +147,7 @@ export class ConfigManager {
         return config;
       }
 
-      // 2. Handle VS Code/Desktop Gateway Config Format (prompt/rules/train/error_hint/protected_tools)
+      // 2. Handle VS Code/Desktop Gateway Config Format (prompt/rules/train/error_hint/always_allow_tools)
       const prefix = workspaceId ? `${workspaceId}_` : "";
       const lang = navigator.language.startsWith("zh") ? "zh" : "en";
       const localToSet: Record<string, string> = {};
@@ -161,8 +161,8 @@ export class ConfigManager {
         await setLocal(localToSet as any);
       }
 
-      if (config.protected_tools !== undefined) {
-        await setSync({ [`${prefix}protected_tools`]: config.protected_tools } as any);
+      if (config.always_allow_tools !== undefined) {
+        await setSync({ [`${prefix}always_allow_tools`]: config.always_allow_tools } as any);
       }
 
       return config;

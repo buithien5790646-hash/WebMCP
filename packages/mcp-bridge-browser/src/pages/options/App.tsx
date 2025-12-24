@@ -15,7 +15,7 @@ export function App() {
     train: "",
     error_hint: "",
     rules: "",
-    protected_tools: [],
+    always_allow_tools: [],
   });
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [toolGroups, setToolGroups] = useState<any[]>([]);
@@ -62,13 +62,13 @@ export function App() {
     const listener = (changes: any, namespace: string) => {
       if (namespace === "sync") {
         const prefix = workspaceId ? `${workspaceId}_` : "";
-        const ptKey = `${prefix}protected_tools`;
+        const aaKey = `${prefix}always_allow_tools`;
 
-        if (changes[ptKey]) {
-          const newList = changes[ptKey].newValue || [];
+        if (changes[aaKey]) {
+          const newList = changes[aaKey].newValue || [];
           setConfig((prev: any) => ({
             ...prev,
-            protected_tools: newList,
+            always_allow_tools: newList,
           }));
         }
       }
@@ -176,10 +176,10 @@ export function App() {
   };
 
   const handleToolToggle = (toolName: string, checked: boolean) => {
-    const current = config.protected_tools || [];
+    const current = config.always_allow_tools || [];
     const next = checked ? [...current, toolName] : current.filter((t: string) => t !== toolName);
 
-    setConfig({ ...config, protected_tools: next });
+    setConfig({ ...config, always_allow_tools: next });
   };
 
   return (
@@ -203,6 +203,8 @@ export function App() {
           {t("tab_global")}
         </button>
       </div>
+
+      {activeTab === "global" && <div className="global-hint">{t("opt_global_hint")}</div>}
 
       <Card>
         <h2>{t("opt_hitl_title")}</h2>
@@ -237,12 +239,13 @@ export function App() {
                   <label key={tool.name} className="checkbox-row">
                     <input
                       type="checkbox"
-                      checked={(config.protected_tools || []).includes(tool.name)}
+                      checked={(config.always_allow_tools || []).includes(tool.name)}
                       onChange={(e) =>
                         handleToolToggle(tool.name, (e.target as HTMLInputElement).checked)
                       }
                     />
                     <span className="tool-name">{tool.name}</span>
+                    <span className="always-allow-badge">{t("btn_approve")}</span>
                     {tool.description && (
                       <div className="tool-desc-container">
                         <div className="tool-desc">{tool.description}</div>

@@ -15,7 +15,7 @@ export interface StorageSchema {
 
   // Sync Storage
   autoSend: boolean;
-  protected_tools: string[];
+  always_allow_tools: string[];
 }
 
 type LocalStorageKeys =
@@ -26,7 +26,7 @@ type LocalStorageKeys =
   | "error_en"
   | "error_zh"
   | "user_rules";
-type SyncStorageKeys = "autoSend" | "protected_tools";
+type SyncStorageKeys = "autoSend" | "always_allow_tools";
 
 /**
  * Get items from chrome.storage.local

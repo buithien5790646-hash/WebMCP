@@ -242,24 +242,11 @@ export abstract class BaseGatewayManager {
       const workspaceId = (req.query.workspaceId as string) || this.workspaceId;
 
       this.log(`📥 Config Sync: Pull for workspace ${workspaceId} (scope: ${scope})`);
-      let configData = await this.hooks.getConfig(workspaceId, scope);
+      const configData = await this.hooks.getConfig(workspaceId, scope);
 
-      if (
-        scope === "workspace" &&
-        Object.values(configData).every((v) => v === undefined || v === "")
-      ) {
-        configData = await this.hooks.getConfig(workspaceId, "merged");
-        this.log(`🛡️ Initialized workspace config with merged values (inheritance)`);
-      }
-
-      if (configData.protected_tools === undefined) {
-        const allToolNames: string[] = [];
-        const grouped = this._generateGroupedTools();
-        grouped.forEach((g) => {
-          g.tools.forEach((t) => allToolNames.push(t.name));
-        });
-        configData.protected_tools = allToolNames;
-        this.log(`🛡️ Initialized protected_tools with ${allToolNames.length} tools`);
+      if (configData.always_allow_tools === undefined) {
+        configData.always_allow_tools = [];
+        this.log(`🛡️ Initialized always_allow_tools as empty (default all protected)`);
       }
 
       res.json({ config: configData });
@@ -268,11 +255,40 @@ export abstract class BaseGatewayManager {
     this.app.post("/v1/config", async (req, res) => {
       const scope = (req.query.scope as "global" | "workspace") || "workspace";
       const workspaceId = (req.query.workspaceId as string) || this.workspaceId;
-      const config = req.body.config;
+      const config = req.body.config as Partial<WebMCPConfig>;
 
       if (!config) return res.status(400).json({ error: "Missing config" });
 
       this.log(`📤 Config Sync: Save for workspace ${workspaceId} (scope: ${scope})`);
+
+      if (scope === "global" && config.always_allow_tools !== undefined) {
+        // Smart Merge for always_allow_tools in global scope
+        const currentGlobal = await this.hooks.getConfig(workspaceId, "global");
+        const globalAllowed = new Set(currentGlobal.always_allow_tools || []);
+
+        // Get tools in current workspace
+        const currentWorkspaceTools = new Set<string>();
+        this._generateGroupedTools().forEach((g) => {
+          g.tools.forEach((t: any) => currentWorkspaceTools.add(t.name));
+        });
+
+        // 1. Remove tools that are in current workspace but not in the new allowed list
+        const newAllowed = new Set(config.always_allow_tools);
+        currentWorkspaceTools.forEach((tool) => {
+          if (!newAllowed.has(tool)) {
+            globalAllowed.delete(tool);
+          }
+        });
+
+        // 2. Add tools that are in the new allowed list
+        newAllowed.forEach((tool) => globalAllowed.add(tool));
+
+        config.always_allow_tools = Array.from(globalAllowed);
+        this.log(
+          `🧠 Smart Merge Global Config: ${newAllowed.size} tools from workspace updated in global storage`
+        );
+      }
+
       await this.hooks.saveConfig(workspaceId, scope, config);
       res.json({ success: true });
     });

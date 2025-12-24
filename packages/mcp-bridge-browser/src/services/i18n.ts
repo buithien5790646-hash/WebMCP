@@ -73,7 +73,7 @@ class I18nService {
       btn_back: { en: "Back", zh: "返回" },
       btn_reject: { en: "Reject", zh: "拒绝" },
       btn_reject_confirm: { en: "Confirm Rejection", zh: "确认拒绝" },
-      btn_approve: { en: "Approve", zh: "允许" },
+      btn_approve: { en: "Always Allow", zh: "永久放行" },
       btn_allow_confirm: { en: "Confirm Allow", zh: "确认永久允许" },
       always_title: { en: "Remove Protection?", zh: "移除保护?" },
       always_desc_1: {
@@ -113,8 +113,12 @@ class I18nService {
       tab_global: { en: "Global Settings", zh: "全局设置" },
       opt_hitl_title: { en: "Human-in-the-Loop (Approval)", zh: "人工审批 (HITL)" },
       opt_hitl_desc: {
-        en: "Select tools that require manual approval before execution.",
-        zh: "选择在执行前需要人工确认的工具。",
+        en: "Select tools that are allowed to run automatically without approval. Unselected tools (including new ones) will require confirmation.",
+        zh: "选择允许自动执行而无需审批的工具。未勾选的工具（包括未来新增的工具）在执行前都需要人工确认。",
+      },
+      opt_global_hint: {
+        en: "Note: Global settings are used as a template for new workspaces. Changing global settings will not affect existing workspaces.",
+        zh: "注意：全局设置仅作为新工作区的模板。修改全局设置不会影响已存在的工作区配置。",
       },
       btn_refresh_list: { en: "🔄 Refresh List", zh: "🔄 刷新列表" },
       opt_no_tools: {

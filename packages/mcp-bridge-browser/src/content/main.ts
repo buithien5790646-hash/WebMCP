@@ -12,7 +12,7 @@ import { DOMObserver, MessageParser, Workflow, ExecutionEngine } from "./core";
 
 let isClientConnected = false;
 let workspaceId: string | undefined;
-let protectedTools = new Set<string>();
+let alwaysAllowTools = new Set<string>();
 
 // Config state
 interface ConfigState {
@@ -69,8 +69,8 @@ messageBroker.on("STATUS_UPDATE", (request) => {
     i18n.resources.prompt = config.prompt;
     i18n.resources.train = config.train;
     i18n.resources.error = config.error_hint;
-    if (config.protected_tools) {
-      protectedTools = new Set(config.protected_tools);
+    if (config.always_allow_tools) {
+      alwaysAllowTools = new Set(config.always_allow_tools);
     }
     Logger.log("[MCP] Workspace config applied", "info");
   }
@@ -86,12 +86,12 @@ messageBroker.on("STATUS_UPDATE", (request) => {
 // === Storage Sync ===
 function syncFromStorage() {
   const prefix = workspaceId ? `${workspaceId}_` : "";
-  const ptKey = `${prefix}protected_tools`;
+  const aaKey = `${prefix}always_allow_tools`;
   const asKey = "autoSend"; // Global for now, or prefix if desired
 
-  getSync([asKey, ptKey] as any).then((items) => {
+  getSync([asKey, aaKey] as any).then((items) => {
     CONFIG.autoSend = items[asKey] ?? true;
-    if (items[ptKey]) protectedTools = new Set(items[ptKey]);
+    if (items[aaKey]) alwaysAllowTools = new Set(items[aaKey]);
     Logger.log(`[MCP] Storage synced (prefix: ${prefix || "none"})`, "info");
   });
 }
@@ -104,11 +104,11 @@ onStorageChanged((changes, namespace) => {
     if (changes.autoSend) CONFIG.autoSend = changes.autoSend.newValue;
 
     const prefix = workspaceId ? `${workspaceId}_` : "";
-    const ptKey = `${prefix}protected_tools`;
+    const aaKey = `${prefix}always_allow_tools`;
 
-    if (changes[ptKey]) {
-      protectedTools = new Set(changes[ptKey].newValue);
-      Logger.log(`[MCP] Protected tools updated via storage`, "info");
+    if (changes[aaKey]) {
+      alwaysAllowTools = new Set(changes[aaKey].newValue);
+      Logger.log(`[MCP] Always allow tools updated via storage`, "info");
     }
   }
 });
@@ -137,7 +137,7 @@ function runMainLoop() {
   // Delegate processing to engine
   engine.updateConfig({
     autoSend: CONFIG.autoSend,
-    protectedTools: protectedTools,
+    alwaysAllowTools: alwaysAllowTools,
     workspaceId: workspaceId,
   });
 
