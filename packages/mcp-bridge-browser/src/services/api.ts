@@ -69,7 +69,20 @@ export class ApiClient {
       if (response.status === 403) {
         throw new Error("Session Expired/Invalid Token");
       }
-      throw new Error(`${response.status} - ${response.statusText}`);
+      
+      let errorDetail = "";
+      try {
+        const errJson = await response.json();
+        if (errJson.content && Array.isArray(errJson.content)) {
+          errorDetail = errJson.content.map((c: any) => c.text).join("\n");
+        } else if (errJson.message) {
+          errorDetail = errJson.message;
+        }
+      } catch (e) {
+        // Fallback to status text
+      }
+      
+      throw new Error(errorDetail || `${response.status} - ${response.statusText}`);
     }
 
     const resJson = await response.json();

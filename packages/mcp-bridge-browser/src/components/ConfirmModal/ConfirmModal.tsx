@@ -127,7 +127,15 @@ export function showConfirmationModal(
   host.id = "mcp-confirm-modal-host";
   host.style.cssText =
     "position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999999;";
-  document.body.appendChild(host);
+  
+  const mount = () => {
+    if (document.body) {
+      document.body.appendChild(host);
+    } else {
+      setTimeout(mount, 50);
+    }
+  };
+  mount();
 
   // Attach Shadow DOM
   const shadow = host.attachShadow({ mode: "open" });

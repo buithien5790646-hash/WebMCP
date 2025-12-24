@@ -32,10 +32,26 @@ export class DOMObserver {
    */
   start() {
     this.isActive = true;
-    this.observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
+
+    const tryObserve = () => {
+      if (document.body) {
+        this.observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+        });
+        // Initial trigger
+        this.callback();
+      } else {
+        // If body not ready, try again on DOMContentLoaded or next frame
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", () => tryObserve(), { once: true });
+        } else {
+          requestAnimationFrame(() => tryObserve());
+        }
+      }
+    };
+
+    tryObserve();
   }
 
   /**

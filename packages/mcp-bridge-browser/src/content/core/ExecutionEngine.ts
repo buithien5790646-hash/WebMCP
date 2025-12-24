@@ -120,7 +120,6 @@ export class ExecutionEngine {
       }
       this.workflow.saveResult(payload.request_id, err.message, true);
       markVisualError(element);
-      writeToInputBox(`${i18n.resources.error}\n${err.message}`, this.adapter.inputArea);
     } finally {
       this.workflow.markCompleted(payload.request_id);
     }

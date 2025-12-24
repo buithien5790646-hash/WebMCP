@@ -75,7 +75,8 @@
         "https://aistudio.google.com/*",
         "https://chat.deepseek.com/*"
       ],
-      "js": ["src/content/main.ts"]
+      "js": ["src/content/main.ts"],
+      "run_at": "document_start"
     }
   ]
 }

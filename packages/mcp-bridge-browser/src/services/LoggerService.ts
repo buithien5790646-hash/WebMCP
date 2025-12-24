@@ -64,8 +64,16 @@ class LoggerService {
 
     this.el.appendChild(header);
     this.el.appendChild(this.contentEl);
-    document.body.appendChild(this.el);
-    this.makeDraggable(header);
+    
+    const mount = () => {
+      if (document.body) {
+        document.body.appendChild(this.el!);
+        this.makeDraggable(header);
+      } else {
+        setTimeout(mount, 50);
+      }
+    };
+    mount();
   }
 
   private makeDraggable(headerEl: HTMLElement) {
