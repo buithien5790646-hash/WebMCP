@@ -15,8 +15,8 @@ export class ErrorHandlerService {
     // 2. Log to console for dev debugging
     console.error(`[WebMCP Error Handled] ${fullMessage}`, error);
 
-    // 3. Optional browser notification
-    if (showNotification) {
+    // 3. Optional browser notification (only if supported in current context)
+    if (showNotification && typeof chrome !== "undefined" && chrome.notifications) {
       browserService.createNotification({
         type: "basic",
         iconUrl: browserService.getURL("icons/icon128.png"),

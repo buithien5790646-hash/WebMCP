@@ -73,7 +73,7 @@ class I18nService {
       btn_back: { en: "Back", zh: "返回" },
       btn_reject: { en: "Reject", zh: "拒绝" },
       btn_reject_confirm: { en: "Confirm Rejection", zh: "确认拒绝" },
-      btn_approve: { en: "Always Allow", zh: "永久放行" },
+      btn_approve: { en: "Approve", zh: "允许" },
       btn_allow_confirm: { en: "Confirm Allow", zh: "确认永久允许" },
       always_title: { en: "Remove Protection?", zh: "移除保护?" },
       always_desc_1: {

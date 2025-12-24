@@ -113,7 +113,11 @@ export class ExecutionEngine {
         throw new Error(response?.error || "Unknown error");
       }
     } catch (err: any) {
-      ErrorHandler.report(err, "ExecutionEngine.executeTool", true);
+      try {
+        ErrorHandler.report(err, "ExecutionEngine.executeTool", true);
+      } catch (reportErr) {
+        console.error("Critical error in ErrorHandler.report:", reportErr);
+      }
       this.workflow.saveResult(payload.request_id, err.message, true);
       markVisualError(element);
       writeToInputBox(`${i18n.resources.error}\n${err.message}`, this.adapter.inputArea);
