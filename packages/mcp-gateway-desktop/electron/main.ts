@@ -61,9 +61,8 @@ const store = new Store<StoreSchema>({
     config: {
       browser: "default",
       aiSites: [
+        { name: "Gemini", address: "https://gemini.google.com", },
         { name: "ChatGPT", address: "https://chatgpt.com" },
-        { name: "Claude", address: "https://claude.ai" },
-        { name: "Gemini", address: "https://gemini.google.com", browser: "edge" },
         { name: "DeepSeek", address: "https://chat.deepseek.com" },
       ],
     },
