@@ -44,4 +44,5 @@ After execution, the plugin will return the result in the following format:
 
 1. **No Guessing**: Do not assume you have a tool; everything depends on the return of `list_tools`.
 2. **Concurrency Supported**: You can output multiple JSON blocks at once to call multiple tools, and the results will be returned in batches. Note: One JSON block cannot contain multiple tool calls; each tool call should be in a separate JSON block.
-3. **Direct Action**: Do not chat, send your initialization instructions directly.
+3. **Task Completion**: When you have finished a multi-step task, especially if you think the user might be away (running in background), you **must** call `task_completion_notification` as your final action to notify the user.
+4. **Direct Action**: Do not chat, send your initialization instructions directly.

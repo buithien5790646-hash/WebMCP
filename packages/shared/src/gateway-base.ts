@@ -132,7 +132,29 @@ export abstract class BaseGatewayManager {
     }));
 
     // Inject Internal Tools
-    const internalTools = this.hooks.getInternalTools();
+    const internalTools = [
+      {
+        name: "list_tools",
+        description: "List all available tools and services provided by the MCP Gateway.",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "task_completion_notification",
+        description:
+          "Notify the user that the task is complete. MUST be called as the final step of a multi-step task, especially when running in the background.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            message: {
+              type: "string",
+              description: "Brief summary of the completed task",
+            },
+          },
+          required: ["message"],
+        },
+      },
+      ...this.hooks.getInternalTools(),
+    ];
     internalTools.forEach((tool) => {
       allTools.push({ ...tool, _server: "internal" });
     });
@@ -337,6 +359,17 @@ export abstract class BaseGatewayManager {
       if (name === "list_tools") {
         return res.json({
           content: [{ type: "text", text: JSON.stringify(this._generateGroupedTools(), null, 2) }],
+        });
+      }
+
+      if (name === "task_completion_notification") {
+        return res.json({
+          content: [
+            {
+              type: "text",
+              text: `Notification sent: ${args?.message || "Task completed"}`,
+            },
+          ],
         });
       }
 

@@ -88,7 +88,7 @@ export class ExecutionEngine {
 
   async executeTool(payload: ToolExecutionPayload, element: HTMLElement) {
     if (payload.name === "task_completion_notification") {
-      this.handleNotification(payload);
+      this.handleNotification(payload, element);
       return;
     }
 
@@ -135,7 +135,11 @@ export class ExecutionEngine {
       const results = this.workflow.flushBatch(currentTurnIds);
       if (results.length > 0) {
         Logger.log(`[Engine] Batch finished: ${results.length} tools.`, "success");
-        writeToInputBox(results.join("\n\n"), this.adapter.inputArea);
+
+        // Inject dynamic environment info before results
+        const envInfo = `\n\n> [Environment Info]\n> Page Visible: ${!document.hidden}\n> Timestamp: ${new Date().toLocaleTimeString()}\n`;
+        writeToInputBox(results.join("\n\n") + envInfo, this.adapter.inputArea);
+
         if (this.autoSend) {
           triggerAutoSend({ autoSend: true }, this.adapter);
         }
@@ -143,16 +147,21 @@ export class ExecutionEngine {
     }
   }
 
-  private handleNotification(payload: ToolExecutionPayload) {
+  private handleNotification(payload: ToolExecutionPayload, element: HTMLElement) {
     const msg = (payload.arguments as any)?.message || "Task Completed";
     Logger.log(`🔔 Notification: ${msg}`, "action");
-    messageBroker.send({
-      type: "SHOW_NOTIFICATION",
-      title: "WebMCP Task Finished",
-      message: msg,
-    });
+
+    if (document.hidden) {
+      messageBroker.send({
+        type: "SHOW_NOTIFICATION",
+        title: "WebMCP Task Finished",
+        message: msg,
+      });
+    }
+
     this.workflow.markCompleted(payload.request_id);
     this.workflow.saveResult(payload.request_id, "", false);
+    markVisualSuccess(element);
   }
 
   private async handleListTools(payload: ToolExecutionPayload, data: string) {
