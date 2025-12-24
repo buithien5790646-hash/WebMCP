@@ -111,7 +111,7 @@ class I18nService {
       opt_title: { en: "WebMCP Settings", zh: "WebMCP 设置" },
       tab_workspace: { en: "Workspace Settings", zh: "当前工作区设置" },
       tab_global: { en: "Global Settings", zh: "全局设置" },
-      opt_hitl_title: { en: "Human-in-the-Loop (Approval)", zh: "人工审批 (HITL)" },
+      opt_hitl_title: { en: "Always Allow (White-list)", zh: "永久放行 (白名单)" },
       opt_hitl_desc: {
         en: "Select tools that are allowed to run automatically without approval. Unselected tools (including new ones) will require confirmation.",
         zh: "选择允许自动执行而无需审批的工具。未勾选的工具（包括未来新增的工具）在执行前都需要人工确认。",

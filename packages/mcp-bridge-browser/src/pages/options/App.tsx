@@ -48,7 +48,9 @@ export function App() {
       if (session) {
         setWorkspaceId(id);
         setActiveGateway({ port: session.port, token: session.token });
-        loadConfig(session.port, session.token, id, activeTab);
+        // Use 'merged' scope for workspace tab to see inherited global values
+        const scope = activeTab === "workspace" ? "merged" : "global";
+        loadConfig(session.port, session.token, id, scope);
         refreshTools(session.port, session.token);
       } else {
         showStatus(t("status_gateway_failed"));
@@ -245,7 +247,6 @@ export function App() {
                       }
                     />
                     <span className="tool-name">{tool.name}</span>
-                    <span className="always-allow-badge">{t("btn_approve")}</span>
                     {tool.description && (
                       <div className="tool-desc-container">
                         <div className="tool-desc">{tool.description}</div>
@@ -261,9 +262,6 @@ export function App() {
 
       <Card>
         <h2>{t("opt_prompts_title")}</h2>
-        {workspaceId && (
-          <div className="workspace-badge">Project: {workspaceId.slice(0, 8)}...</div>
-        )}
 
         <label>{t("opt_init_label")}</label>
         <div className="description">{t("opt_init_desc")}</div>
