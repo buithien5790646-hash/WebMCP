@@ -50,7 +50,8 @@ After execution, the plugin will return the result in the following format:
 
 1. **No Guessing**: Do not assume you have a tool; everything depends on the return of \`list_tools\`.
 2. **Concurrency Supported**: You can output multiple JSON blocks at once to call multiple tools, and the results will be returned in batches. Note: One JSON block cannot contain multiple tool calls; each tool call should be in a separate JSON block.
-3. **Direct Action**: Do not chat, send your initialization instructions directly.
+3. **Task Completion**: When you have finished a multi-step task, especially if you think the user might be away (running in background), you **must** call \`task_completion_notification\` as your final action to notify the user.
+4. **Direct Action**: Do not chat, send your initialization instructions directly.
 `,
     train: `[System] Reminder: Tool calls MUST use this JSON format: {"mcp_action":"call", "name": "tool_name", "purpose": "reason", "arguments": {...}}.
 `,
@@ -120,7 +121,8 @@ Please regenerate the instruction according to the correct format above.
 
 1. **严禁猜测**：不要假设自己拥有某个工具，一切以 \`list_tools\` 返回为准。
 2. **支持并发**：你可以一次性输出多个 JSON 块来调用多个工具，结果会批量返回。注意：不能一个 JSON 块包含多个工具调用，每个工具调用应该在一个单独的 JSON 块中。
-3. **直接行动**：不要闲聊，直接发送你的初始化指令。
+3. **任务完成通知**：当你完成了一个多步骤任务，特别是当你认为用户可能不在当前页面（后台运行）时，你**必须**调用 \`task_completion_notification\` 作为最后一步来通知用户。
+4. **直接行动**：不要闲聊，直接发送你的初始化指令。
 `,
     train: `[系统提示] 请保持工具调用格式：{"mcp_action":"call", "name": "tool_name", "purpose": "原因", "arguments": {...}}。
 `,

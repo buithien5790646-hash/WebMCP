@@ -32,7 +32,7 @@ interface ServerDefinition {
 }
 
 interface ProfileStatus {
-  status: "online" | "offline";
+  status: "online" | "offline" | "starting";
   port?: number;
   token?: string;
 }
@@ -125,14 +125,19 @@ export default function App() {
 
   // Handlers
   const handleStart = async (id: string) => {
-    setStatuses((prev) => ({ ...prev, [id]: { ...prev[id], status: "online" } }));
-    const res = await window.ipcRenderer.invoke("gateway:start", id);
-    if (res.status === "success") {
-      setStatuses((prev) => ({
-        ...prev,
-        [id]: { status: "online", port: res.port, token: res.token },
-      }));
-    } else {
+    setStatuses((prev) => ({ ...prev, [id]: { ...prev[id], status: "starting" } }));
+    try {
+      const res = await window.ipcRenderer.invoke("gateway:start", id);
+      if (res.status === "success") {
+        setStatuses((prev) => ({
+          ...prev,
+          [id]: { status: "online", port: res.port, token: res.token },
+        }));
+      } else {
+        setStatuses((prev) => ({ ...prev, [id]: { ...prev[id], status: "offline" } }));
+      }
+    } catch (err) {
+      console.error("Failed to start gateway:", err);
       setStatuses((prev) => ({ ...prev, [id]: { ...prev[id], status: "offline" } }));
     }
   };

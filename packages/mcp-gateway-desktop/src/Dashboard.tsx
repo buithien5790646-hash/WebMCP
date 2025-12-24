@@ -47,7 +47,10 @@ interface ServerDefinition {
 interface DashboardProps {
   profiles: Record<string, ServiceProfile>;
   servers: Record<string, ServerDefinition>;
-  statuses: Record<string, { status: "online" | "offline"; port?: number; token?: string }>;
+  statuses: Record<
+    string,
+    { status: "online" | "offline" | "starting"; port?: number; token?: string }
+  >;
   logs: Record<string, string[]>;
   onStart: (id: string) => void;
   onStop: (id: string) => void;
@@ -128,6 +131,7 @@ export default function Dashboard({
   const activeProfile = selectedId ? profiles[selectedId] : null;
   const activeStatus = selectedId ? statuses[selectedId] : null;
   const isOnline = activeStatus?.status === "online";
+  const isStarting = activeStatus?.status === "starting";
   const activeLogs = selectedId ? logs[selectedId] || [] : [];
 
   // --- Handlers ---
@@ -247,7 +251,9 @@ export default function Dashboard({
                         "w-2 h-2 rounded-full shrink-0",
                         status === "online"
                           ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
-                          : "bg-zinc-300 dark:bg-zinc-700",
+                          : status === "starting"
+                            ? "bg-amber-500 animate-pulse"
+                            : "bg-zinc-300 dark:bg-zinc-700",
                         isListCollapsed && "w-3 h-3"
                       )}
                     />
@@ -324,7 +330,12 @@ export default function Dashboard({
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                {!isOnline ? (
+                {isStarting ? (
+                  <Button disabled className="bg-amber-600 text-white min-w-[120px]">
+                    <div className="w-4 h-4 mr-2 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Starting...
+                  </Button>
+                ) : !isOnline ? (
                   <Button
                     onClick={() => onStart(activeProfile.id)}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[120px]"
@@ -476,7 +487,7 @@ export default function Dashboard({
                     variant="secondary"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    {isOnline ? "Open Bridge" : "Start Gateway First"}
+                    {isStarting ? "Starting..." : isOnline ? "Open Bridge" : "Start Gateway First"}
                   </Button>
                 </div>
               </div>
