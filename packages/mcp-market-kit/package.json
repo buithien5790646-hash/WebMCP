@@ -1,0 +1,28 @@
+{
+  "name": "@mcp-kit/core",
+  "version": "0.1.0",
+  "description": "The missing package manager for Model Context Protocol. Embed a full MCP Marketplace into your Electron/Node app.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "sdk",
+    "marketplace",
+    "electron"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cross-spawn": "^7.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "@types/cross-spawn": "^6.0.0"
+  }
+}
