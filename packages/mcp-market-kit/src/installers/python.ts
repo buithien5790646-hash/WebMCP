@@ -13,7 +13,10 @@ export class PythonInstaller {
     for (const cmd of commands) {
       try {
         await new Promise((resolve, reject) => {
-          const child = spawn(cmd, ['--version'], { shell: true });
+          const child = spawn(cmd, ['--version'], { 
+            shell: true,
+            stdio: ['ignore', 'ignore', 'ignore'] 
+          });
           child.on('close', (code) => code === 0 ? resolve(true) : reject());
           child.on('error', reject);
         });
@@ -66,7 +69,7 @@ export class PythonInstaller {
     return new Promise((resolve, reject) => {
       const child = spawn(command, args, {
         cwd,
-        stdio: 'inherit',
+        stdio: ['ignore', 'inherit', 'inherit'], // Avoid handle invalid error on Windows
         shell: true
       });
 
@@ -75,7 +78,10 @@ export class PythonInstaller {
         else reject(new Error(`${command} failed with code ${code}`));
       });
 
-      child.on('error', reject);
+      child.on('error', (err) => {
+        console.error(`[PythonInstaller] Spawn error for ${command}:`, err);
+        reject(err);
+      });
     });
   }
 }
