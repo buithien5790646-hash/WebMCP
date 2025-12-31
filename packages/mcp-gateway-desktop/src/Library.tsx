@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Trash2,
+  Edit2,
   Plus,
   Globe,
   Terminal,
@@ -130,9 +131,27 @@ export default function Library({ servers, envStatus, onReload }: Props) {
   // --------------------------------------------------------------------------
 
   const handleManualSave = async () => {
+    if (!newServer.name) {
+      alert("Please provide a display name.");
+      return;
+    }
+    if (newServer.type === "stdio" && !newServer.command) {
+      alert("Please provide a command for stdio server.");
+      return;
+    }
+    if ((newServer.type === "sse" || newServer.type === "http") && !newServer.url) {
+      alert("Please provide a URL for remote server.");
+      return;
+    }
+
+    const isEdit = !!newServer.id;
     const id = newServer.id || `server-${Date.now()}`;
-    // Check duplicate name
-    const finalName = generateUniqueName(newServer.name || "Untitled Server");
+    
+    // If it's a new server or name changed, ensure uniqueness
+    let finalName = newServer.name || "Untitled Server";
+    if (!isEdit || (servers[id] && servers[id].name !== newServer.name)) {
+      finalName = generateUniqueName(finalName);
+    }
 
     const serverToSave = {
       ...newServer,
@@ -146,6 +165,14 @@ export default function Library({ servers, envStatus, onReload }: Props) {
     setNewServer({ type: "stdio", command: "", args: [] });
     setArgsStr("");
     onReload();
+  };
+
+  const handleEdit = (server: ServerDefinition) => {
+    setNewServer(server);
+    setArgsStr(server.args?.join(" ") || "");
+    setIsAdding(true);
+    // Scroll to top or form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id: string) => {
@@ -191,6 +218,25 @@ export default function Library({ servers, envStatus, onReload }: Props) {
 
   const confirmInstall = async () => {
     if (!installingItem) return;
+
+    // Validation
+    if (installingItem.variables?.env) {
+      for (const v of installingItem.variables.env) {
+        if (v.required && !installForm.env[v.key]) {
+          alert(`Please provide the required environment variable: ${v.label}`);
+          return;
+        }
+      }
+    }
+    if (installingItem.variables?.args) {
+      for (let i = 0; i < installingItem.variables.args.length; i++) {
+        const v = installingItem.variables.args[i];
+        if (v.required && !installForm.args[i]) {
+          alert(`Please provide the required argument: ${v.label}`);
+          return;
+        }
+      }
+    }
 
     setIsPerformingInstall(true);
     try {
@@ -389,24 +435,34 @@ export default function Library({ servers, envStatus, onReload }: Props) {
                         ID: {s.id}
                       </CardDescription>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => handleDelete(s.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleEdit(s)}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleDelete(s.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pb-3">
                   <div className="text-xs space-y-2">
                     {s.type === "stdio" ? (
-                      <div className="bg-muted p-2 rounded font-mono break-all line-clamp-2">
+                      <div className="bg-muted p-2 rounded font-mono break-all max-h-24 overflow-y-auto text-[11px] leading-relaxed">
                         {s.command} {s.args?.join(" ")}
                       </div>
                     ) : (
-                      <div className="bg-muted p-2 rounded font-mono break-all line-clamp-2">
+                      <div className="bg-muted p-2 rounded font-mono break-all max-h-24 overflow-y-auto text-[11px] leading-relaxed">
                         {s.url}
                       </div>
                     )}

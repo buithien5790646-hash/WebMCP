@@ -4,7 +4,6 @@ import { PythonInstaller, DockerInstaller } from './installers';
 import { NodeResolver } from './resolver';
 import { PythonResolver, DockerResolver } from './resolvers';
 import { MCPRegistry } from './registry';
-import * as path from 'path';
 import * as fs from 'fs';
 import { DEFAULT_ROOT_DIR } from './constants';
 
@@ -53,17 +52,19 @@ export class MCPManager {
    */
   async install(service: MCPService): Promise<boolean> {
     switch (service.type) {
-      case 'node':
+      case 'node': {
         const npmPkg = service.metadata.npmPackage || service.id;
         return this.nodeInstaller.install(service.id, npmPkg, service.metadata.version);
-      case 'python':
+      }
+      case 'python': {
         const pyPkg = service.metadata.pythonPackage || service.id;
         return this.pythonInstaller.install(service.id, pyPkg, service.metadata.version);
+      }
       case 'docker':
         if (!service.metadata.dockerImage) throw new Error('Docker image is required for docker type services');
         return this.dockerInstaller.install(service.id, service.metadata.dockerImage);
       default:
-        throw new Error(`Unsupported service type: ${(service as any).type}`);
+        throw new Error(`Unsupported service type: ${service.type}`);
     }
   }
 
@@ -80,9 +81,10 @@ export class MCPManager {
     switch (service.type) {
       case 'node':
         return this.nodeResolver.resolve(serviceId, env);
-      case 'python':
+      case 'python': {
         const pyPkg = service.metadata.pythonPackage || service.id;
         return this.pythonResolver.resolve(serviceId, pyPkg, env);
+      }
       case 'docker':
         if (!service.metadata.dockerImage) throw new Error('Docker image is required for docker type services');
         return this.dockerResolver.resolve(serviceId, service.metadata.dockerImage, env);

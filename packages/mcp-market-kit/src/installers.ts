@@ -84,7 +84,7 @@ export class DockerInstaller {
     });
   }
 
-  checkInstalled(serviceId: string): boolean {
+  checkInstalled(_serviceId: string): boolean {
     // For docker, we could check if image exists, but pulling is usually fast if it exists
     // For now, let's just assume it's "installed" if we can pull it or if we don't want to check
     return true; 
