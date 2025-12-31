@@ -1,5 +1,6 @@
 export * from './types';
-export { MCPManager } from './manager';
+export * from './constants';
+export { MCPManager } from './core/manager';
 export { MCPRegistry } from './registry';
 export * from './installers';
 export * from './resolvers';

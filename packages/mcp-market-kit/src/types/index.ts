@@ -40,7 +40,8 @@ export interface ServiceConfig {
 
 export interface MCPOptions {
   rootDir: string;     // SDK data root directory
-  registryUrl?: string;
+  registryUrl?: string; // Kept for compatibility, mapped to registryUrlOrPath
+  registryUrlOrPath?: string;
   initialServices?: MCPService[]; // Initial local services
 }
 

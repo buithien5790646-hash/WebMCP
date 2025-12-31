@@ -10,16 +10,12 @@ export class NodeInstaller {
    * This creates a dedicated package.json for the service to avoid version conflicts.
    */
   async install(serviceId: string, pkgName: string, version: string = 'latest'): Promise<boolean> {
-    // 1. Prepare Sandbox Directory
-    // e.g. ~/.mcp-kit/services/google-maps/
     const serviceDir = path.join(this.rootDir, 'services', serviceId);
     
     if (!fs.existsSync(serviceDir)) {
       fs.mkdirSync(serviceDir, { recursive: true });
     }
 
-    // 2. Create Proxy package.json
-    // We create a minimal package.json that only depends on the target MCP server.
     const proxyPkg = {
       name: `${serviceId.replace(/[^a-zA-Z0-9-]/g, '-')}-proxy`,
       version: "0.0.0",
@@ -35,14 +31,13 @@ export class NodeInstaller {
       JSON.stringify(proxyPkg, null, 2)
     );
 
-    // 3. Execute 'npm install' inside the sandbox
     console.log(`[Installer] Starting npm install for ${pkgName} in ${serviceDir}...`);
 
     return new Promise((resolve, reject) => {
       const child = spawn('npm', ['install', '--loglevel=error'], {
         cwd: serviceDir,
-        stdio: 'inherit', // Inherit stdio to show progress in parent console
-        shell: true       // Ensure compatibility on Windows
+        stdio: 'inherit',
+        shell: true
       });
 
       child.on('close', (code) => {
@@ -63,9 +58,6 @@ export class NodeInstaller {
     });
   }
 
-  /**
-   * Check if a service is seemingly installed (checks for node_modules existence)
-   */
   checkInstalled(serviceId: string): boolean {
     const serviceDir = path.join(this.rootDir, 'services', serviceId);
     return fs.existsSync(path.join(serviceDir, 'node_modules'));

@@ -6,10 +6,31 @@ export class PythonInstaller {
   constructor(private rootDir: string) {}
 
   /**
+   * Get available python command
+   */
+  private async getPythonCommand(): Promise<string> {
+    const commands = ['python', 'python3', 'py'];
+    for (const cmd of commands) {
+      try {
+        await new Promise((resolve, reject) => {
+          const child = spawn(cmd, ['--version'], { shell: true });
+          child.on('close', (code) => code === 0 ? resolve(true) : reject());
+          child.on('error', reject);
+        });
+        return cmd;
+      } catch (e) {
+        continue;
+      }
+    }
+    throw new Error('Python not found. Please install Python and add it to your PATH.');
+  }
+
+  /**
    * Install a Python based MCP service into a sandbox directory.
    * This creates a dedicated virtual environment for the service.
    */
   async install(serviceId: string, pkgName: string, version: string = ''): Promise<boolean> {
+    const pythonCmd = await this.getPythonCommand();
     const serviceDir = path.join(this.rootDir, 'services', serviceId);
     const venvDir = path.join(serviceDir, 'venv');
     
@@ -17,10 +38,10 @@ export class PythonInstaller {
       fs.mkdirSync(serviceDir, { recursive: true });
     }
 
-    console.log(`[PythonInstaller] Creating venv for ${serviceId} in ${venvDir}...`);
+    console.log(`[PythonInstaller] Creating venv for ${serviceId} using ${pythonCmd} in ${venvDir}...`);
 
     // 1. Create venv
-    await this.runCommand('python', ['-m', 'venv', 'venv'], serviceDir);
+    await this.runCommand(pythonCmd, ['-m', 'venv', 'venv'], serviceDir);
 
     // 2. Install package
     const pipPath = process.platform === 'win32' 
@@ -56,37 +77,5 @@ export class PythonInstaller {
 
       child.on('error', reject);
     });
-  }
-}
-
-export class DockerInstaller {
-  constructor() {}
-
-  async install(serviceId: string, image: string): Promise<boolean> {
-    console.log(`[DockerInstaller] Pulling image ${image} for ${serviceId}...`);
-    
-    return new Promise((resolve, reject) => {
-      const child = spawn('docker', ['pull', image], {
-        stdio: 'inherit',
-        shell: true
-      });
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          console.log(`[DockerInstaller] Successfully pulled ${image}`);
-          resolve(true);
-        } else {
-          reject(new Error(`Docker pull failed with code ${code}`));
-        }
-      });
-
-      child.on('error', reject);
-    });
-  }
-
-  checkInstalled(_serviceId: string): boolean {
-    // For docker, we could check if image exists, but pulling is usually fast if it exists
-    // For now, let's just assume it's "installed" if we can pull it or if we don't want to check
-    return true; 
   }
 }

@@ -1,4 +1,4 @@
-import { MCPService } from './types';
+import { MCPService } from "./types";
 
 export const EXAMPLE_SERVICES: MCPService[] = [
   {

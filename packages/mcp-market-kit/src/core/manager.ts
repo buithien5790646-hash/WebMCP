@@ -1,11 +1,9 @@
-import { MCPOptions, MCPService, ServiceConfig } from './types';
-import { NodeInstaller } from './installer';
-import { PythonInstaller, DockerInstaller } from './installers';
-import { NodeResolver } from './resolver';
-import { PythonResolver, DockerResolver } from './resolvers';
-import { MCPRegistry } from './registry';
+import { MCPOptions, MCPService, ServiceConfig } from '../types';
+import { NodeInstaller, PythonInstaller, DockerInstaller } from '../installers';
+import { NodeResolver, PythonResolver, DockerResolver } from '../resolvers';
+import { MCPRegistry } from '../registry';
 import * as fs from 'fs';
-import { DEFAULT_ROOT_DIR } from './constants';
+import { DEFAULT_ROOT_DIR } from '../constants';
 
 export class MCPManager {
   private options: MCPOptions;
@@ -20,7 +18,7 @@ export class MCPManager {
   constructor(options?: Partial<MCPOptions>) {
     this.options = {
       rootDir: options?.rootDir || DEFAULT_ROOT_DIR,
-      registryUrl: options?.registryUrl,
+      registryUrlOrPath: options?.registryUrlOrPath || options?.registryUrl,
       initialServices: options?.initialServices || []
     };
 
@@ -37,7 +35,7 @@ export class MCPManager {
     this.pythonResolver = new PythonResolver(this.options.rootDir);
     this.dockerResolver = new DockerResolver();
 
-    this.registry = new MCPRegistry(this.options.registryUrl, this.options.initialServices);
+    this.registry = new MCPRegistry(this.options.registryUrlOrPath, this.options.initialServices);
   }
 
   /**
@@ -97,7 +95,6 @@ export class MCPManager {
    * Check if service is installed
    */
   isInstalled(serviceId: string): boolean {
-    // For simplicity, we check all installers. In a better impl, we'd check the registry first.
     return this.nodeInstaller.checkInstalled(serviceId) || 
            this.pythonInstaller.checkInstalled(serviceId) ||
            this.dockerInstaller.checkInstalled(serviceId);
