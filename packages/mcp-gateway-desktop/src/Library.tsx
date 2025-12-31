@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Trash2,
   Plus,
@@ -10,10 +10,15 @@ import {
   AlertCircle,
   PlayCircle,
   Loader2,
-  AlertTriangle,
   Download,
   ShoppingBag,
   LayoutList,
+  HardDrive,
+  Github,
+  Play,
+  Clock,
+  Database,
+  Box,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,8 +31,19 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MARKETPLACE_ITEMS, MarketplaceItem } from "./data/marketplace";
 import { cn } from "@/lib/utils";
+import type { MCPService } from "@mcp-kit/core";
+
+// Icon mapping for SDK string icons to Lucide components
+const ICON_MAP: Record<string, any> = {
+  HardDrive,
+  Github,
+  Globe,
+  Play,
+  Clock,
+  Database,
+  Box,
+};
 
 interface ServerDefinition {
   id: string;
@@ -61,12 +77,38 @@ export default function Library({ servers, envStatus, onReload }: Props) {
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
 
-  // --- Marketplace Install State ---
-  const [installingItem, setInstallingItem] = useState<MarketplaceItem | null>(null);
+  // --- Marketplace State ---
+  const [marketServices, setMarketServices] = useState<MCPService[]>([]);
+  const [isLoadingMarket, setIsLoadingMarket] = useState(false);
+  const [installingItem, setInstallingItem] = useState<MCPService | null>(null);
+  const [isPerformingInstall, setIsPerformingInstall] = useState(false);
   const [installForm, setInstallForm] = useState<{ env: Record<string, string>; args: string[] }>({
     env: {},
     args: [],
   });
+
+  // Fetch market services when switching to market view
+  useEffect(() => {
+    if (view === "market") {
+      fetchMarketServices();
+    }
+  }, [view]);
+
+  const fetchMarketServices = async () => {
+    setIsLoadingMarket(true);
+    try {
+      const result = await window.ipcRenderer.invoke("market:get-services");
+      if (result.status === "success") {
+        setMarketServices(result.services);
+      } else {
+        console.error("Failed to fetch market services:", result.message);
+      }
+    } catch (err) {
+      console.error("IPC Error fetching market services:", err);
+    } finally {
+      setIsLoadingMarket(false);
+    }
+  };
 
   // --------------------------------------------------------------------------
   // Helpers
@@ -141,7 +183,7 @@ export default function Library({ servers, envStatus, onReload }: Props) {
   // Handlers: Marketplace Operations
   // --------------------------------------------------------------------------
 
-  const initiateInstall = (item: MarketplaceItem) => {
+  const initiateInstall = (item: MCPService) => {
     // Reset form
     setInstallForm({ env: {}, args: new Array(item.variables?.args?.length || 0).fill("") });
     setInstallingItem(item);
@@ -150,28 +192,36 @@ export default function Library({ servers, envStatus, onReload }: Props) {
   const confirmInstall = async () => {
     if (!installingItem) return;
 
-    const id = `server-${Date.now()}`;
-    const finalName = generateUniqueName(installingItem.name);
+    setIsPerformingInstall(true);
+    try {
+      // Use Market Kit to install the service
+      const result = await window.ipcRenderer.invoke("market:install", installingItem);
 
-    // Merge base args with user provided args
-    const baseArgs = installingItem.install.args || [];
-    const userArgs = installForm.args;
-    const finalArgs = [...baseArgs, ...userArgs];
+      if (result.status === "success") {
+        const id = `server-${Date.now()}`;
+        const finalName = generateUniqueName(installingItem.name);
 
-    const serverToSave: ServerDefinition = {
-      id,
-      name: finalName,
-      type: installingItem.install.type,
-      command: installingItem.install.command,
-      args: finalArgs,
-      url: installingItem.install.url,
-      env: installForm.env,
-    };
+        const serverToSave: ServerDefinition = {
+          id,
+          name: finalName,
+          type: "stdio", // Market kit services are currently all stdio based (local exec)
+          command: result.config.command,
+          args: [...result.config.args, ...installForm.args],
+          env: installForm.env,
+        };
 
-    await window.ipcRenderer.invoke("db:save-server", serverToSave);
-    setInstallingItem(null);
-    setView("installed");
-    onReload();
+        await window.ipcRenderer.invoke("db:save-server", serverToSave);
+        setInstallingItem(null);
+        setView("installed");
+        onReload();
+      } else {
+        throw new Error(result.message || "Failed to install service via Market Kit");
+      }
+    } catch (err: any) {
+      alert(`Installation failed: ${err.message}`);
+    } finally {
+      setIsPerformingInstall(false);
+    }
   };
 
   // --------------------------------------------------------------------------
@@ -280,122 +330,127 @@ export default function Library({ servers, envStatus, onReload }: Props) {
                 </div>
 
                 {newServer.type === "stdio" ? (
-                  <>
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Command</label>
                       <Input
-                        placeholder="e.g. npx, docker, python"
+                        placeholder="e.g. node, python, npx"
                         value={newServer.command || ""}
                         onChange={(e) => setNewServer({ ...newServer, command: e.target.value })}
                       />
-                      {newServer.command && envStatus && envStatus[newServer.command] === false && (
-                        <p className="text-xs text-destructive flex items-center mt-1">
-                          <AlertCircle className="w-3 h-3 mr-1" />
-                          Command '{newServer.command}' not detected in system path.
-                        </p>
-                      )}
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Arguments</label>
+                      <label className="text-sm font-medium">Arguments (Space separated)</label>
                       <Input
-                        placeholder="Space separated args"
+                        placeholder="e.g. -y @mcp/server-filesystem /path"
                         value={argsStr}
                         onChange={(e) => setArgsStr(e.target.value)}
                       />
                     </div>
-                  </>
+                  </div>
                 ) : (
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">URL</label>
+                    <label className="text-sm font-medium">Remote URL</label>
                     <Input
-                      placeholder="https://..."
+                      placeholder="https://mcp-server.example.com/sse"
                       value={newServer.url || ""}
                       onChange={(e) => setNewServer({ ...newServer, url: e.target.value })}
                     />
                   </div>
                 )}
               </CardContent>
-              <CardFooter className="justify-end gap-2">
+              <CardFooter className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={() => setIsAdding(false)}>
                   Cancel
                 </Button>
                 <Button onClick={handleManualSave}>
-                  <Save className="mr-2 h-4 w-4" /> Save Definition
+                  <Save className="mr-2 h-4 w-4" /> Save Server
                 </Button>
               </CardFooter>
             </Card>
           )}
 
-          {/* Installed List */}
-          <div className="grid gap-3">
-            {Object.values(servers).length === 0 && !isAdding && (
-              <div className="text-center py-12 text-muted-foreground bg-muted/20 rounded-lg border border-dashed">
-                No servers installed. Check the Marketplace to get started!
-              </div>
-            )}
+          {/* List of Installed Servers */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.values(servers).map((s) => (
+              <Card key={s.id} className="group hover:border-primary/50 transition-colors">
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        {s.type === "stdio" ? (
+                          <Terminal className="w-4 h-4 text-primary" />
+                        ) : (
+                          <Globe className="w-4 h-4 text-primary" />
+                        )}
+                        {s.name}
+                      </CardTitle>
+                      <CardDescription className="font-mono text-[10px] truncate max-w-[200px]">
+                        ID: {s.id}
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => handleDelete(s.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pb-3">
+                  <div className="text-xs space-y-2">
+                    {s.type === "stdio" ? (
+                      <div className="bg-muted p-2 rounded font-mono break-all line-clamp-2">
+                        {s.command} {s.args?.join(" ")}
+                      </div>
+                    ) : (
+                      <div className="bg-muted p-2 rounded font-mono break-all line-clamp-2">
+                        {s.url}
+                      </div>
+                    )}
 
-            {Object.values(servers).map((server) => (
-              <Card
-                key={server.id}
-                className="flex items-center justify-between p-4 hover:bg-accent/5 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                    {server.type === "stdio" ? (
-                      <Terminal className="h-5 w-5" />
-                    ) : (
-                      <Globe className="h-5 w-5" />
+                    {testResults[s.id] && (
+                      <div
+                        className={cn(
+                          "flex items-center gap-1.5 p-1.5 rounded border",
+                          testResults[s.id].ok
+                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                            : "bg-destructive/10 text-destructive border-destructive/20"
+                        )}
+                      >
+                        {testResults[s.id].ok ? (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <AlertCircle className="w-3.5 h-3.5" />
+                        )}
+                        <span className="font-medium truncate">{testResults[s.id].msg}</span>
+                      </div>
                     )}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{server.name}</span>
-                      <Badge variant="outline" className="text-[10px] h-5">
-                        {server.type.toUpperCase()}
-                      </Badge>
-                    </div>
-                    <div className="text-sm text-muted-foreground mt-1 font-mono">
-                      {server.type === "stdio"
-                        ? `$ ${server.command} ${(server.args || []).join(" ")}`
-                        : `🔗 ${server.url}`}
-                      {testResults[server.id] && (
-                        <div
-                          className={`text-xs flex items-center mt-2 ${testResults[server.id].ok ? "text-emerald-600" : "text-destructive"}`}
-                        >
-                          {testResults[server.id].ok ? (
-                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                          ) : (
-                            <AlertTriangle className="w-3 h-3 mr-1" />
-                          )}
-                          {testResults[server.id].msg}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-1">
+                </CardContent>
+                <CardFooter>
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleTest(server)}
-                    disabled={testingId === server.id}
-                    title="Test Connection"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => handleTest(s)}
+                    disabled={testingId === s.id}
                   >
-                    {testingId === server.id ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    {testingId === s.id ? (
+                      <>
+                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                        Testing...
+                      </>
                     ) : (
-                      <PlayCircle className="h-5 w-5 text-muted-foreground hover:text-primary" />
+                      <>
+                        <PlayCircle className="mr-2 h-3.5 w-3.5" />
+                        Test Connection
+                      </>
                     )}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(server.id)}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-5 w-5" />
-                  </Button>
-                </div>
+                </CardFooter>
               </Card>
             ))}
           </div>
@@ -404,26 +459,51 @@ export default function Library({ servers, envStatus, onReload }: Props) {
 
       {/* ----------------- VIEW: MARKETPLACE ----------------- */}
       {view === "market" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {MARKETPLACE_ITEMS.map((item) => (
-            <Card key={item.id} className="flex flex-col h-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {isLoadingMarket && (
+            <div className="col-span-full py-12 flex flex-col items-center justify-center text-muted-foreground">
+              <Loader2 className="w-8 h-8 animate-spin mb-4" />
+              <p>Loading MCP Marketplace...</p>
+            </div>
+          )}
+
+          {!isLoadingMarket && marketServices.map((item) => (
+            <Card key={item.id} className="flex flex-col border-primary/10 hover:border-primary/30 transition-colors">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center text-primary">
-                    <item.icon className="h-6 w-6" />
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                    {(() => {
+                      const IconComp = ICON_MAP[item.icon || ""] || Box;
+                      return <IconComp className="w-6 h-6" />;
+                    })()}
                   </div>
-                  <Badge variant="secondary">Official</Badge>
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg">{item.name}</CardTitle>
+                    <CardDescription className="text-xs">by {item.author || "Unknown"}</CardDescription>
+                  </div>
                 </div>
-                <CardTitle className="mt-4">{item.name}</CardTitle>
-                <CardDescription className="line-clamp-2">{item.description}</CardDescription>
               </CardHeader>
               <CardContent className="flex-1">
-                <div className="text-xs text-muted-foreground bg-muted p-2 rounded font-mono break-all">
-                  $ {item.install.command} {(item.install.args || []).join(" ")} ...
+                <p className="text-sm text-muted-foreground line-clamp-3">
+                  {item.description}
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <Badge variant="outline" className="text-[10px] uppercase">
+                    {item.type}
+                  </Badge>
+                  {item.metadata.version && (
+                    <Badge variant="secondary" className="text-[10px]">
+                      v{item.metadata.version}
+                    </Badge>
+                  )}
                 </div>
               </CardContent>
-              <CardFooter>
-                <Button className="w-full" onClick={() => initiateInstall(item)}>
+              <CardFooter className="pt-0">
+                <Button
+                  className="w-full"
+                  variant="secondary"
+                  onClick={() => initiateInstall(item)}
+                >
                   <Download className="mr-2 h-4 w-4" /> Install
                 </Button>
               </CardFooter>
@@ -498,11 +578,23 @@ export default function Library({ servers, envStatus, onReload }: Props) {
                 </div>
               ))}
             </CardContent>
-            <CardFooter className="justify-end gap-2 bg-muted/20">
-              <Button variant="ghost" onClick={() => setInstallingItem(null)}>
+            <CardFooter className="flex justify-between gap-3 bg-muted/20">
+              <Button variant="outline" onClick={() => setInstallingItem(null)} disabled={isPerformingInstall}>
                 Cancel
               </Button>
-              <Button onClick={confirmInstall}>Confirm & Install</Button>
+              <Button onClick={confirmInstall} disabled={isPerformingInstall}>
+                {isPerformingInstall ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Installing...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    Confirm Installation
+                  </>
+                )}
+              </Button>
             </CardFooter>
           </Card>
         </div>

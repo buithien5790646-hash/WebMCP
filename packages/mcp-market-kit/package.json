@@ -1,6 +1,7 @@
 {
   "name": "@mcp-kit/core",
   "version": "0.1.0",
+  "type": "module",
   "description": "The missing package manager for Model Context Protocol. Embed a full MCP Marketplace into your Electron/Node app.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

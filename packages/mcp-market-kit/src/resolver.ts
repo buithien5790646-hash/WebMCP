@@ -66,7 +66,7 @@ export class NodeResolver {
     return {
       command: 'node',
       args: [entryAbsolute],
-      env: { ...process.env, ...env }
+      env: { ...(process.env as Record<string, string>), ...env }
     };
   }
 }

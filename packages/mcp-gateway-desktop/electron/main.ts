@@ -7,6 +7,13 @@ const execAsync = promisify(exec);
 import { GatewayManager } from "./gateway-manager";
 import type { ServerConfig } from "@webmcp/shared";
 import Store from "electron-store";
+import { MCPManager, EXAMPLE_SERVICES } from "@mcp-kit/core";
+
+// Initialize MCP Market Kit Manager
+const mcpManager = new MCPManager({
+  rootDir: path.join(app.getPath("userData"), "mcp-market-data"),
+  initialServices: EXAMPLE_SERVICES, // Inject example services here
+});
 
 // --- Interfaces for Type Safety ---
 interface ServerDef {
@@ -177,6 +184,42 @@ ipcMain.handle("config:get", () => store.get("config"));
 ipcMain.handle("config:save", (_event, config: AppConfig) => {
   store.set("config", config);
   return { success: true };
+});
+
+// MCP Market Kit Operations
+ipcMain.handle("market:get-services", async () => {
+  try {
+    const services = await mcpManager.getMarketplaceServices();
+    return { status: "success", services };
+  } catch (err: any) {
+    return { status: "error", message: err.message };
+  }
+});
+
+ipcMain.handle("market:install", async (_event, service: any) => {
+  try {
+    const success = await mcpManager.install(service);
+    if (!success) throw new Error("Installation failed");
+
+    // After installation, resolve the config to get the actual path
+    const config = await mcpManager.resolve(service.id);
+    return { status: "success", config };
+  } catch (err: any) {
+    return { status: "error", message: err.message };
+  }
+});
+
+ipcMain.handle("market:is-installed", async (_event, serviceId: string) => {
+  return mcpManager.isInstalled(serviceId);
+});
+
+ipcMain.handle("market:resolve", async (_event, serviceId: string, env?: Record<string, string>) => {
+  try {
+    const config = await mcpManager.resolve(serviceId, env);
+    return { status: "success", config };
+  } catch (err: any) {
+    return { status: "error", message: err.message };
+  }
 });
 
 // Utils with Browser Support

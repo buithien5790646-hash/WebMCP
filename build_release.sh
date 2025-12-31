@@ -50,6 +50,7 @@ const fs = require('fs');
 const version = '$ROOT_VERSION';
 const packages = [
     './packages/shared/package.json',
+    './packages/mcp-market-kit/package.json',
     './packages/mcp-gateway-vscode/package.json',
     './packages/mcp-gateway-desktop/package.json',
     './packages/mcp-bridge-browser/package.json'
@@ -81,9 +82,10 @@ pnpm install --no-frozen-lockfile
 mkdir -p release
 # We don't rm -rf release/* because we might only be building one component
 
-# 4. Build Shared Module (Required for all)
-echo -e "${CYAN}🛠️  Building Shared Module...${NC}"
+# 4. Build Core Modules (Required for all)
+echo -e "${CYAN}🛠️  Building Core Modules...${NC}"
 pnpm --filter @webmcp/shared run build
+pnpm --filter @mcp-kit/core run build
 
 # ==========================================
 # 5. Package VS Code Extension

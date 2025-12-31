@@ -37,6 +37,7 @@ Write-Host "📦 Target Version: $rootVersion" -ForegroundColor Green
 Write-Host "🔄 Syncing versions to all packages..." -ForegroundColor Cyan
 $packages = @(
     "packages/shared/package.json",
+    "packages/mcp-market-kit/package.json",
     "packages/mcp-gateway-vscode/package.json",
     "packages/mcp-gateway-desktop/package.json",
     "packages/mcp-bridge-browser/package.json"
@@ -69,9 +70,10 @@ if (!(Test-Path "release")) {
     New-Item -ItemType Directory -Path "release" | Out-Null
 }
 
-# 6. Build Shared Module
-Write-Host "🛠️ Building Shared Module..." -ForegroundColor Cyan
+# 6. Build Core Modules
+Write-Host "🛠️ Building Core Modules..." -ForegroundColor Cyan
 cmd /c "pnpm --filter @webmcp/shared run build"
+cmd /c "pnpm --filter @mcp-kit/core run build"
 
 # ==========================================
 # 7. Package VS Code Extension

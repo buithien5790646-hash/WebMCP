@@ -1,28 +1,56 @@
+export type MCPServiceType = 'node' | 'python' | 'docker';
+
 export interface MCPService {
-  id: string;          // 唯一标识 (e.g. "@modelcontextprotocol/server-filesystem")
+  id: string;          // Unique identifier
   name: string;
   description?: string;
-  type: 'node' | 'python'; 
+  author?: string;
+  icon?: string;       // Icon name or URL
+  type: MCPServiceType;
   metadata: {
     npmPackage?: string;
     pythonPackage?: string;
+    dockerImage?: string;
     version?: string;
+    repoUrl?: string;
+  };
+  variables?: {
+    env?: Array<{
+      key: string;
+      label: string;
+      placeholder?: string;
+      description?: string;
+      required?: boolean;
+    }>;
+    args?: Array<{
+      label: string;
+      placeholder?: string;
+      description?: string;
+      type: 'text' | 'path';
+      required?: boolean;
+    }>;
   };
 }
 
 export interface ServiceConfig {
-  command: string;     // 最终执行命令 (node/python)
-  args: string[];      // 参数 (绝对路径入口)
+  command: string;     // Execution command (node/python/docker)
+  args: string[];      // Arguments (absolute paths or image names)
   env?: Record<string, string>;
 }
 
 export interface MCPOptions {
-  rootDir: string;     // SDK 管理数据的根目录
+  rootDir: string;     // SDK data root directory
   registryUrl?: string;
+  initialServices?: MCPService[]; // Initial local services
 }
 
 export interface InstallResult {
   success: boolean;
   path: string;
   version?: string;
+}
+
+export interface Registry {
+  version: string;
+  services: MCPService[];
 }
