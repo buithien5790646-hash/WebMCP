@@ -30,4 +30,5 @@ export interface Session {
   port: number;
   token: string;
   showLog: boolean;
+  workspaceId: string;
 }

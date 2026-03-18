@@ -1,56 +1,17 @@
-import { Session, MessageRequest, HandshakeResponse, ToolExecutionPayload } from '../types';
+import { Session, MessageRequest, HandshakeResponse } from '../types';
 
 // === WebMCP Background Service (MV3 Persistent Edition) ===
 
-// 初始化：加载多语言资源文件
+// 初始化：设置默认状态
 chrome.runtime.onInstalled.addListener(async () => {
-  const files: Record<string, string> = {
-    prompt_en: "prompt.md",
-    prompt_zh: "prompt_zh.md",
-    train_en: "train.md",
-    train_zh: "train_zh.md",
-    error_en: "error_hint.md",
-    error_zh: "error_hint_zh.md",
-  };
-
-  const storageData: Record<string, string> = {};
-
-  // 使用 fetch 读取扩展内的 .md 文件
-  for (const [key, file] of Object.entries(files)) {
-    try {
-      const url = chrome.runtime.getURL(file);
-      const response = await fetch(url);
-      if (response.ok) {
-        storageData[key] = await response.text();
-      } else {
-        console.error(`Failed to load ${file}`);
-      }
-    } catch (err) {
-      console.error(`Error loading ${file}`, err);
-    }
-  }
-
-  // 1. 初始化本地资源 (storage.local)
-  const existingLocal = await chrome.storage.local.get(Object.keys(storageData));
-  const localToSet: Record<string, string> = {};
-  for (const [key, val] of Object.entries(storageData)) {
-    if (!existingLocal[key]) {
-      localToSet[key] = val;
-    }
-  }
-  if (Object.keys(localToSet).length > 0) {
-    await chrome.storage.local.set(localToSet);
-    console.log("[WebMCP] Initialized local resources");
-  }
-
-  // 2. 初始化用户配置 (storage.sync)
-  const syncKeys = ["autoSend", "autoPromptEnabled", "customSelectors", "protected_tools"];
+  // 初始化用户配置 (storage.sync)
+  const syncKeys = ["autoSend", "autoPromptEnabled", "customSelectors", "user_rules"];
   const existingSync = await chrome.storage.sync.get(syncKeys);
   const syncToSet: Record<string, any> = {};
-  
+
   if (existingSync.autoSend === undefined) syncToSet.autoSend = true;
   if (existingSync.autoPromptEnabled === undefined) syncToSet.autoPromptEnabled = false;
-  
+
   if (Object.keys(syncToSet).length > 0) {
       await chrome.storage.sync.set(syncToSet);
       console.log("[WebMCP] Initialized user settings (Preserved existing)");
@@ -93,7 +54,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (session && isUrlAllowed(tab.url)) {
       updateBadge(tabId, true);
       // [Sync] Restore connection state in Content Script after reload
-      chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true }).catch(() => {});
+      chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true, workspaceId: session.workspaceId }).catch(() => {});
       if (session.showLog) {
         chrome.tabs.sendMessage(tabId, { type: "TOGGLE_LOG", show: true }).catch(() => {});
       }
@@ -121,6 +82,7 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
             connected: !!session,
             port: session?.port,
             showLog: session?.showLog || false,
+            workspaceId: session?.workspaceId || 'global'
           });
         });
     } else {
@@ -155,7 +117,9 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
     return true;
   }
   if (request.type === "SYNC_CONFIG") {
-    pushConfigToGateway().then(success => sendResponse({ success }));
+    // [Refactor] Config syncing to host is deprecated.
+    // The browser extension is now the single source of truth for user preferences.
+    sendResponse({ success: true });
     return true;
   }
   if (request.type === "CONNECT_EXISTING") {
@@ -168,7 +132,9 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
     chrome.storage.local.remove("session_null");
 
     if (request.port && request.token) {
-        bindSession(targetTabId, request.port, request.token)
+        // Fallback workspaceId if not provided during manual connect
+        const workspaceId = request.workspaceId || 'global';
+        bindSession(targetTabId, request.port, request.token, workspaceId)
         .then(() => sendResponse({ success: true }))
         .catch((err) => sendResponse({ success: false, error: err.message }));
     }
@@ -206,8 +172,8 @@ async function removeSession(tabId: number) {
 
 // === 逻辑实现 ===
 async function handleHandshake(request: any, tabId: number | null | undefined): Promise<HandshakeResponse> {
-  const { port, token, force } = request;
-  
+  const { port, token, force, workspaceId = 'global' } = request;
+
   if (!tabId) return { success: false, error: "No Tab ID" };
 
   if (!force) {
@@ -234,61 +200,44 @@ async function handleHandshake(request: any, tabId: number | null | undefined): 
       }
     }
   }
-  await bindSession(tabId, port, token);
+  await bindSession(tabId, port, token, workspaceId);
   return { success: true };
 }
 
-async function bindSession(tabId: number, port: number, token: string) {
-  await saveSession(tabId, { port, token, showLog: false });
-  console.log(`[WebMCP] Tab ${tabId} bound to Port ${port}`);
+async function bindSession(tabId: number, port: number, token: string, workspaceId: string) {
+  await saveSession(tabId, { port, token, showLog: false, workspaceId });
+  console.log(`[WebMCP] Tab ${tabId} bound to Port ${port} [Workspace: ${workspaceId}]`);
   updateBadge(tabId, true);
   // [Sync] Notify Content Script
-  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true }).catch(() => {});
-  await syncConfigFromGateway(port, token);
+  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true, workspaceId }).catch(() => {});
+  await fetchInitDataFromGateway(port, token);
   prefetchToolList(port, token);
 }
 
-// === 配置同步 (Host Sync) ===
-async function pushConfigToGateway() {
+// === 配置拉取 (Init Sync) ===
+async function fetchInitDataFromGateway(port: number, token: string) {
   try {
-    // 1. Find active session
-    const all = await chrome.storage.local.get(null);
-    let port = null, token = null;
-    for (const [key, val] of Object.entries(all)) {
-      if (key.startsWith("session_") && (val as any).port && (val as any).token) {
-        port = (val as any).port;
-        token = (val as any).token;
-        break;
-      }
-    }
-    if (!port || !token) return false;
-
-    // 2. Gather config
-    const syncData = await chrome.storage.sync.get(["customSelectors", "protected_tools", "autoSend", "autoPromptEnabled"]);
-    const localKeys = ["prompt_en", "prompt_zh", "train_en", "train_zh", "error_en", "error_zh", "user_rules"];
-    const localData = await chrome.storage.local.get(localKeys);
-    
-    const fullConfig = {
-      version: 1,
-      timestamp: new Date().toISOString(),
-      sync: syncData,
-      local: localData
-    };
-
-    // 3. Push
-    await fetch(`http://127.0.0.1:${port}/v1/config`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-WebMCP-Token': token
-      },
-      body: JSON.stringify({ config: fullConfig })
+    console.log("[WebMCP] Fetching initialization data from Gateway...");
+    const resp = await fetch(`http://127.0.0.1:${port}/v1/init`, {
+      headers: { "X-WebMCP-Token": token },
     });
-    console.log("[WebMCP] Config pushed to Gateway (Auto-Save)");
-    return true;
+    if (!resp.ok) {
+        console.warn("[WebMCP] Gateway did not respond to /v1/init (might be an older version)");
+        return;
+    }
+    const data = await resp.json();
+
+    if (data.selectors && data.prompts) {
+      console.log("[WebMCP] Overwriting local rules with Gateway Defaults.");
+
+      // Save pure defaults for Read-Only access in options or merging in content
+      await chrome.storage.local.set({
+        defaultSelectors: data.selectors,
+        ...data.prompts // prompt_en, prompt_zh, train_en... etc.
+      });
+    }
   } catch (e) {
-    console.error("[WebMCP] Failed to push config:", e);
-    return false;
+    console.error("[WebMCP] Initialization sync failed:", e);
   }
 }
 
@@ -300,83 +249,23 @@ async function prefetchToolList(port: number, token: string) {
     });
     if (!resp.ok) return;
     const json = await resp.json();
-    
+
     // Parse Grouped Data
     const rawGroups = json.groups || [];
     const newToolNames: string[] = [];
-    
+
     rawGroups.forEach((g: any) => {
         if (g.tools) g.tools.forEach((t: any) => newToolNames.push(t.name));
         if (g.hidden_tools) g.hidden_tools.forEach((n: string) => newToolNames.push(n));
     });
 
-    // [HITL] Security: Auto-protect new tools logic
-    const localData = await chrome.storage.local.get(["cached_tool_list"]);
-    const syncData = await chrome.storage.sync.get(["protected_tools"]);
-
-    const knownTools = new Set(localData.cached_tool_list || []);
-    const protectedTools = new Set(syncData.protected_tools || []);
-    let protectedDirty = false;
-
-    newToolNames.forEach((tName: string) => {
-      // If it's a NEW tool (not in cache), protect it by default
-      if (!knownTools.has(tName)) {
-        if (!protectedTools.has(tName)) {
-          protectedTools.add(tName);
-          protectedDirty = true;
-        }
-      }
-    });
-
-    if (protectedDirty) {
-      await chrome.storage.sync.set({
-        protected_tools: Array.from(protectedTools),
-      });
-      console.log("[WebMCP] New tools detected & protected during prefetch.");
-    }
-
-    await chrome.storage.local.set({ 
-        cached_tool_list: newToolNames, 
-        cached_tool_groups: rawGroups 
+    await chrome.storage.local.set({
+        cached_tool_list: newToolNames,
+        cached_tool_groups: rawGroups
     });
     console.log("[WebMCP] Tool list cached.");
   } catch (e) {
     console.error("[WebMCP] Tool prefetch failed:", e);
-  }
-}
-
-async function syncConfigFromGateway(port: number, token: string) {
-  try {
-    console.log("[WebMCP] Syncing config from Gateway...");
-    const resp = await fetch(`http://127.0.0.1:${port}/v1/config`, {
-      headers: { "X-WebMCP-Token": token },
-    });
-    if (!resp.ok) return;
-    const data = await resp.json();
-    
-    if (data.config) {
-      console.log("[WebMCP] Remote config found. Overwriting local settings.");
-      const { sync, local } = data.config;
-      
-      if (sync) {
-        await chrome.storage.sync.set(sync);
-      }
-      if (local) {
-        // 仅恢复提示词等关键数据，不覆盖 Session
-        const safeLocal: Record<string, string> = {};
-        const keys = ["prompt_en", "prompt_zh", "train_en", "train_zh", "error_en", "error_zh", "user_rules"];
-        keys.forEach(k => {
-          if (local[k]) safeLocal[k] = local[k];
-        });
-        if (Object.keys(safeLocal).length > 0) {
-          await chrome.storage.local.set(safeLocal);
-        }
-      }
-    } else {
-      console.log("[WebMCP] No remote config. Keeping local defaults.");
-    }
-  } catch (e) {
-    console.error("[WebMCP] Config sync failed:", e);
   }
 }
 

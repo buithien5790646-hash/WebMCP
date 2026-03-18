@@ -38,12 +38,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "prompt.md",
-        "prompt_zh.md",
-        "train.md",
-        "train_zh.md",
-        "error_hint.md",
-        "error_hint_zh.md"
+        "icons/*"
       ],
       "matches": ["<all_urls>"]
     }
