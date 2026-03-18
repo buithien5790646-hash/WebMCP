@@ -16,6 +16,9 @@ let CONFIG: ConfigState = {
   autoPromptEnabled: false,
 };
 
+// [State] Connection Guard
+let isClientConnected = false;
+
 let userRules = ""; // [User Rules]
 let protectedTools = new Set<string>();
 const confirmationQueue: ToolExecutionPayload[] = [];
@@ -35,11 +38,22 @@ chrome.storage.local.get([promptKey, trainKey, errorKey, "user_rules"], (items) 
   console.log(`[MCP] Loaded i18n resources (${lang}) & User Rules`);
 });
 
-// 监听日志开关消息
+// 监听消息 (日志开关 & 状态同步)
 chrome.runtime.onMessage.addListener((request) => {
   if (request.type === "TOGGLE_LOG") {
     Logger.toggle(request.show);
     Logger.log("Logger Visible: " + request.show, "info");
+  }
+  if (request.type === "STATUS_UPDATE") {
+    const wasConnected = isClientConnected;
+    isClientConnected = request.connected;
+    if (isClientConnected !== wasConnected) {
+      Logger.log(`[MCP] Connection Status: ${isClientConnected ? "Connected" : "Disconnected"}`, "info");
+      if (isClientConnected) {
+        // Re-activate immediately
+        runMainLoop();
+      }
+    }
   }
 });
 
@@ -112,7 +126,7 @@ let isCheckScheduled = false;
 
 function runMainLoop() {
   isCheckScheduled = false;
-  if (!DOM) return;
+  if (!DOM || !isClientConnected) return;
   const messages = document.querySelectorAll(DOM.messageBlocks);
   if (messages.length === 0) {
     // Auto Prompt
@@ -283,6 +297,8 @@ function runMainLoop() {
 
 // 初始化观察者
 const observer = new MutationObserver((mutations) => {
+  if (!isClientConnected) return;
+  
   // 简单节流：如果已经计划了下一次检查，就不重复计划
   // 这样保证在高频刷新（AI打字）时，最多每 CONFIG.pollInterval 执行一次
   if (!isCheckScheduled) {
@@ -292,16 +308,24 @@ const observer = new MutationObserver((mutations) => {
 });
 
 if (currentPlatform) {
-  // 启动监听 (监听子节点变化和文本内容变化)
+  // 1. Start observing immediately (but logic inside is guarded by isClientConnected)
   observer.observe(document.body, {
     childList: true,
     subtree: true,
     characterData: true
   });
 
-  // 启动时先执行一次，确保初始状态正确
-  runMainLoop();
-  Logger.log(`WebMCP activated for ${currentPlatform}`, "info");
+  // 2. Check initial status
+  chrome.runtime.sendMessage({ type: "GET_STATUS" }, (response) => {
+    if (response && response.connected) {
+      isClientConnected = true;
+      Logger.log(`WebMCP activated for ${currentPlatform} (Connected)`, "info");
+      runMainLoop();
+    } else {
+      isClientConnected = false;
+      console.log(`WebMCP loaded for ${currentPlatform} (Disconnected - Idle)`);
+    }
+  });
 } else {
   console.log("WebMCP: Platform not supported, staying idle.");
 }

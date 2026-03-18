@@ -1,5 +1,11 @@
 # WebMCP 🌉
 
+## ⚠️ Disclaimer (Read Before Use)
+
+> 1. **Use at Your Own Risk**: This tool connects unpredictable LLMs to your local filesystem. **You are solely responsible for any file loss or system damage.**
+> 2. **Account Safety**: Automated interaction may violate ToS of AI providers (e.g., OpenAI, DeepSeek). Use test accounts and avoid high-frequency requests.
+> 3. **Data Privacy**: Do NOT upload sensitive data (API Keys, secrets). Your local code is sent to third-party AI servers.
+
 **Universal Bridge connecting Web AI to Local Development Environments.**
 
 [中文文档](README_zh.md)
@@ -21,6 +27,17 @@
 - **🧠 Smart Routing**:
   - Automatically selects the browser based on the URL (e.g., Gemini -> Edge, ChatGPT -> Chrome).
   - Supports multiple VS Code windows and multiple concurrent connections.
+
+---
+
+## 🛡️ Security & Privacy
+We prioritize your safety with a "Human-in-the-Loop" design:
+
+- **👮 Human-in-the-Loop (HITL)**:
+  - **Approval Required**: Sensitive operations (e.g., `write_file`, `execute_command`) are **blocked by default**.
+  - **Explicit Consent**: You must click "Approve" in the popup for every new tool call.
+- **🔒 Local Execution**: All logic runs locally in your browser and VS Code. No intermediate servers.
+- **🛡️ Sandbox Mode**: Commands are executed in the current workspace root. Access to system directories is restricted.
 
 ---
 
