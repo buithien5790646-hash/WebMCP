@@ -331,7 +331,7 @@ function runMainLoop() {
 }
 
 // 初始化观察者
-const observer = new MutationObserver((mutations) => {
+const observer = new MutationObserver(() => {
   if (!isClientConnected) return;
   
   // 简单节流：如果已经计划了下一次检查，就不重复计划

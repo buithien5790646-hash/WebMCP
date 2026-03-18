@@ -1,5 +1,3 @@
-import { Session } from '../types';
-
 const els = {
   selectors: document.getElementById("selectorsJson") as HTMLTextAreaElement,
   defaultSelectors: document.getElementById("defaultSelectorsJson") as HTMLTextAreaElement,
