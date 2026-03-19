@@ -3,13 +3,11 @@ import { crx } from '@crxjs/vite-plugin';
 import manifest from './manifest.json';
 
 export default defineConfig({
-  plugins: [crx({ manifest })],
+  plugins: [crx({ manifest: manifest as any })],
   build: {
     rollupOptions: {
       output: {
-        entryFileNames: `assets/[name].js`,
-        chunkFileNames: `assets/[name].js`,
-        assetFileNames: `assets/[name].[ext]`
+        chunkFileNames: 'assets/chunk-[hash].js',
       }
     }
   },
