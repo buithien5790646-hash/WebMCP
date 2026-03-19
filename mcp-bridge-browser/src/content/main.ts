@@ -190,7 +190,7 @@ function runMainLoop() {
 
   codeElements.forEach((codeEl) => {
     const textContent = (codeEl.textContent || "").trim();
-    if (!textContent.includes('"mcp_action": "call"')) {return;}
+    if (!/"mcp_action"\s*:\s*"call"/.test(textContent)) {return;}
 
     // 核心修复: 清理非标准空白字符 (如不间断空格 \u00a0)，以防止 JSON.parse 失败。
     const cleanedText = textContent.replace(nonStandardSpaces, ' ');
@@ -288,7 +288,11 @@ function runMainLoop() {
         ? document.querySelector(DOM.stopButton)
         : null;
       if (stopBtn) {
-        // AI 还在忙，推迟发送
+        // AI 还在忙，推迟发送。但由于 AI 停止时可能不触发 DOM 变化，安排一个稍后的检查
+        if (!isCheckScheduled) {
+          isCheckScheduled = true;
+          setTimeout(runMainLoop, 1000);
+        }
         return;
       }
 
@@ -381,14 +385,13 @@ function executeTool(payload: ToolExecutionPayload) {
     let finalPrompt = i18n.resources.prompt || "";
     if (userRules) {finalPrompt += `\n\n=== User Rules ===\n${userRules}`;}
 
-    if (DOM) {
-      Logger.log("Initializing WebMCP via /webmcp command", "action");
-      UI.writeToInputBox(finalPrompt, DOM.inputArea);
-      UI.triggerAutoSend(CONFIG, DOM);
-    }
+    Logger.log("Initializing WebMCP via /webmcp command", "action");
+
+    // 将提示词包装成格式化的JSON字符串塞入 buffer，交由主循环统一等待AI停止后写入输入框
+    // 不包裹为 mcp_action result，直接以纯文本的形式存入 resultBuffer
+    resultBuffer.set(payload.request_id!, finalPrompt);
 
     activeExecutions.delete(payload.request_id!);
-    flushedRequests.add(payload.request_id!); // 防止主循环等待
     return;
   }
 
