@@ -210,7 +210,8 @@ async function bindSession(tabId: number, port: number, token: string, workspace
   updateBadge(tabId, true);
   // [Sync] Notify Content Script
   chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true, workspaceId }).catch(() => {});
-  await fetchInitDataFromGateway(port, token);
+  // 不再 await，避免网关初始化请求阻塞握手响应
+  fetchInitDataFromGateway(port, token);
 }
 
 // === 配置拉取 (Init Sync) ===

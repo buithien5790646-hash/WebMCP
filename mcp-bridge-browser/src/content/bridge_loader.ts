@@ -5,8 +5,8 @@ import { HandshakeResponse } from '../types';
   // 标记插件已安装，供页面检测
   document.documentElement.setAttribute("data-extension-installed", "true");
 
-  window.addEventListener("DOMContentLoaded", () => {
-    console.log("[WebMCP] Bridge DOM Loaded, starting handshake...");
+  function startHandshake() {
+    console.log("[WebMCP] Bridge starting handshake...");
 
     // 1. 从 URL 获取参数
     const params = new URLSearchParams(window.location.search);
@@ -43,6 +43,7 @@ import { HandshakeResponse } from '../types';
         },
         (response: HandshakeResponse) => {
           if (chrome.runtime.lastError) {
+            console.error("[WebMCP] Runtime error during handshake:", chrome.runtime.lastError);
             if (statusText && loader) {
                 statusText.innerHTML = `
                             <span style="color:#ff6b6b">❌ Extension Not Detected</span><br>
@@ -95,5 +96,12 @@ import { HandshakeResponse } from '../types';
 
     // 启动握手
     attemptHandshake();
-  });
+  }
+
+  // 核心修复：更鲁棒的 DOM 加载检测
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", startHandshake);
+  } else {
+    startHandshake();
+  }
 })();
