@@ -211,7 +211,6 @@ async function bindSession(tabId: number, port: number, token: string, workspace
   // [Sync] Notify Content Script
   chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true, workspaceId }).catch(() => {});
   await fetchInitDataFromGateway(port, token);
-  prefetchToolList(port, token);
 }
 
 // === 配置拉取 (Init Sync) ===
@@ -238,34 +237,6 @@ async function fetchInitDataFromGateway(port: number, token: string) {
     }
   } catch (e) {
     console.error("[WebMCP] Initialization sync failed:", e);
-  }
-}
-
-async function prefetchToolList(port: number, token: string) {
-  try {
-    console.log("[WebMCP] Prefetching tool list...");
-    const resp = await fetch(`http://127.0.0.1:${port}/v1/tools`, {
-      headers: { "X-WebMCP-Token": token },
-    });
-    if (!resp.ok) {return;}
-    const json = await resp.json();
-
-    // Parse Grouped Data
-    const rawGroups = json.groups || [];
-    const newToolNames: string[] = [];
-
-    rawGroups.forEach((g: any) => {
-        if (g.tools) {g.tools.forEach((t: any) => newToolNames.push(t.name));}
-        if (g.hidden_tools) {g.hidden_tools.forEach((n: string) => newToolNames.push(n));}
-    });
-
-    await chrome.storage.local.set({
-        cached_tool_list: newToolNames,
-        cached_tool_groups: rawGroups
-    });
-    console.log("[WebMCP] Tool list cached.");
-  } catch (e) {
-    console.error("[WebMCP] Tool prefetch failed:", e);
   }
 }
 

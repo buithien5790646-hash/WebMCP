@@ -410,12 +410,6 @@ export class GatewayManager {
             `);
         });
 
-        this.app.get('/v1/tools', (req, res) => {
-            const groups = this._generateGroupedTools();
-            this.log(`   🚀 Executing: GET /v1/tools (Discovery) - Grouped`);
-            res.json({ groups });
-        });
-
         this.app.post('/v1/tools/call', async (req, res) => {
             const payload = req.body as ToolExecutionPayload;
             let { name, arguments: args } = payload;
