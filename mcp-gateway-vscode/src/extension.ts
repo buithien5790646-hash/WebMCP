@@ -59,7 +59,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const allowedOrigins = aiSites.map(site => {
             try {
                 return new URL(site.address).origin;
-            } catch (e) {
+            } catch {
                 return '';
             }
         }).filter(origin => origin !== '');
@@ -144,7 +144,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 title: 'WebMCP Manager'
             });
             
-            if (!selection) return;
+            if (!selection) {return;}
             
             if (selection.action === 'start') {
                 await startService();

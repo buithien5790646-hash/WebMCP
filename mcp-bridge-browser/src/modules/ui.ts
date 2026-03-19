@@ -16,7 +16,7 @@ export function cancelAutoSend() {
 
 // 状态 1: 处理中 (蓝色)
 export function markVisualProcessing(element: HTMLElement) {
-  if (element.dataset.mcpState === "processing") return;
+  if (element.dataset.mcpState === "processing") {return;}
   element.dataset.mcpState = "processing";
   element.dataset.mcpVisual = "true";
   element.style.border = "2px solid #2196F3"; // Blue
@@ -26,7 +26,7 @@ export function markVisualProcessing(element: HTMLElement) {
 
 // 状态 2: 成功 (绿色)
 export function markVisualSuccess(element: HTMLElement) {
-  if (element.dataset.mcpState === "success") return;
+  if (element.dataset.mcpState === "success") {return;}
   element.dataset.mcpState = "success";
   element.dataset.mcpVisual = "true";
   element.style.border = "2px solid #00E676"; // Green
@@ -35,7 +35,7 @@ export function markVisualSuccess(element: HTMLElement) {
 
 // 状态 3: 错误 (红色)
 export function markVisualError(element: HTMLElement) {
-  if (element.dataset.mcpState === "error") return;
+  if (element.dataset.mcpState === "error") {return;}
   element.dataset.mcpState = "error";
   element.dataset.mcpVisual = "true";
   element.style.border = "2px solid #F44336"; // Red
@@ -60,7 +60,8 @@ export function writeToInputBox(text: string, inputSelector: string) {
   try {
     document.execCommand("selectAll", false);
     success = document.execCommand("insertText", false, final);
-  } catch (e) {}
+  } catch {
+  }
 
   if (!success) {
     if (inputEl.tagName === "TEXTAREA" || inputEl.tagName === "INPUT") {
@@ -75,7 +76,7 @@ export function writeToInputBox(text: string, inputSelector: string) {
 
 // === 自动发送逻辑 ===
 export function triggerAutoSend(config: { autoSend: boolean }, domSelectors: SiteSelectors) {
-  if (!config.autoSend) return;
+  if (!config.autoSend) {return;}
   if (autoSendTimer) {
     clearTimeout(autoSendTimer);
     autoSendTimer = null;
@@ -87,7 +88,7 @@ export function triggerAutoSend(config: { autoSend: boolean }, domSelectors: Sit
   const trySend = () => {
     const btn = document.querySelector(domSelectors.sendButton) as HTMLButtonElement;
     const inputEl = document.querySelector(domSelectors.inputArea) as HTMLElement;
-    if (inputEl) inputEl.focus();
+    if (inputEl) {inputEl.focus();}
 
     const currentVal = inputEl
       ? (inputEl as any).value || inputEl.innerText || ""
@@ -304,7 +305,7 @@ export function showConfirmationModal(payload: ToolExecutionPayload, onConfirm: 
   };
 
   inputReason.onkeydown = (e) => {
-    if (e.key === "Enter") btnReject.click();
+    if (e.key === "Enter") {btnReject.click();}
   };
   overlay.appendChild(card);
   shadow.appendChild(overlay);

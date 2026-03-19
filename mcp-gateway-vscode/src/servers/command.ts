@@ -40,7 +40,7 @@ function isSubPath(parent: string, child: string): boolean {
 
 function validateCommand(command: string): { valid: boolean; reason?: string } {
   const trimmed = command.trim();
-  if (!trimmed) return { valid: false, reason: "Empty command" };
+  if (!trimmed) {return { valid: false, reason: "Empty command" };}
 
   // 1. 检查危险模式
   for (const pattern of DANGEROUS_PATTERNS) {
@@ -140,7 +140,7 @@ server.registerTool(
 
     try {
       // 3. 执行命令
-      const result = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+      const result = await new Promise<{ stdout: string; stderr: string }>((resolve) => {
         exec(command, {
           cwd: targetCwd, // 使用经过验证的安全路径
           timeout: timeout,

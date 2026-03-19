@@ -18,9 +18,10 @@ let CONFIG: ConfigState = {
 
 // [State] Connection Guard
 let isClientConnected = false;
+let currentWorkspaceId = "global";
 
 let userRules = ""; // [User Rules]
-let protectedTools = new Set<string>();
+let allowedTools = new Set<string>();
 const confirmationQueue: ToolExecutionPayload[] = [];
 let isPopupOpen = false;
 
@@ -30,12 +31,10 @@ const promptKey = lang === "zh" ? "prompt_zh" : "prompt_en";
 const trainKey = lang === "zh" ? "train_zh" : "train_en";
 const errorKey = lang === "zh" ? "error_zh" : "error_en";
 
-chrome.storage.local.get([promptKey, trainKey, errorKey, "user_rules"], (items) => {
-  i18n.resources.prompt = items[promptKey];
-  i18n.resources.train = items[trainKey];
-  i18n.resources.error = items[errorKey];
+// Initially load user rules from sync. Prompts will be loaded from local later.
+chrome.storage.sync.get(["user_rules"], (items) => {
   userRules = items.user_rules || "";
-  console.log(`[MCP] Loaded i18n resources (${lang}) & User Rules`);
+  console.log(`[MCP] Loaded User Rules`);
 });
 
 // 监听消息 (日志开关 & 状态同步)
@@ -47,9 +46,24 @@ chrome.runtime.onMessage.addListener((request) => {
   if (request.type === "STATUS_UPDATE") {
     const wasConnected = isClientConnected;
     isClientConnected = request.connected;
+    if (request.workspaceId) {
+      currentWorkspaceId = request.workspaceId;
+    }
     if (isClientConnected !== wasConnected) {
       Logger.log(`[MCP] Connection Status: ${isClientConnected ? "Connected" : "Disconnected"}`, "info");
       if (isClientConnected) {
+        // Fetch the workspace-specific allowed tools
+        chrome.storage.local.get([`allowed_tools_${currentWorkspaceId}`], (localItems) => {
+           allowedTools = new Set(localItems[`allowed_tools_${currentWorkspaceId}`] || []);
+        });
+
+        // Re-load prompts from local
+        chrome.storage.local.get([promptKey, trainKey, errorKey], (items) => {
+          i18n.resources.prompt = items[promptKey];
+          i18n.resources.train = items[trainKey];
+          i18n.resources.error = items[errorKey];
+        });
+
         // Re-activate immediately
         runMainLoop();
       }
@@ -73,33 +87,54 @@ const currentPlatform = host.includes("deepseek")
 
 function updateDOMConfig() {
   if (currentPlatform && activeSelectors && activeSelectors[currentPlatform])
-    DOM = activeSelectors[currentPlatform];
+    {DOM = activeSelectors[currentPlatform];}
 }
 
 chrome.storage.sync.get(
-  ["autoSend", "autoPromptEnabled", "customSelectors", "protected_tools"],
+  ["autoSend", "autoPromptEnabled", "customSelectors", "user_rules"],
   (items) => {
     CONFIG.autoSend = items.autoSend ?? true;
     CONFIG.autoPromptEnabled = items.autoPromptEnabled ?? false;
-    if (items.customSelectors) activeSelectors = items.customSelectors;
-    if (items.protected_tools) protectedTools = new Set(items.protected_tools);
-    updateDOMConfig();
+    if (items.user_rules) {userRules = items.user_rules;}
+
+    // Combine customSelectors with defaultSelectors from Local (which came from VS Code)
+    chrome.storage.local.get(["defaultSelectors"], (localItems) => {
+        const defaults = localItems.defaultSelectors || DEFAULT_SELECTORS;
+        const custom = items.customSelectors || {};
+
+        // Deep merge per platform
+        activeSelectors = { ...defaults };
+        for (const platform of Object.keys(custom)) {
+            activeSelectors[platform] = { ...defaults[platform], ...custom[platform] };
+        }
+        updateDOMConfig();
+    });
   }
 );
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === "sync") {
-    if (changes.autoSend) CONFIG.autoSend = changes.autoSend.newValue;
+    if (changes.autoSend) {CONFIG.autoSend = changes.autoSend.newValue;}
     if (changes.autoPromptEnabled)
-      CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;
+      {CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;}
+    if (changes.user_rules) {userRules = changes.user_rules.newValue;}
     if (changes.customSelectors) {
-      activeSelectors = changes.customSelectors.newValue;
-      updateDOMConfig();
-      Logger.log(t("config_updated"), "action");
+      chrome.storage.local.get(["defaultSelectors"], (localItems) => {
+        const defaults = localItems.defaultSelectors || DEFAULT_SELECTORS;
+        const custom = changes.customSelectors.newValue || {};
+        activeSelectors = { ...defaults };
+        for (const platform of Object.keys(custom)) {
+            activeSelectors[platform] = { ...defaults[platform], ...custom[platform] };
+        }
+        updateDOMConfig();
+        Logger.log(t("config_updated"), "action");
+      });
     }
-    if (changes.protected_tools) {
-      protectedTools = new Set(changes.protected_tools.newValue);
-      Logger.log("Protected tools updated", "action");
+  }
+  if (namespace === "local") {
+    if (changes[`allowed_tools_${currentWorkspaceId}`]) {
+      allowedTools = new Set(changes[`allowed_tools_${currentWorkspaceId}`].newValue || []);
+      Logger.log(`Allowed tools updated (Workspace: ${currentWorkspaceId})`, "action");
     }
   }
 });
@@ -126,7 +161,7 @@ let isCheckScheduled = false;
 
 function runMainLoop() {
   isCheckScheduled = false;
-  if (!DOM || !isClientConnected) return;
+  if (!DOM || !isClientConnected) {return;}
   const messages = document.querySelectorAll(DOM.messageBlocks);
   if (messages.length === 0) {
     // Auto Prompt
@@ -138,7 +173,7 @@ function runMainLoop() {
     ) {
       if (i18n.resources.prompt) {
         let finalPrompt = i18n.resources.prompt;
-        if (userRules) finalPrompt += `\n\n=== User Rules ===\n${userRules}`;
+        if (userRules) {finalPrompt += `\n\n=== User Rules ===\n${userRules}`;}
         inputEl.innerText = finalPrompt;
         inputEl.dispatchEvent(new Event("input", { bubbles: true }));
         Logger.log(t("auto_filled"), "action");
@@ -153,14 +188,14 @@ function runMainLoop() {
 
   codeElements.forEach((codeEl) => {
     const textContent = (codeEl.textContent || "").trim();
-    if (!textContent.includes('"mcp_action": "call"')) return;
+    if (!textContent.includes('"mcp_action": "call"')) {return;}
 
     // 核心修复: 清理非标准空白字符 (如不间断空格 \u00a0)，以防止 JSON.parse 失败。
     const cleanedText = textContent.replace(nonStandardSpaces, ' ');
 
     try {
       const payload = JSON.parse(cleanedText);
-      if (blockStates.has(codeEl)) blockStates.delete(codeEl);
+      if (blockStates.has(codeEl)) {blockStates.delete(codeEl);}
 
       // 成功解析 JSON，尝试清除旧的错误样式（如果存在）
       if ((codeEl as HTMLElement).dataset.mcpState === "error") {
@@ -273,10 +308,10 @@ function runMainLoop() {
         // 纯虚拟工具（无输出）
         const anyVirtual = actionableIds.some((id) => resultBuffer.has(id));
         if (anyVirtual)
-          actionableIds.forEach((id) => {
+          {actionableIds.forEach((id) => {
             resultBuffer.delete(id);
             flushedRequests.add(id);
-          });
+          });}
       }
       lastProgressStatus = "";
     } else {
@@ -296,8 +331,8 @@ function runMainLoop() {
 }
 
 // 初始化观察者
-const observer = new MutationObserver((mutations) => {
-  if (!isClientConnected) return;
+const observer = new MutationObserver(() => {
+  if (!isClientConnected) {return;}
   
   // 简单节流：如果已经计划了下一次检查，就不重复计划
   // 这样保证在高频刷新（AI打字）时，最多每 CONFIG.pollInterval 执行一次
@@ -338,7 +373,7 @@ function executeTool(payload: ToolExecutionPayload) {
     return;
   }
 
-  if (protectedTools.has(payload.name)) {
+  if (!allowedTools.has(payload.name)) {
     Logger.log(`${t("hitl_intercept")}: ${payload.name}`, "warn");
     (payload as any).request_id = (payload as any).request_id || "unknown_id";
     confirmationQueue.push(payload);
@@ -361,7 +396,6 @@ function performExecution(payload: any) {
         if (payload.name === "list_tools") {
           try {
             const groups = JSON.parse(finalData);
-            const toolNames: string[] = [];
 
             // 1. Inject Virtual Client Tools
             let clientGroup = groups.find((g: any) => g.server === "client");
@@ -380,35 +414,8 @@ function performExecution(payload: any) {
               },
             });
 
-            // 2. Extract Names for Security Check
-            groups.forEach((g: any) => {
-                if (g.tools) g.tools.forEach((t: any) => toolNames.push(t.name));
-                if (g.hidden_tools) g.hidden_tools.forEach((n: string) => toolNames.push(n));
-            });
-
-            // 3. Update Output
+            // 2. Update Output
             finalData = JSON.stringify(groups, null, 2);
-
-            // [HITL] Security: Auto-protect new tools
-            chrome.storage.local.get(["cached_tool_list"], (localData) => {
-              const knownTools = new Set(localData.cached_tool_list || []);
-              let protectedDirty = false;
-              toolNames.forEach((tName: string) => {
-                if (!knownTools.has(tName)) {
-                  if (!protectedTools.has(tName)) {
-                    protectedTools.add(tName);
-                    protectedDirty = true;
-                  }
-                }
-              });
-              if (protectedDirty) {
-                chrome.storage.sync.set({
-                  protected_tools: Array.from(protectedTools),
-                });
-                Logger.log("🛡️ New tools detected & protected", "warn");
-              }
-              chrome.storage.local.set({ cached_tool_list: toolNames });
-            });
           } catch (e) {
             console.error("Tool list processing error", e);
           }
@@ -453,7 +460,7 @@ function saveToBuffer(requestId: string, content: string, isError = false) {
   toolCallCount++;
   if (toolCallCount > 0 && toolCallCount % 5 === 0) {
     let note = i18n.resources.train || `[System] Reminder: Tool calls MUST use this JSON format: {"mcp_action":"call", "name": "tool_name", "arguments": {...}}.`;
-    if (userRules) note += `\n(User Rules: ${userRules})`;
+    if (userRules) {note += `\n(User Rules: ${userRules})`;}
     responseJson.system_note = note;
   }
 
@@ -467,7 +474,7 @@ function saveToBuffer(requestId: string, content: string, isError = false) {
 
 // === 审批队列处理 ===
 function processConfirmationQueue() {
-  if (isPopupOpen || confirmationQueue.length === 0) return;
+  if (isPopupOpen || confirmationQueue.length === 0) {return;}
   const payload = confirmationQueue[0] as any;
   isPopupOpen = true;
   chrome.runtime.sendMessage({
@@ -483,18 +490,16 @@ function processConfirmationQueue() {
       isPopupOpen = false;
       if (DOM) {
         const inputEl = document.querySelector(DOM.inputArea) as HTMLElement;
-        if (inputEl) inputEl.focus();
+        if (inputEl) {inputEl.focus();}
       }
 
       if (isAlways) {
-        protectedTools.delete(payload.name);
-        chrome.storage.sync.set({
-          protected_tools: Array.from(protectedTools),
-        }, () => {
-          // [Host Sync] Notify background to push new config to Gateway
-          chrome.runtime.sendMessage({ type: "SYNC_CONFIG" });
+        allowedTools.add(payload.name);
+        const key = `allowed_tools_${currentWorkspaceId}`;
+        chrome.storage.local.set({
+          [key]: Array.from(allowedTools),
         });
-        Logger.log(`⚡ Tool '${payload.name}' set to Always Allow`, "action");
+        Logger.log(`⚡ Tool '${payload.name}' set to Always Allow in this workspace`, "action");
       }
 
       performExecution(payload);
@@ -506,7 +511,7 @@ function processConfirmationQueue() {
       activeExecutions.delete(payload.request_id);
       if (DOM) {
         const inputEl = document.querySelector(DOM.inputArea) as HTMLElement;
-        if (inputEl) inputEl.focus();
+        if (inputEl) {inputEl.focus();}
       }
       Logger.log(`${t("hitl_rejected")}: ${payload.name}`, "error");
       saveToBuffer(

@@ -4,8 +4,8 @@
 
 ```json
 {
-  "mcp_action": "call", 
-  "name": "工具名称", 
+  "mcp_action": "call",
+  "name": "工具名称",
   "purpose": "原因",
   "arguments": {
     "key": "value"

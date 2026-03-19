@@ -14,6 +14,9 @@ import { HandshakeResponse } from '../types';
     const target = params.get("target");
     const portStr = window.location.port;
 
+    const dataEl = document.getElementById("mcp-data");
+    const workspaceId = dataEl ? dataEl.getAttribute("data-workspace-id") : "global";
+
     const loader = document.getElementById("loader") as HTMLElement | null;
     const statusText = document.querySelector("p") as HTMLElement | null;
     const card = document.getElementById("main-card") as HTMLElement | null;
@@ -35,6 +38,7 @@ import { HandshakeResponse } from '../types';
           type: "HANDSHAKE",
           port: port,
           token: token,
+          workspaceId: workspaceId,
           force: force,
         },
         (response: HandshakeResponse) => {
@@ -49,7 +53,7 @@ import { HandshakeResponse } from '../types';
             return;
           }
 
-          if (!statusText || !loader || !card) return;
+          if (!statusText || !loader || !card) {return;}
 
           if (response && response.success) {
             statusText.innerText = "✅ Connected! Redirecting...";
@@ -67,7 +71,7 @@ import { HandshakeResponse } from '../types';
                     `;
 
             const oldBtn = card.querySelector("button");
-            if (oldBtn) oldBtn.remove();
+            if (oldBtn) {oldBtn.remove();}
 
             const btn = document.createElement("button");
             btn.innerText = "Yes, Connect Here";

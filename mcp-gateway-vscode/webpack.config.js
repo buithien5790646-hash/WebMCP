@@ -41,6 +41,10 @@ const extensionConfig = {
             loader: 'ts-loader'
           }
         ]
+      },
+      {
+        test: /\.md$/,
+        type: 'asset/source', // Webpack 5 built-in feature to import file as string
       }
     ]
   },
