@@ -30,6 +30,7 @@ const lang = i18n.lang;
 const promptKey = lang === "zh" ? "prompt_zh" : "prompt_en";
 const trainKey = lang === "zh" ? "train_zh" : "train_en";
 const errorKey = lang === "zh" ? "error_zh" : "error_en";
+const initKey = lang === "zh" ? "init_zh" : "init_en";
 
 // Initially load user rules from sync. Prompts will be loaded from local later.
 chrome.storage.sync.get(["user_rules"], (items) => {
@@ -58,10 +59,11 @@ chrome.runtime.onMessage.addListener((request) => {
         });
 
         // Re-load prompts from local
-        chrome.storage.local.get([promptKey, trainKey, errorKey], (items) => {
+        chrome.storage.local.get([promptKey, trainKey, errorKey, initKey], (items) => {
           i18n.resources.prompt = items[promptKey];
           i18n.resources.train = items[trainKey];
           i18n.resources.error = items[errorKey];
+          i18n.resources.init = items[initKey];
         });
 
         // Re-activate immediately
@@ -203,7 +205,14 @@ function runMainLoop() {
         delete (codeEl as HTMLElement).dataset.mcpState;
       }
 
-      if (payload.mcp_action === "call" && payload.request_id) {
+      if (payload.mcp_action === "call") {
+        if (!payload.request_id) {
+          const el = codeEl as HTMLElement;
+          if (!el.dataset.mcpRequestId) {
+            el.dataset.mcpRequestId = "req_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
+          }
+          payload.request_id = el.dataset.mcpRequestId;
+        }
         currentTurnIds.push(payload.request_id);
 
         const isProcessing = activeExecutions.has(payload.request_id);
@@ -367,6 +376,22 @@ if (currentPlatform) {
 
 // === 执行工具 ===
 function executeTool(payload: ToolExecutionPayload) {
+  // 虚拟工具：系统初始化
+  if (payload.name === "webmcp_init") {
+    let finalPrompt = i18n.resources.prompt || "";
+    if (userRules) {finalPrompt += `\n\n=== User Rules ===\n${userRules}`;}
+
+    if (DOM) {
+      Logger.log("Initializing WebMCP via /webmcp command", "action");
+      UI.writeToInputBox(finalPrompt, DOM.inputArea);
+      UI.triggerAutoSend(CONFIG, DOM);
+    }
+
+    activeExecutions.delete(payload.request_id!);
+    flushedRequests.add(payload.request_id!); // 防止主循环等待
+    return;
+  }
+
   // 虚拟工具：任务完成通知
   if (payload.name === "task_completion_notification") {
     finishVirtualTool(payload);

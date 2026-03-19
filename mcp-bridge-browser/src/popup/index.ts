@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const statusDot = document.getElementById("statusDot") as HTMLElement;
   const portDisplay = document.getElementById("portDisplay") as HTMLElement;
   const copyPromptBtn = document.getElementById("copyPromptBtn") as HTMLButtonElement;
+  const copyInitBtn = document.getElementById("copyInitBtn") as HTMLButtonElement;
   const openOptionsBtn = document.getElementById("openOptionsBtn") as HTMLButtonElement;
   const autoSendInput = document.getElementById("autoSend") as HTMLInputElement;
   const showLogInput = document.getElementById("showLog") as HTMLInputElement;
@@ -15,6 +16,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 1. 语言检测与资源加载
   const isZh = navigator.language.startsWith("zh");
   const promptKey = isZh ? "prompt_zh" : "prompt_en";
+  const initKey = isZh ? "init_zh" : "init_en";
 
   // 获取当前 Tab ID
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -115,7 +117,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     chrome.storage.local.get([promptKey, "user_rules"], (items) => {
       let promptContent = items[promptKey];
       const userRules = items.user_rules || "";
-      
+
       if (promptContent && userRules) {
         // 拼接用户规则
         promptContent = `${promptContent}\n\n--- [User Rules] ---\n${userRules}`;
@@ -132,6 +134,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
       } else {
         copyPromptBtn.innerText = "Prompt Not Found";
+      }
+    });
+  });
+
+  // 3. 复制初始化命令 Prompt
+  copyInitBtn.addEventListener("click", () => {
+    chrome.storage.local.get([initKey], (items) => {
+      const initContent = items[initKey];
+      if (initContent) {
+        navigator.clipboard.writeText(initContent).then(() => {
+          const originalText = copyInitBtn.innerText;
+          copyInitBtn.innerText = "Copied! Add to AI Memory";
+          copyInitBtn.style.backgroundColor = "#0d8a6a";
+          setTimeout(() => {
+            copyInitBtn.innerText = originalText;
+            copyInitBtn.style.backgroundColor = "";
+          }, 3000);
+        });
+      } else {
+        copyInitBtn.innerText = "Init Prompt Not Found";
       }
     });
   });
