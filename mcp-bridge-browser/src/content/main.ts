@@ -87,7 +87,7 @@ const currentPlatform = host.includes("deepseek")
 
 function updateDOMConfig() {
   if (currentPlatform && activeSelectors && activeSelectors[currentPlatform])
-    DOM = activeSelectors[currentPlatform];
+    {DOM = activeSelectors[currentPlatform];}
 }
 
 chrome.storage.sync.get(
@@ -95,7 +95,7 @@ chrome.storage.sync.get(
   (items) => {
     CONFIG.autoSend = items.autoSend ?? true;
     CONFIG.autoPromptEnabled = items.autoPromptEnabled ?? false;
-    if (items.user_rules) userRules = items.user_rules;
+    if (items.user_rules) {userRules = items.user_rules;}
 
     // Combine customSelectors with defaultSelectors from Local (which came from VS Code)
     chrome.storage.local.get(["defaultSelectors"], (localItems) => {
@@ -114,10 +114,10 @@ chrome.storage.sync.get(
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === "sync") {
-    if (changes.autoSend) CONFIG.autoSend = changes.autoSend.newValue;
+    if (changes.autoSend) {CONFIG.autoSend = changes.autoSend.newValue;}
     if (changes.autoPromptEnabled)
-      CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;
-    if (changes.user_rules) userRules = changes.user_rules.newValue;
+      {CONFIG.autoPromptEnabled = changes.autoPromptEnabled.newValue;}
+    if (changes.user_rules) {userRules = changes.user_rules.newValue;}
     if (changes.customSelectors) {
       chrome.storage.local.get(["defaultSelectors"], (localItems) => {
         const defaults = localItems.defaultSelectors || DEFAULT_SELECTORS;
@@ -161,7 +161,7 @@ let isCheckScheduled = false;
 
 function runMainLoop() {
   isCheckScheduled = false;
-  if (!DOM || !isClientConnected) return;
+  if (!DOM || !isClientConnected) {return;}
   const messages = document.querySelectorAll(DOM.messageBlocks);
   if (messages.length === 0) {
     // Auto Prompt
@@ -173,7 +173,7 @@ function runMainLoop() {
     ) {
       if (i18n.resources.prompt) {
         let finalPrompt = i18n.resources.prompt;
-        if (userRules) finalPrompt += `\n\n=== User Rules ===\n${userRules}`;
+        if (userRules) {finalPrompt += `\n\n=== User Rules ===\n${userRules}`;}
         inputEl.innerText = finalPrompt;
         inputEl.dispatchEvent(new Event("input", { bubbles: true }));
         Logger.log(t("auto_filled"), "action");
@@ -188,14 +188,14 @@ function runMainLoop() {
 
   codeElements.forEach((codeEl) => {
     const textContent = (codeEl.textContent || "").trim();
-    if (!textContent.includes('"mcp_action": "call"')) return;
+    if (!textContent.includes('"mcp_action": "call"')) {return;}
 
     // 核心修复: 清理非标准空白字符 (如不间断空格 \u00a0)，以防止 JSON.parse 失败。
     const cleanedText = textContent.replace(nonStandardSpaces, ' ');
 
     try {
       const payload = JSON.parse(cleanedText);
-      if (blockStates.has(codeEl)) blockStates.delete(codeEl);
+      if (blockStates.has(codeEl)) {blockStates.delete(codeEl);}
 
       // 成功解析 JSON，尝试清除旧的错误样式（如果存在）
       if ((codeEl as HTMLElement).dataset.mcpState === "error") {
@@ -308,10 +308,10 @@ function runMainLoop() {
         // 纯虚拟工具（无输出）
         const anyVirtual = actionableIds.some((id) => resultBuffer.has(id));
         if (anyVirtual)
-          actionableIds.forEach((id) => {
+          {actionableIds.forEach((id) => {
             resultBuffer.delete(id);
             flushedRequests.add(id);
-          });
+          });}
       }
       lastProgressStatus = "";
     } else {
@@ -332,7 +332,7 @@ function runMainLoop() {
 
 // 初始化观察者
 const observer = new MutationObserver(() => {
-  if (!isClientConnected) return;
+  if (!isClientConnected) {return;}
   
   // 简单节流：如果已经计划了下一次检查，就不重复计划
   // 这样保证在高频刷新（AI打字）时，最多每 CONFIG.pollInterval 执行一次
@@ -460,7 +460,7 @@ function saveToBuffer(requestId: string, content: string, isError = false) {
   toolCallCount++;
   if (toolCallCount > 0 && toolCallCount % 5 === 0) {
     let note = i18n.resources.train || `[System] Reminder: Tool calls MUST use this JSON format: {"mcp_action":"call", "name": "tool_name", "arguments": {...}}.`;
-    if (userRules) note += `\n(User Rules: ${userRules})`;
+    if (userRules) {note += `\n(User Rules: ${userRules})`;}
     responseJson.system_note = note;
   }
 
@@ -474,7 +474,7 @@ function saveToBuffer(requestId: string, content: string, isError = false) {
 
 // === 审批队列处理 ===
 function processConfirmationQueue() {
-  if (isPopupOpen || confirmationQueue.length === 0) return;
+  if (isPopupOpen || confirmationQueue.length === 0) {return;}
   const payload = confirmationQueue[0] as any;
   isPopupOpen = true;
   chrome.runtime.sendMessage({
@@ -490,7 +490,7 @@ function processConfirmationQueue() {
       isPopupOpen = false;
       if (DOM) {
         const inputEl = document.querySelector(DOM.inputArea) as HTMLElement;
-        if (inputEl) inputEl.focus();
+        if (inputEl) {inputEl.focus();}
       }
 
       if (isAlways) {
@@ -511,7 +511,7 @@ function processConfirmationQueue() {
       activeExecutions.delete(payload.request_id);
       if (DOM) {
         const inputEl = document.querySelector(DOM.inputArea) as HTMLElement;
-        if (inputEl) inputEl.focus();
+        if (inputEl) {inputEl.focus();}
       }
       Logger.log(`${t("hitl_rejected")}: ${payload.name}`, "error");
       saveToBuffer(

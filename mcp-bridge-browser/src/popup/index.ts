@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const currentTabId = tabs[0] ? tabs[0].id : null;
 
-  if (!currentTabId) return;
+  if (!currentTabId) {return;}
 
   // 向 Background 查询状态
   chrome.runtime.sendMessage(
@@ -93,7 +93,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     tabId: currentTabId,
                   },
                   (res) => {
-                    if (res && res.success) window.close(); // Close popup on success
+                    if (res && res.success) {window.close();} // Close popup on success
                   }
                 );
               };

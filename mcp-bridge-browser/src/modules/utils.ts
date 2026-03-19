@@ -75,7 +75,7 @@ const LOG_MSGS: Record<string, { en: string; zh: string }> = {
 
 export function t(key: string): string {
   const entry = LOG_MSGS[key];
-  if (!entry) return key;
+  if (!entry) {return key;}
   return (entry as any)[i18n.lang] || entry.en;
 }
 
@@ -85,7 +85,7 @@ export const Logger = {
   contentEl: null as HTMLDivElement | null,
 
   init() {
-    if (this.el) return;
+    if (this.el) {return;}
     this.el = document.createElement("div");
     Object.assign(this.el.style, {
       position: "fixed",
@@ -119,7 +119,7 @@ export const Logger = {
     clearBtn.innerText = "🗑️";
     clearBtn.style.cursor = "pointer";
     clearBtn.onclick = () => {
-        if (this.contentEl) this.contentEl.innerHTML = "";
+        if (this.contentEl) {this.contentEl.innerHTML = "";}
     };
     header.appendChild(clearBtn);
     this.contentEl = document.createElement("div");
@@ -141,7 +141,7 @@ export const Logger = {
       iLeft: number,
       iTop: number;
     headerEl.onmousedown = (e) => {
-      if (!this.el) return;
+      if (!this.el) {return;}
       isDragging = true;
       startX = e.clientX;
       startY = e.clientY;
@@ -160,12 +160,12 @@ export const Logger = {
   },
 
   toggle(show: boolean) {
-    if (!this.el && show) this.init();
-    if (this.el) this.el.style.display = show ? "flex" : "none";
+    if (!this.el && show) {this.init();}
+    if (this.el) {this.el.style.display = show ? "flex" : "none";}
   },
 
   log(msg: string, type: "info" | "success" | "error" | "warn" | "action" = "info") {
-    if (!this.el || this.el.style.display === "none") return;
+    if (!this.el || this.el.style.display === "none") {return;}
     const line = document.createElement("div");
     const time = new Date().toLocaleTimeString("en-US", { hour12: false });
     let icon = "🔹",

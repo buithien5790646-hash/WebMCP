@@ -9,8 +9,8 @@ chrome.runtime.onInstalled.addListener(async () => {
   const existingSync = await chrome.storage.sync.get(syncKeys);
   const syncToSet: Record<string, any> = {};
 
-  if (existingSync.autoSend === undefined) syncToSet.autoSend = true;
-  if (existingSync.autoPromptEnabled === undefined) syncToSet.autoPromptEnabled = false;
+  if (existingSync.autoSend === undefined) {syncToSet.autoSend = true;}
+  if (existingSync.autoPromptEnabled === undefined) {syncToSet.autoPromptEnabled = false;}
 
   if (Object.keys(syncToSet).length > 0) {
       await chrome.storage.sync.set(syncToSet);
@@ -20,7 +20,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 // === 工具函数：检查 URL 是否在白名单 ===
 function isUrlAllowed(url: string | undefined): boolean {
-  if (!url) return false;
+  if (!url) {return false;}
   const manifest = chrome.runtime.getManifest();
 
   const hostPatterns = manifest.host_permissions || [];
@@ -174,7 +174,7 @@ async function removeSession(tabId: number) {
 async function handleHandshake(request: any, tabId: number | null | undefined): Promise<HandshakeResponse> {
   const { port, token, force, workspaceId = 'global' } = request;
 
-  if (!tabId) return { success: false, error: "No Tab ID" };
+  if (!tabId) {return { success: false, error: "No Tab ID" };}
 
   if (!force) {
     const all = await chrome.storage.local.get(null);
@@ -195,7 +195,7 @@ async function handleHandshake(request: any, tabId: number | null | undefined): 
         if (tab) {
           return { success: false, error: "BUSY", conflictTabId };
         }
-      } catch (e) {
+      } catch {
         await removeSession(parseInt(conflictTabId));
       }
     }
@@ -247,7 +247,7 @@ async function prefetchToolList(port: number, token: string) {
     const resp = await fetch(`http://127.0.0.1:${port}/v1/tools`, {
       headers: { "X-WebMCP-Token": token },
     });
-    if (!resp.ok) return;
+    if (!resp.ok) {return;}
     const json = await resp.json();
 
     // Parse Grouped Data
@@ -255,8 +255,8 @@ async function prefetchToolList(port: number, token: string) {
     const newToolNames: string[] = [];
 
     rawGroups.forEach((g: any) => {
-        if (g.tools) g.tools.forEach((t: any) => newToolNames.push(t.name));
-        if (g.hidden_tools) g.hidden_tools.forEach((n: string) => newToolNames.push(n));
+        if (g.tools) {g.tools.forEach((t: any) => newToolNames.push(t.name));}
+        if (g.hidden_tools) {g.hidden_tools.forEach((n: string) => newToolNames.push(n));}
     });
 
     await chrome.storage.local.set({
@@ -279,7 +279,7 @@ function updateBadge(tabId: number, active: boolean) {
 }
 
 async function executeTool(request: any, tabId: number | null | undefined) {
-  if (!tabId) return { success: false, error: "No Session Tab" };
+  if (!tabId) {return { success: false, error: "No Session Tab" };}
   const session = await getSession(tabId);
   if (!session) {
     return {

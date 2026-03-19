@@ -53,7 +53,7 @@ import { HandshakeResponse } from '../types';
             return;
           }
 
-          if (!statusText || !loader || !card) return;
+          if (!statusText || !loader || !card) {return;}
 
           if (response && response.success) {
             statusText.innerText = "✅ Connected! Redirecting...";
@@ -71,7 +71,7 @@ import { HandshakeResponse } from '../types';
                     `;
 
             const oldBtn = card.querySelector("button");
-            if (oldBtn) oldBtn.remove();
+            if (oldBtn) {oldBtn.remove();}
 
             const btn = document.createElement("button");
             btn.innerText = "Yes, Connect Here";

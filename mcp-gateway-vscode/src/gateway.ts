@@ -132,11 +132,11 @@ export class GatewayManager {
     }
 
     private resetWatchdog() {
-        if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
+        if (this.watchdogTimer) {clearTimeout(this.watchdogTimer);}
         this.watchdogTimer = setTimeout(() => {
             this.log('💤 No activity for 30 minutes. Shutting down...');
             this.stop();
-            if (this.onAutoStop) this.onAutoStop();
+            if (this.onAutoStop) {this.onAutoStop();}
         }, this.WATCHDOG_TIMEOUT);
     }
 
@@ -156,7 +156,7 @@ export class GatewayManager {
         this.connectedClients.forEach(c => {
             try {
                 c.client.close();
-            } catch (e) { }
+            } catch { }
         });
         this.connectedClients = [];
         this.toolRouter.clear();
@@ -173,7 +173,7 @@ export class GatewayManager {
                 let client: Client;
 
                 if (config.type === 'http') {
-                    if (!config.url) throw new Error("Missing 'url' for HTTP config");
+                    if (!config.url) {throw new Error("Missing 'url' for HTTP config");}
                     this.log(`   -> Connecting [${serverId}] via HTTP (Standard): ${config.url}`);
                     
                     // 标准 HTTP 传输 (新版)
@@ -184,7 +184,7 @@ export class GatewayManager {
                     await client.connect(transport);
                 
                 } else if (config.type === 'sse') {
-                    if (!config.url) throw new Error("Missing 'url' for SSE config");
+                    if (!config.url) {throw new Error("Missing 'url' for SSE config");}
                     this.log(`   -> Connecting [${serverId}] via SSE (Legacy): ${config.url}`);
                     
                     // SSE 传输 (旧版，向后兼容)
@@ -206,13 +206,13 @@ export class GatewayManager {
                     const env = { ...process.env, ...config.env } as Record<string, string>;
 
                     if (process.platform === 'win32') {
-                        if (command === 'npx' || command === 'npm') command = `${command}.cmd`;
+                        if (command === 'npx' || command === 'npm') {command = `${command}.cmd`;}
                     }
 
                     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
                         const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
                         args = args.map(arg => {
-                            if (arg === '.' || arg === '${workspaceFolder}') return root;
+                            if (arg === '.' || arg === '${workspaceFolder}') {return root;}
                             return arg;
                         });
                     }
@@ -249,7 +249,7 @@ export class GatewayManager {
         await this.connectToServers(config.mcpServers);
 
         // 1. 使用持久化 Token (仅首次生成)
-        if (!this.authToken) this.authToken = crypto.randomUUID();
+        if (!this.authToken) {this.authToken = crypto.randomUUID();}
         // this.log(`🔐 Security Token: ${this.authToken}`); // Reduce noise on restart
 
         // Start Watchdog
@@ -262,10 +262,10 @@ export class GatewayManager {
         this.app.use(cors({
             origin: (origin, callback) => {
                 // 允许无 Origin 的请求 (如浏览器直接访问 /bridge，或非浏览器工具)
-                if (!origin) return callback(null, true);
+                if (!origin) {return callback(null, true);}
 
                 // [Fix] 允许浏览器扩展自身访问 (Origin: chrome-extension://[ID])          
-                if (origin.startsWith('chrome-extension://')) return callback(null, true);
+                if (origin.startsWith('chrome-extension://')) {return callback(null, true);}
 
                 // 检查是否在白名单中
                 if (config.allowedOrigins.includes(origin)) {
@@ -441,12 +441,12 @@ export class GatewayManager {
                     return p;
                 };
 
-                if (args.path) args.path = fixPath(args.path);
-                if (args.cwd) args.cwd = fixPath(args.cwd); // Fix: Resolve CWD for execute_command
-                if (args.repo_path) args.repo_path = fixPath(args.repo_path); // Fix: Support relative path for Git tools
-                if (args.source) args.source = fixPath(args.source);
-                if (args.destination) args.destination = fixPath(args.destination);
-                if (Array.isArray(args.paths)) args.paths = args.paths.map((p: any) => fixPath(p));
+                if (args.path) {args.path = fixPath(args.path);}
+                if (args.cwd) {args.cwd = fixPath(args.cwd);} // Fix: Resolve CWD for execute_command
+                if (args.repo_path) {args.repo_path = fixPath(args.repo_path);} // Fix: Support relative path for Git tools
+                if (args.source) {args.source = fixPath(args.source);}
+                if (args.destination) {args.destination = fixPath(args.destination);}
+                if (Array.isArray(args.paths)) {args.paths = args.paths.map((p: any) => fixPath(p));}
             }
 
             if (name === 'list_tools') {
@@ -577,7 +577,7 @@ export class GatewayManager {
         this.connectedClients.forEach(c => {
             try {
                 c.client.close();
-            } catch (e) { }
+            } catch { }
         });
         this.connectedClients = [];
     }
