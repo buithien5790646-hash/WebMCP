@@ -1,106 +1,98 @@
-import { Session, MessageRequest, HandshakeResponse } from '../types';
+import { SessionManager } from './SessionManager';
+import { GatewayClient } from './GatewayClient';
+import { StorageService } from '../core/storage';
+import { Messenger } from '../core/messenger';
+import { HandshakeResponse, Session, ExtensionMessage } from '../types';
 
 // === WebMCP Background Service (MV3 Persistent Edition) ===
 
-// 初始化：设置默认状态
+// Initialization: Set default state
 chrome.runtime.onInstalled.addListener(async () => {
-  // 初始化用户配置 (storage.sync)
   const syncKeys = ["autoSend", "autoPromptEnabled", "customSelectors", "user_rules"];
-  const existingSync = await chrome.storage.sync.get(syncKeys);
+  const existingSync = await StorageService.getSync(syncKeys as any);
   const syncToSet: Record<string, any> = {};
 
-  if (existingSync.autoSend === undefined) {syncToSet.autoSend = true;}
-  if (existingSync.autoPromptEnabled === undefined) {syncToSet.autoPromptEnabled = false;}
+  if (existingSync.autoSend === undefined) { syncToSet.autoSend = true; }
+  if (existingSync.autoPromptEnabled === undefined) { syncToSet.autoPromptEnabled = false; }
 
   if (Object.keys(syncToSet).length > 0) {
-      await chrome.storage.sync.set(syncToSet);
-      console.log("[WebMCP] Initialized user settings (Preserved existing)");
+    await StorageService.setSync(syncToSet);
+    console.log("[WebMCP] Initialized user settings (Preserved existing)");
   }
 });
 
-// === 工具函数：检查 URL 是否在白名单 ===
-function isUrlAllowed(url: string | undefined): boolean {
-  if (!url) {return false;}
-  const manifest = chrome.runtime.getManifest();
-
-  const hostPatterns = manifest.host_permissions || [];
-  const scriptPatterns = (manifest.content_scripts || []).flatMap(
-    (cs) => cs.matches || []
-  );
-  const allPatterns = [...new Set([...hostPatterns, ...scriptPatterns])];
-
-  return allPatterns.some((pattern) => {
-    const base = pattern.replace(/\*$/, "");
-    return url.startsWith(base) || url === base.replace(/\/$/, "");
-  });
-}
-
-// === 保持连接逻辑 & 安全熔断 ===
+// === Connection Logic & Security Fuse ===
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.url) {
-    if (!isUrlAllowed(changeInfo.url)) {
-      const session = await getSession(tabId);
+    if (!SessionManager.isUrlAllowed(changeInfo.url)) {
+      const session = await SessionManager.getSession(tabId);
       if (session) {
         console.log(`[WebMCP] Security Fuse: Url changed to ${changeInfo.url}, revoking session.`);
-        await removeSession(tabId);
-        updateBadge(tabId, false);
+        await SessionManager.removeSession(tabId);
+        SessionManager.updateBadge(tabId, false);
         return;
       }
     }
   }
 
   if (changeInfo.status === "complete") {
-    const session = await getSession(tabId);
-    if (session && isUrlAllowed(tab.url)) {
-      updateBadge(tabId, true);
+    const session = await SessionManager.getSession(tabId);
+    if (session && SessionManager.isUrlAllowed(tab.url)) {
+      SessionManager.updateBadge(tabId, true);
       // [Sync] Restore connection state in Content Script after reload
-      chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true, workspaceId: session.workspaceId }).catch(() => {});
+      chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true, workspaceId: session.workspaceId }).catch(() => { });
       if (session.showLog) {
-        chrome.tabs.sendMessage(tabId, { type: "TOGGLE_LOG", show: true }).catch(() => {});
+        chrome.tabs.sendMessage(tabId, { type: "TOGGLE_LOG", show: true }).catch(() => { });
       }
-    } else if (session && !isUrlAllowed(tab.url)) {
-      await removeSession(tabId);
-      updateBadge(tabId, false);
+    } else if (session && !SessionManager.isUrlAllowed(tab.url)) {
+      await SessionManager.removeSession(tabId);
+      SessionManager.updateBadge(tabId, false);
     }
   }
 });
 
-// === 消息处理中心 ===
-chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendResponse) => {
+chrome.tabs.onRemoved.addListener((tabId) => {
+  SessionManager.removeSession(tabId);
+});
+
+// === Message Hub ===
+Messenger.onMessage((request: ExtensionMessage, sender, sendResponse) => {
   const currentTabId = sender.tab ? sender.tab.id : null;
 
   if (request.type === "HANDSHAKE") {
     handleHandshake(request, currentTabId).then(sendResponse);
     return true;
   }
+
   if (request.type === "GET_STATUS") {
-    // Support both external (Popup) and internal (Content Script) status checks
-    const targetTabId = request.tabId || (sender.tab ? sender.tab.id : null);
+    const targetTabId = request.tabId || currentTabId;
     if (targetTabId) {
-        getSession(targetTabId).then((session) => {
-          sendResponse({
-            connected: !!session,
-            port: session?.port,
-            showLog: session?.showLog || false,
-            workspaceId: session?.workspaceId || 'global'
-          });
+      SessionManager.getSession(targetTabId).then((session) => {
+        sendResponse({
+          connected: !!session,
+          port: session?.port,
+          showLog: session?.showLog || false,
+          workspaceId: session?.workspaceId || 'global'
         });
+      });
     } else {
-        sendResponse({ connected: false, error: "Unknown Tab ID" });
+      sendResponse({ connected: false, error: "Unknown Tab ID" });
     }
     return true;
   }
+
   if (request.type === "SET_LOG_VISIBLE") {
     const targetTabId = request.tabId;
     const show = request.show ?? false;
     if (targetTabId) {
-        updateSessionLog(targetTabId, show).then(() => {
-        chrome.tabs.sendMessage(targetTabId, { type: "TOGGLE_LOG", show: show }).catch(() => {});
+      SessionManager.updateSessionLog(targetTabId, show).then(() => {
+        chrome.tabs.sendMessage(targetTabId, { type: "TOGGLE_LOG", show: show }).catch(() => { });
         sendResponse({ success: true });
-        });
+      });
     }
     return true;
   }
+
   if (request.type === "EXECUTE_TOOL") {
     executeTool(request, currentTabId).then(sendResponse);
     return true;
@@ -116,12 +108,12 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
     });
     return true;
   }
+
   if (request.type === "SYNC_CONFIG") {
-    // [Refactor] Config syncing to host is deprecated.
-    // The browser extension is now the single source of truth for user preferences.
     sendResponse({ success: true });
     return true;
   }
+
   if (request.type === "CONNECT_EXISTING") {
     const targetTabId = request.tabId || currentTabId;
     if (!targetTabId) {
@@ -132,9 +124,8 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
     chrome.storage.local.remove("session_null");
 
     if (request.port && request.token) {
-        // Fallback workspaceId if not provided during manual connect
-        const workspaceId = request.workspaceId || 'global';
-        bindSession(targetTabId, request.port, request.token, workspaceId)
+      const workspaceId = request.workspaceId || "global";
+      bindSession(targetTabId, request.port, request.token, workspaceId)
         .then(() => sendResponse({ success: true }))
         .catch((err) => sendResponse({ success: false, error: err.message }));
     }
@@ -143,41 +134,15 @@ chrome.runtime.onMessage.addListener((request: MessageRequest, sender, sendRespo
   return false;
 });
 
-// === 数据层 ===
-async function getSession(tabId: number): Promise<Session | undefined> {
-  const key = `session_${tabId}`;
-  const result = await chrome.storage.local.get([key]);
-  return result[key];
-}
+// === Internal Logic Handlers ===
 
-async function saveSession(tabId: number, data: Session) {
-  const key = `session_${tabId}`;
-  await chrome.storage.local.set({ [key]: data });
-}
-
-async function updateSessionLog(tabId: number, showLog: boolean) {
-  const session = await getSession(tabId);
-  if (session) {
-    session.showLog = showLog;
-    await saveSession(tabId, session);
-  }
-}
-
-async function removeSession(tabId: number) {
-  const key = `session_${tabId}`;
-  await chrome.storage.local.remove(key);
-  // [Sync] Notify Content Script
-  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: false }).catch(() => {});
-}
-
-// === 逻辑实现 ===
 async function handleHandshake(request: any, tabId: number | null | undefined): Promise<HandshakeResponse> {
   const { port, token, force, workspaceId = 'global' } = request;
 
-  if (!tabId) {return { success: false, error: "No Tab ID" };}
+  if (!tabId) { return { success: false, error: "No Tab ID" }; }
 
   if (!force) {
-    const all = await chrome.storage.local.get(null);
+    const all = await StorageService.getLocal(null);
     let conflictTabId: string | null = null;
     for (const [key, val] of Object.entries(all)) {
       if (
@@ -196,7 +161,7 @@ async function handleHandshake(request: any, tabId: number | null | undefined): 
           return { success: false, error: "BUSY", conflictTabId };
         }
       } catch {
-        await removeSession(parseInt(conflictTabId));
+        await SessionManager.removeSession(parseInt(conflictTabId));
       }
     }
   }
@@ -205,95 +170,25 @@ async function handleHandshake(request: any, tabId: number | null | undefined): 
 }
 
 async function bindSession(tabId: number, port: number, token: string, workspaceId: string) {
-  await saveSession(tabId, { port, token, showLog: false, workspaceId });
+  await SessionManager.saveSession(tabId, { port, token, showLog: false, workspaceId });
   console.log(`[WebMCP] Tab ${tabId} bound to Port ${port} [Workspace: ${workspaceId}]`);
-  updateBadge(tabId, true);
+  SessionManager.updateBadge(tabId, true);
   // [Sync] Notify Content Script
-  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true, workspaceId }).catch(() => {});
-  // 不再 await，避免网关初始化请求阻塞握手响应
-  fetchInitDataFromGateway(port, token);
-}
-
-// === 配置拉取 (Init Sync) ===
-async function fetchInitDataFromGateway(port: number, token: string) {
-  try {
-    console.log("[WebMCP] Fetching initialization data from Gateway...");
-    const resp = await fetch(`http://127.0.0.1:${port}/v1/init`, {
-      headers: { "X-WebMCP-Token": token },
-    });
-    if (!resp.ok) {
-        console.warn("[WebMCP] Gateway did not respond to /v1/init (might be an older version)");
-        return;
-    }
-    const data = await resp.json();
-
-    if (data.selectors && data.prompts) {
-      console.log("[WebMCP] Overwriting local rules with Gateway Defaults.");
-
-      // Save pure defaults for Read-Only access in options or merging in content
-      await chrome.storage.local.set({
-        defaultSelectors: data.selectors,
-        ...data.prompts // prompt_en, prompt_zh, train_en... etc.
-      });
-    }
-  } catch (e) {
-    console.error("[WebMCP] Initialization sync failed:", e);
-  }
-}
-
-function updateBadge(tabId: number, active: boolean) {
-  if (active) {
-    chrome.action.setBadgeText({ tabId, text: "ON" });
-    chrome.action.setBadgeBackgroundColor({ tabId, color: "#4CAF50" });
-  } else {
-    chrome.action.setBadgeText({ tabId, text: "" });
-  }
+  chrome.tabs.sendMessage(tabId, { type: "STATUS_UPDATE", connected: true, workspaceId }).catch(() => { });
+  // Don't await, let it sync in the background
+  GatewayClient.fetchInitDataFromGateway(port, token);
 }
 
 async function executeTool(request: any, tabId: number | null | undefined) {
-  if (!tabId) {return { success: false, error: "No Session Tab" };}
-  const session = await getSession(tabId);
+  if (!tabId) { return { success: false, error: "No Session Tab" }; }
+
+  const session = await SessionManager.getSession(tabId);
   if (!session) {
     return {
       success: false,
       error: "Session Lost. Please reconnect from VS Code.",
     };
   }
-  const { port, token } = session;
-  const apiEndpoint = `http://127.0.0.1:${port}/v1/tools/call`;
-  try {
-    const response = await fetch(apiEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-WebMCP-Token": token,
-      },
-      body: JSON.stringify({
-        name: request.payload.name,
-        arguments: request.payload.arguments || {},
-      }),
-    });
-    if (response.ok) {
-      const resJson = await response.json();
-      const textContent = resJson.content
-        ? resJson.content.map((c: any) => c.text).join("\n")
-        : JSON.stringify(resJson);
-      return { success: true, data: textContent };
-    } else {
-      if (response.status === 403) {
-        return { success: false, error: "Session Expired/Invalid Token." };
-      } else {
-        return {
-          success: false,
-          error: `${response.status} - ${response.statusText}`,
-        };
-      }
-    }
-  } catch (err: any) {
-    return { success: false, error: `Connection Failed: ${err.message}` };
-  }
-}
 
-chrome.tabs.onRemoved.addListener((tabId) => {
-  removeSession(tabId);
-});
+  return GatewayClient.executeTool(session.port, session.token, request.payload);
+}

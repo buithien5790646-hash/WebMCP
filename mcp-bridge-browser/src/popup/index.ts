@@ -1,4 +1,4 @@
-import { Session } from '../types';
+import { Session, MessageRequest, HandshakeResponse, StatusResponse, ExecuteToolResponse } from '../types';
 
 document.addEventListener("DOMContentLoaded", async () => {
   const connectedView = document.getElementById("connectedView") as HTMLElement;
@@ -13,29 +13,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   const availableView = document.getElementById("availableView") as HTMLElement;
   const gatewayList = document.getElementById("gatewayList") as HTMLElement;
 
-  // 1. 语言检测与资源加载
+  // 1. Language detection and resource loading
   const isZh = navigator.language.startsWith("zh");
   const promptKey = isZh ? "prompt_zh" : "prompt_en";
   const initKey = isZh ? "init_zh" : "init_en";
 
-  // 获取当前 Tab ID
+  // Get current Tab ID
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const currentTabId = tabs[0] ? tabs[0].id : null;
 
-  if (!currentTabId) {return;}
+  if (!currentTabId) { return; }
 
-  // 向 Background 查询状态
+  // Query Background for status
   chrome.runtime.sendMessage(
     { type: "GET_STATUS", tabId: currentTabId },
-    (response) => {
+    (response: StatusResponse) => {
       if (response && response.connected) {
         connectedView.classList.remove("hidden");
         disconnectedView.classList.add("hidden");
         statusDot.classList.add("online");
-        portDisplay.innerText = response.port;
+        portDisplay.innerText = response.port ? response.port.toString() : "";
 
-        // 回填 Log 开关状态
-        showLogInput.checked = response.showLog;
+        // Populate Log switch status
+        showLogInput.checked = response.showLog || false;
       } else {
         connectedView.classList.add("hidden");
         statusDot.classList.remove("online");
@@ -43,20 +43,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         // [Security] Only scan if URL is allowed
         const manifest = chrome.runtime.getManifest();
         const hostPatterns = manifest.host_permissions || [];
-        const scriptPatterns = (manifest.content_scripts || []).flatMap(
-          (cs) => cs.matches || []
-        );
+        const scriptPatterns = (manifest.content_scripts || []).flatMap((cs) => cs.matches || []);
         const patterns = [...new Set([...hostPatterns, ...scriptPatterns])];
         const currentUrl = tabs[0].url || "";
 
         const isAllowed = patterns.some((pattern) => {
-          // 1. 去掉末尾的通配符 *
           const base = pattern.replace(/\*$/, "");
-          // 2. 宽松匹配
-          return (
-            currentUrl.startsWith(base) ||
-            currentUrl === base.replace(/\/$/, "")
-          );
+          return currentUrl.startsWith(base) || currentUrl === base.replace(/\/$/, "");
         });
 
         if (!isAllowed) {
@@ -66,7 +59,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         // Scan for existing gateways
-        chrome.storage.local.get(null, (items) => {
+        chrome.storage.local.get(null).then((items) => {
           const uniqueGateways = new Map<number, string>();
           for (const [key, val] of Object.entries(items)) {
             if (key.startsWith("session_") && (val as Session).port && (val as Session).token) {
@@ -88,15 +81,8 @@ document.addEventListener("DOMContentLoaded", async () => {
               btn.innerHTML = `<span>🔗 Connect to <b>${port}</b></span> <span>⚡</span>`;
               btn.onclick = () => {
                 chrome.runtime.sendMessage(
-                  {
-                    type: "CONNECT_EXISTING",
-                    port,
-                    token,
-                    tabId: currentTabId,
-                  },
-                  (res) => {
-                    if (res && res.success) {window.close();} // Close popup on success
-                  }
+                  { type: "CONNECT_EXISTING", port, token, tabId: currentTabId },
+                  (res: ExecuteToolResponse) => { if (res && res.success) { window.close(); } }
                 );
               };
               gatewayList.appendChild(btn);
@@ -110,52 +96,51 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   );
 
-  // 2. 复制逻辑：动态读取对应语言的 Prompt
-  copyPromptBtn.addEventListener("click", () => {
-    // [Fix] 同时获取基础提示词和用户规则
-    // ⚠️ 存储键是 user_rules (带下划线), 修正
-    chrome.storage.local.get([promptKey, "user_rules"], (items) => {
-      let promptContent = items[promptKey];
-      const userRules = items.user_rules || "";
+  // 2. Copy Logic: Prompt
+  copyPromptBtn.addEventListener("click", async () => {
+    const local = await chrome.storage.local.get([promptKey]);
+    const sync = await chrome.storage.sync.get(["user_rules"]);
 
-      if (promptContent && userRules) {
-        // 拼接用户规则
-        promptContent = `${promptContent}\n\n--- [User Rules] ---\n${userRules}`;
-      }
-      if (promptContent) {
-        navigator.clipboard.writeText(promptContent).then(() => {
-          const originalText = copyPromptBtn.innerText;
-          copyPromptBtn.innerText = "Copied!";
-          copyPromptBtn.style.backgroundColor = "#0d8a6a";
-          setTimeout(() => {
-            copyPromptBtn.innerText = originalText;
-            copyPromptBtn.style.backgroundColor = "";
-          }, 1500);
-        });
-      } else {
-        copyPromptBtn.innerText = "Prompt Not Found";
-      }
-    });
+    let promptContent = local[promptKey];
+    const userRules = sync.user_rules || "";
+
+    if (promptContent && userRules) {
+      promptContent = `${promptContent}\n\n--- [User Rules] ---\n${userRules}`;
+    }
+
+    if (promptContent) {
+      navigator.clipboard.writeText(promptContent as string).then(() => {
+        const originalText = copyPromptBtn.innerText;
+        copyPromptBtn.innerText = "Copied!";
+        copyPromptBtn.style.backgroundColor = "#0d8a6a";
+        setTimeout(() => {
+          copyPromptBtn.innerText = originalText;
+          copyPromptBtn.style.backgroundColor = "";
+        }, 1500);
+      });
+    } else {
+      copyPromptBtn.innerText = "Prompt Not Found";
+    }
   });
 
-  // 3. 复制初始化命令 Prompt
-  copyInitBtn.addEventListener("click", () => {
-    chrome.storage.local.get([initKey], (items) => {
-      const initContent = items[initKey];
-      if (initContent) {
-        navigator.clipboard.writeText(initContent).then(() => {
-          const originalText = copyInitBtn.innerText;
-          copyInitBtn.innerText = "Copied! Add to AI Memory";
-          copyInitBtn.style.backgroundColor = "#0d8a6a";
-          setTimeout(() => {
-            copyInitBtn.innerText = originalText;
-            copyInitBtn.style.backgroundColor = "";
-          }, 3000);
-        });
-      } else {
-        copyInitBtn.innerText = "Init Prompt Not Found";
-      }
-    });
+  // 3. Copy Initialization Prompt
+  copyInitBtn.addEventListener("click", async () => {
+    const items = await chrome.storage.local.get([initKey]);
+    const initContent = items[initKey];
+
+    if (initContent) {
+      navigator.clipboard.writeText(initContent as string).then(() => {
+        const originalText = copyInitBtn.innerText;
+        copyInitBtn.innerText = "Copied! Add to AI Memory";
+        copyInitBtn.style.backgroundColor = "#0d8a6a";
+        setTimeout(() => {
+          copyInitBtn.innerText = originalText;
+          copyInitBtn.style.backgroundColor = "";
+        }, 3000);
+      });
+    } else {
+      copyInitBtn.innerText = "Init Prompt Not Found";
+    }
   });
 
   // Open Options Page
@@ -164,10 +149,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // Auto Send (Global Config)
-  chrome.storage.sync.get(["autoSend"], (items) => {
-    autoSendInput.checked =
-      items.autoSend !== undefined ? items.autoSend : true;
+  chrome.storage.sync.get(["autoSend"]).then((items) => {
+    autoSendInput.checked = items.autoSend !== undefined ? items.autoSend : true;
   });
+
   autoSendInput.addEventListener("change", () => {
     chrome.storage.sync.set({ autoSend: autoSendInput.checked });
   });
@@ -181,3 +166,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 });
+
+// To satisfy typescript unused variable constraint:
+let _unusedType1: MessageRequest | null = null;
+let _unusedType2: HandshakeResponse | null = null;
+if (_unusedType1) {console.log(_unusedType1);}
+if (_unusedType2) {console.log(_unusedType2);}

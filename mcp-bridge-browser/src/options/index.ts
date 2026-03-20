@@ -81,24 +81,22 @@ function showStatus(msg: string, type = "success") {
 
 async function restoreOptions() {
   // Load defaults from local storage (synced from VS Code)
-  chrome.storage.local.get(["defaultSelectors"], (localItems) => {
-    const defaults = localItems.defaultSelectors;
-    if (defaults) {
-      els.defaultSelectors.value = JSON.stringify(defaults, null, 2);
-    } else {
-      els.defaultSelectors.value = "No defaults received yet. Connect to VS Code first.";
-    }
-  });
+  const localItems = await chrome.storage.local.get(["defaultSelectors"]);
+  const defaults = localItems.defaultSelectors;
+  if (defaults) {
+    els.defaultSelectors.value = JSON.stringify(defaults, null, 2);
+  } else {
+    els.defaultSelectors.value = "No defaults received yet. Connect to VS Code first.";
+  }
 
   // Load user overrides from sync storage
-  chrome.storage.sync.get(["customSelectors", "user_rules"], (items) => {
-    const config = items.customSelectors || {};
-    els.selectors.value = Object.keys(config).length > 0 ? JSON.stringify(config, null, 2) : "{\n  \n}";
-    els.userRules.value = items.user_rules || "";
-  });
+  const syncItems = await chrome.storage.sync.get(["customSelectors", "user_rules"]);
+  const config = syncItems.customSelectors || {};
+  els.selectors.value = Object.keys(config).length > 0 ? JSON.stringify(config, null, 2) : "{\n  \n}";
+  els.userRules.value = syncItems.user_rules || "";
 }
 
-function saveOptions() {
+async function saveOptions() {
   const jsonString = els.selectors.value.trim();
   let config = {};
   if (jsonString && jsonString !== "{}" && jsonString !== "{\n  \n}") {
@@ -110,19 +108,18 @@ function saveOptions() {
     }
   }
 
-  chrome.storage.sync.set({
+  await chrome.storage.sync.set({
     customSelectors: config,
     user_rules: els.userRules.value
-  }, () => {
-    showStatus(t("saved"), "success");
   });
+  showStatus(t("saved"), "success");
 }
 
 async function resetOptions() {
   if (confirm(t("reset_confirm"))) {
     els.selectors.value = "{\n  \n}";
     els.userRules.value = "";
-    saveOptions();
+    await saveOptions();
     showStatus(t("restored"));
   }
 }
