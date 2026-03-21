@@ -47,7 +47,16 @@ export class Logger extends Component<LoggerProps, LoggerState> {
       position: { left: 'auto', top: '20px', right: '20px' },
       isDragging: false
     };
+  }
+
+  componentDidMount() {
     LoggerRef.current = this;
+  }
+
+  componentWillUnmount() {
+    if (LoggerRef.current === this) {
+      LoggerRef.current = null;
+    }
   }
 
   /** 组件更新生命周期钩子 */
