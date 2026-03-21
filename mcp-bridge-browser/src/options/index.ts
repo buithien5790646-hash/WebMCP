@@ -1,10 +1,11 @@
+// 获取各个 UI 元素的 DOM 引用
 const els = {
   selectors: document.getElementById("selectorsJson") as HTMLTextAreaElement,
   defaultSelectors: document.getElementById("defaultSelectorsJson") as HTMLTextAreaElement,
   userRules: document.getElementById("userRules") as HTMLTextAreaElement,
   status: document.getElementById("status") as HTMLElement,
   currentLang: document.getElementById("currentLang") as HTMLElement,
-  // UI Text Elements for i18n
+  // 需要进行多语言翻译的 UI 文本元素
   title: document.getElementById("title") as HTMLElement,
   sec_selectors: document.getElementById("sec_selectors") as HTMLElement,
   desc_selectors: document.getElementById("desc_selectors") as HTMLElement,
@@ -15,10 +16,10 @@ const els = {
   reset: document.getElementById("reset") as HTMLButtonElement,
 };
 
-// Determine language context
+// 确定当前的语言上下文（中/英）
 const lang = navigator.language.startsWith("zh") ? "zh" : "en";
 
-// UI Strings
+// UI 多语言字符串字典
 const UI: Record<string, Record<string, string>> = {
   en: {
     title: "WebMCP Settings",
@@ -53,11 +54,16 @@ const UI: Record<string, Record<string, string>> = {
   },
 };
 
+/**
+ * 翻译指定的 UI 文本键名
+ */
 function t(key: string): string {
   return UI[lang][key] || UI.en[key];
 }
 
-// Apply UI Text
+/**
+ * 将多语言文本应用到 DOM 元素上
+ */
 function initUI() {
   els.currentLang.textContent = lang.toUpperCase();
   els.title.textContent = t("title");
@@ -70,6 +76,11 @@ function initUI() {
   els.reset.textContent = t("reset");
 }
 
+/**
+ * 在页面底部显示状态提示信息（支持自动消失）
+ * @param msg 提示内容
+ * @param type 提示类型 (success/error)
+ */
 function showStatus(msg: string, type = "success") {
   els.status.textContent = msg;
   els.status.className = type === "success" ? "status-success" : "status-error";
@@ -79,8 +90,11 @@ function showStatus(msg: string, type = "success") {
   }, 3000);
 }
 
+/**
+ * 从 Storage 恢复并显示保存的配置项
+ */
 async function restoreOptions() {
-  // Load defaults from local storage (synced from VS Code)
+  // 从 Local Storage 加载由 VS Code 网关同步的默认选择器，并只读展示
   const localItems = await chrome.storage.local.get(["defaultSelectors"]);
   const defaults = localItems.defaultSelectors;
   if (defaults) {
@@ -89,25 +103,32 @@ async function restoreOptions() {
     els.defaultSelectors.value = "No defaults received yet. Connect to VS Code first.";
   }
 
-  // Load user overrides from sync storage
+  // 从 Sync Storage 加载用户自定义的配置数据
   const syncItems = await chrome.storage.sync.get(["customSelectors", "user_rules"]);
   const config = syncItems.customSelectors || {};
+  // 如果没有配置，显示一个空的 JSON 对象结构作为模板
   els.selectors.value = Object.keys(config).length > 0 ? JSON.stringify(config, null, 2) : "{\n  \n}";
   els.userRules.value = syncItems.user_rules || "";
 }
 
+/**
+ * 保存用户的自定义配置到 Sync Storage
+ */
 async function saveOptions() {
   const jsonString = els.selectors.value.trim();
   let config = {};
+  // 仅在用户输入了有效的 JSON 时进行解析和保存
   if (jsonString && jsonString !== "{}" && jsonString !== "{\n  \n}") {
     try {
       config = JSON.parse(jsonString);
     } catch (e: any) {
+      // 捕获 JSON 格式错误并提示
       showStatus(t("error_json") + " " + e.message, "error");
       return;
     }
   }
 
+  // 写入存储
   await chrome.storage.sync.set({
     customSelectors: config,
     user_rules: els.userRules.value
@@ -115,7 +136,11 @@ async function saveOptions() {
   showStatus(t("saved"), "success");
 }
 
+/**
+ * 清空用户的自定义配置恢复到出厂默认状态
+ */
 async function resetOptions() {
+  // 需要用户二次确认以防止误操作
   if (confirm(t("reset_confirm"))) {
     els.selectors.value = "{\n  \n}";
     els.userRules.value = "";
@@ -124,6 +149,7 @@ async function resetOptions() {
   }
 }
 
+// 页面加载完成后初始化 UI 和数据
 document.addEventListener("DOMContentLoaded", () => {
   initUI();
   restoreOptions();
