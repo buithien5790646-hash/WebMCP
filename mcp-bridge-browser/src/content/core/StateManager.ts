@@ -2,7 +2,7 @@ import { ConfigState, ExtensionMessage } from '../../types';
 import { StorageService } from '../../core/storage';
 import { Messenger } from '../../core/messenger';
 import { i18n, t } from '../../core/i18n';
-import { globalLoggerRef } from '../../components/Logger';
+import {  LoggerRef  } from '../../components/Logger';
 
 /**
  * 网站 DOM 元素选择器配置接口
@@ -121,7 +121,7 @@ export class StateManager {
             this.activeSelectors[platform] = { ...defaults[platform], ...custom[platform] };
           }
           this.updateDOMConfig();
-          globalLoggerRef?.log(t("config_updated"), "action");
+          LoggerRef.current?.log(t("config_updated"), "action");
         });
       }
     }
@@ -129,7 +129,7 @@ export class StateManager {
     if (namespace === "local") {
       if (changes[`allowed_tools_${this.currentWorkspaceId}`]) {
         this.allowedTools = new Set(changes[`allowed_tools_${this.currentWorkspaceId}`].newValue || []);
-        globalLoggerRef?.log(`Allowed tools updated (Workspace: ${this.currentWorkspaceId})`, "action");
+        LoggerRef.current?.log(`Allowed tools updated (Workspace: ${this.currentWorkspaceId})`, "action");
       }
     }
   }
@@ -137,11 +137,11 @@ export class StateManager {
   /**
    * 处理 Extension 跨脚本消息
    */
-  private static handleMessage(req: ExtensionMessage) {
+  private static handleMessage(req: ExtensionMessage) { 
     // 切换日志悬浮窗的显示状态
     if (req.type === "TOGGLE_LOG") {
-      globalLoggerRef?.toggle(req.show);
-      globalLoggerRef?.log("Logger Visible: " + req.show, "info");
+      LoggerRef.current?.toggle(req.show);
+      LoggerRef.current?.log("Logger Visible: " + req.show, "info");
     }
 
     // 接收连接状态更新
@@ -154,7 +154,7 @@ export class StateManager {
 
       // 只有在状态发生翻转时才执行初始化动作
       if (this.isClientConnected !== wasConnected) {
-        globalLoggerRef?.log(`[MCP] Connection Status: ${this.isClientConnected ? "Connected" : "Disconnected"}`, "info");
+        LoggerRef.current?.log(`[MCP] Connection Status: ${this.isClientConnected ? "Connected" : "Disconnected"}`, "info");
 
         // 当重新连接时，拉取对应工作区的白名单和最新的提示词资源
         if (this.isClientConnected) {

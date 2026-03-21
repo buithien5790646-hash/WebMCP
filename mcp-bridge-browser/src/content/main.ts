@@ -5,7 +5,7 @@ import { ToolParser } from './core/ToolParser';
 import { ToolExecutor } from './core/ToolExecutor';
 import { ResponseBatcher } from './core/ResponseBatcher';
 import { renderInShadow } from '../components/render';
-import { Logger, globalLoggerRef } from '../components/Logger';
+import {  Logger, LoggerRef  } from '../components/Logger';
 import { Messenger } from '../core/messenger';
 
 /**
@@ -63,7 +63,7 @@ async function bootstrap() {
   const statusResp = await Messenger.getStatus();
   if (statusResp && statusResp.connected) {
     StateManager.isClientConnected = true;
-    globalLoggerRef?.log(`WebMCP activated for ${currentPlatform} (Connected)`, "info");
+    LoggerRef.current?.log(`WebMCP activated for ${currentPlatform} (Connected)`, "info");
     // 连接正常，启动 DOM 轮询观察器
     observer.start();
   } else {

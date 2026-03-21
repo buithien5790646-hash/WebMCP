@@ -19,7 +19,7 @@ interface LoggerState {
 }
 
 // 暴露给全局的引用，方便非 React 代码直接调用其 log() 方法
-export let globalLoggerRef: Logger | null = null;
+export const LoggerRef = { current: null as Logger | null };
 
 // 解决 TypeScript 编译器中 h 函数未被使用的误报警告
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -47,7 +47,7 @@ export class Logger extends Component<LoggerProps, LoggerState> {
       position: { left: 'auto', top: '20px', right: '20px' },
       isDragging: false
     };
-    globalLoggerRef = this;
+    LoggerRef.current = this;
   }
 
   /** 组件更新生命周期钩子 */

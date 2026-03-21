@@ -1,5 +1,5 @@
 import { RawBlockEvent } from './MessageObserver';
-import { globalLoggerRef } from '../../components/Logger';
+import {  LoggerRef  } from '../../components/Logger';
 import { t } from '../../core/i18n';
 
 // 匹配常见的非标准空白字符，包括不换行空格（\u00a0）、零宽空格等，以便正确解析 JSON
@@ -64,7 +64,7 @@ export class ToolParser {
         if (!isKnown) {
           this.processedRequests.add(payload.request_id);
           this.markVisualProcessing(element);
-          globalLoggerRef?.log(`${t("captured")}: ${payload.name}`, "info");
+          LoggerRef.current?.log(`${t("captured")}: ${payload.name}`, "info");
           onNewCall(payload, element);
         }
       }
@@ -89,7 +89,7 @@ export class ToolParser {
       } else {
         // 如果内容长时间没有变化且仍无法解析，说明确实出错了（或 AI 生成被中断）
         if (now - state.time > STABILIZATION_TIMEOUT && !state.errorNotified) {
-          globalLoggerRef?.log("JSON Parse Error (Stable): " + e.message, "error");
+          LoggerRef.current?.log("JSON Parse Error (Stable): " + e.message, "error");
           this.markVisualError(element);
           chrome.runtime.sendMessage({
             type: "SHOW_NOTIFICATION",

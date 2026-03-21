@@ -1,6 +1,6 @@
 import { StateManager } from './StateManager';
 import { PlatformAdapter } from './PlatformAdapter';
-import { globalLoggerRef } from '../../components/Logger';
+import {  LoggerRef  } from '../../components/Logger';
 import { i18n, t } from '../../core/i18n';
 
 /**
@@ -148,7 +148,7 @@ export class MessageObserver {
         inputEl.innerText = finalPrompt;
         // 触发输入事件，让网页前端框架感知到内容的填充
         inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-        globalLoggerRef?.log(t("auto_filled"), "action");
+        LoggerRef.current?.log(t("auto_filled"), "action");
       }
     }
   }

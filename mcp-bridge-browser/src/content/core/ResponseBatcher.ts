@@ -1,6 +1,6 @@
 import { PlatformAdapter } from './PlatformAdapter';
 import { StateManager } from './StateManager';
-import { globalLoggerRef } from '../../components/Logger';
+import {  LoggerRef  } from '../../components/Logger';
 import { t } from '../../core/i18n';
 
 /**
@@ -61,7 +61,7 @@ export class ResponseBatcher {
 
       // 如果有实质内容需要输出，且 DOM 选择器已准备好
       if (hasUnflushedContent && StateManager.DOM) {
-        globalLoggerRef?.log(`Batch finished: ${orderedResults.length} tools. Writing...`, "success");
+        LoggerRef.current?.log(`Batch finished: ${orderedResults.length} tools. Writing...`, "success");
 
         // 将所有结果通过双换行符拼接后回填到网页输入框
         this.adapter.writeToInput(orderedResults.join("\n\n"));
@@ -92,7 +92,7 @@ export class ResponseBatcher {
 
       // 每隔 3 秒打印一次等待进度，避免刷屏
       if (statusStr !== this.lastProgressStatus || now - this.lastProgressLogTime > 3000) {
-        globalLoggerRef?.log(`${t("waiting_tools")} (${statusStr})`, "warn");
+        LoggerRef.current?.log(`${t("waiting_tools")} (${statusStr})`, "warn");
         this.lastProgressStatus = statusStr;
         this.lastProgressLogTime = now;
       }

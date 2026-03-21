@@ -1,6 +1,6 @@
 import { ParsedToolCall } from './ToolParser';
 import { StateManager } from './StateManager';
-import { globalLoggerRef } from '../../components/Logger';
+import {  LoggerRef  } from '../../components/Logger';
 import { i18n, t } from '../../core/i18n';
 import { Messenger } from '../../core/messenger';
 import { renderInShadow } from '../../components/render';
@@ -38,7 +38,7 @@ export class ToolExecutor {
       let finalPrompt = i18n.resources.prompt || "";
       if (StateManager.userRules) { finalPrompt += `\n\n=== User Rules ===\n${StateManager.userRules}`; }
 
-      globalLoggerRef?.log("Initializing WebMCP via /webmcp command", "action");
+      LoggerRef.current?.log("Initializing WebMCP via /webmcp command", "action");
 
       // 将结果写入缓冲区，移除执行状态并通知完成
       this.resultBuffer.set(payload.request_id, finalPrompt);
@@ -58,7 +58,7 @@ export class ToolExecutor {
     // HITL (Human-in-the-Loop) 安全机制检查：
     // 如果工具不在允许白名单中，加入审批队列并唤起人工审批弹窗
     if (!StateManager.allowedTools.has(payload.name)) {
-      globalLoggerRef?.log(`${t("hitl_intercept")}: ${payload.name}`, "warn");
+      LoggerRef.current?.log(`${t("hitl_intercept")}: ${payload.name}`, "warn");
       this.confirmationQueue.push(payload);
       this.processConfirmationQueue();
       return;
@@ -80,7 +80,7 @@ export class ToolExecutor {
 
       // 处理执行成功的结果
       if (response && response.success) {
-        globalLoggerRef?.log(`${t("exec_success")}: ${payload.name}`, "success");
+        LoggerRef.current?.log(`${t("exec_success")}: ${payload.name}`, "success");
         let finalData = response.data;
 
         // 对 list_tools 的特殊处理：向工具列表中注入客户端内置的虚拟工具定义
@@ -114,7 +114,7 @@ export class ToolExecutor {
         outputContent = finalData;
       } else {
         // 处理执行失败的结果
-        globalLoggerRef?.log(`${t("exec_fail")}: ${response.error}`, "error");
+        LoggerRef.current?.log(`${t("exec_fail")}: ${response.error}`, "error");
         outputContent = `❌ Error: ${response.error}`;
       }
 
@@ -131,7 +131,7 @@ export class ToolExecutor {
    */
   private finishVirtualTool(payload: ParsedToolCall) {
     const msg = payload.arguments?.message || "Task Completed";
-    globalLoggerRef?.log(`🔔 Notification: ${msg}`, "action");
+    LoggerRef.current?.log(`🔔 Notification: ${msg}`, "action");
     Messenger.showNotification("WebMCP Task Finished", msg);
     this.activeExecutions.delete(payload.request_id);
     this.resultBuffer.set(payload.request_id, "");
@@ -209,7 +209,7 @@ export class ToolExecutor {
           const key = `allowed_tools_${StateManager.currentWorkspaceId}`;
           // 持久化保存到 Storage
           chrome.storage.local.set({ [key]: Array.from(StateManager.allowedTools) });
-          globalLoggerRef?.log(`⚡ Tool '${payload.name}' set to Always Allow in this workspace`, "action");
+          LoggerRef.current?.log(`⚡ Tool '${payload.name}' set to Always Allow in this workspace`, "action");
         }
 
         // 继续执行请求
@@ -227,7 +227,7 @@ export class ToolExecutor {
         const inputEl = StateManager.DOM ? document.querySelector(StateManager.DOM.inputArea) as HTMLElement : null;
         if (inputEl) { inputEl.focus(); }
 
-        globalLoggerRef?.log(`${t("hitl_rejected")}: ${payload.name}`, "error");
+        LoggerRef.current?.log(`${t("hitl_rejected")}: ${payload.name}`, "error");
 
         // 生成拒绝的错误返回结果给 AI，包含用户填写的拒绝理由
         this.saveToBuffer(payload.request_id, `User rejected execution. Reason: ${reason || "No reason provided."}`, true);

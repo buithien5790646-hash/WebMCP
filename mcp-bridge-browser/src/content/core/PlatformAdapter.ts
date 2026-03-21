@@ -1,5 +1,5 @@
 import { StateManager, SiteSelectors } from './StateManager';
-import { globalLoggerRef } from '../../components/Logger';
+import {  LoggerRef  } from '../../components/Logger';
 import { t } from '../../core/i18n';
 
 /**
@@ -32,7 +32,7 @@ export abstract class PlatformAdapter {
   protected internalWriteToInputBox(text: string, inputSelector: string) {
     const inputEl = document.querySelector(inputSelector) as HTMLElement | HTMLInputElement | HTMLTextAreaElement;
     if (!inputEl) {
-      globalLoggerRef?.log(t("input_not_found"), "error");
+      LoggerRef.current?.log(t("input_not_found"), "error");
       return;
     }
 
@@ -62,7 +62,7 @@ export abstract class PlatformAdapter {
       // 触发输入事件，让前端框架捕获到值的改变
       inputEl.dispatchEvent(new Event("input", { bubbles: true }));
     }
-    globalLoggerRef?.log(t("result_written"), "action");
+    LoggerRef.current?.log(t("result_written"), "action");
   }
 
   /**
@@ -87,7 +87,7 @@ export abstract class PlatformAdapter {
 
       // 检查输入框是否为空，如果为空说明之前已经成功发送（框架清空了输入框）
       if (currentVal.trim().length === 0) {
-        globalLoggerRef?.log(t("send_success_cleared"), "success");
+        LoggerRef.current?.log(t("send_success_cleared"), "success");
         return;
       }
 
@@ -100,11 +100,11 @@ export abstract class PlatformAdapter {
       if (btn && !btn.disabled) {
         btn.focus();
         btn.click();
-        globalLoggerRef?.log(`${t("auto_send_attempt")} (${retryCount + 1})`, "action");
+        LoggerRef.current?.log(`${t("auto_send_attempt")} (${retryCount + 1})`, "action");
       } else if (!btn) {
-        globalLoggerRef?.log(t("send_btn_missing"), "warn");
+        LoggerRef.current?.log(t("send_btn_missing"), "warn");
       } else {
-        globalLoggerRef?.log(t("send_btn_disabled"), "warn");
+        LoggerRef.current?.log(t("send_btn_disabled"), "warn");
       }
 
       // 轮询重试机制
@@ -112,7 +112,7 @@ export abstract class PlatformAdapter {
       if (retryCount < maxRetries) {
         setTimeout(trySend, 2000);
       } else {
-        globalLoggerRef?.log(t("auto_send_timeout"), "error");
+        LoggerRef.current?.log(t("auto_send_timeout"), "error");
         chrome.runtime.sendMessage({
           type: "SHOW_NOTIFICATION",
           title: "Auto-Send Failed",
