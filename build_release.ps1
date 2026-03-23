@@ -8,6 +8,10 @@ if (!(Get-Command "pnpm" -ErrorAction SilentlyContinue)) {
     Write-Error "pnpm is required but not found in PATH."
     exit 1
 }
+if (!(Get-Command "tar" -ErrorAction SilentlyContinue)) {
+    Write-Error "tar (tar.exe) is required but not found in PATH. It is built-in to Windows 10/11."
+    exit 1
+}
 
 # 2. Create/Clean release directory
 if (Test-Path "release") {
@@ -67,9 +71,12 @@ $releasePath = Join-Path (Get-Location) "..\release\$browserName"
 
 Write-Host "[*] Zipping dist folder to $browserName..." -ForegroundColor Cyan
 
-# Use .NET Compression
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory($distPath, $releasePath)
+# Use built-in tar.exe to create a zip file with proper forward slash path separators
+# Note: Chromium-based browsers require forward slashes in extension zip files.
+# PowerShell's Compress-Archive uses backslashes which breaks the extension loading.
+Push-Location $distPath
+tar.exe -a -c -f "$releasePath" *
+Pop-Location
 
 if (Test-Path $releasePath) {
     Write-Host "[OK] Browser Extension built: release\$browserName" -ForegroundColor Green

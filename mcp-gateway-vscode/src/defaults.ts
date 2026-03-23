@@ -4,6 +4,8 @@ import trainEn from '../prompts/train_en.md';
 import trainZh from '../prompts/train_zh.md';
 import errorHintEn from '../prompts/error_hint_en.md';
 import errorHintZh from '../prompts/error_hint_zh.md';
+import initEn from '../prompts/init_en.md';
+import initZh from '../prompts/init_zh.md';
 
 export const DEFAULT_SELECTORS = {
   deepseek: {
@@ -43,5 +45,7 @@ export const PROMPTS = {
   train_en: trainEn,
   train_zh: trainZh,
   error_hint_en: errorHintEn,
-  error_hint_zh: errorHintZh
+  error_hint_zh: errorHintZh,
+  init_en: initEn,
+  init_zh: initZh
 };
