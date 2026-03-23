@@ -9,8 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@webmcp/shared": "workspace:*",
-    "preact": "^10.19.0"
+    "@webmcp/shared": "workspace:*"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "2.0.0-beta.23",
